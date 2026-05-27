@@ -4,6 +4,8 @@ import { fileURLToPath } from "url";
 
 /** Next project directory (lifenode-os), not the parent folder also named `app`. */
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+/** Monorepo/workspace root (LifeNodeOS) */
+const workspaceRoot = path.resolve(projectRoot, "..", "..");
 
 const nextConfig: NextConfig = {
   experimental: {
@@ -14,7 +16,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["html-to-text"],
   transpilePackages: ["@excalidraw/excalidraw"],
   turbopack: {
-    root: projectRoot,
+    // Vercel sets outputFileTracingRoot to the workspace root for monorepos.
+    // Keep turbopack.root aligned to avoid root mismatch warnings during build.
+    root: process.env.VERCEL ? workspaceRoot : projectRoot,
     /** Turbopack otherwise resolves `tailwindcss` from `LifeNodeOS/app` and fails (no node_modules). */
     resolveAlias: {
       tailwindcss: path.join(projectRoot, "node_modules/tailwindcss"),
