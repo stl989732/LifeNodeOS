@@ -1,0 +1,53 @@
+{
+  "name": "lifenode-os",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.cjs",
+    "dev:clean": "node scripts/clean-next.cjs && node scripts/dev.cjs",
+    "build": "next build",
+    "prestart": "node scripts/ensure-build.cjs",
+    "start": "node scripts/start.cjs",
+    "clean": "node scripts/clean-next.cjs",
+    "lint": "eslint",
+    "supabase:link": "node scripts/supabase-link.cjs",
+    "db:push": "node scripts/supabase-db-push.cjs"
+  },
+  "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.0",
+    "@supabase/supabase-js": "^2.105.4",
+    "@tiptap/extension-color": "^3.23.4",
+    "@tiptap/extension-font-family": "^3.23.4",
+    "@tiptap/extension-highlight": "^3.23.4",
+    "@tiptap/extension-text-style": "^3.23.4",
+    "@tiptap/extension-underline": "^3.23.4",
+    "@tiptap/html": "^3.23.4",
+    "@tiptap/pm": "^3.23.4",
+    "@tiptap/react": "^3.23.4",
+    "@tiptap/starter-kit": "^3.23.4",
+    "bcryptjs": "^2.4.3",
+    "docx": "^9.6.1",
+    "html-to-text": "^10.0.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.14.0",
+    "next": "16.2.4",
+    "next-auth": "^5.0.0-beta.25",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "kill-port": "^2.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,492 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  /* LifeNode OS shell (overridden per node theme on <html>) */
+  --ln-surface: #ffffff;
+  --ln-text: #1e293b;
+  /* Clears fixed NodeNavChrome (Back + LifeNode Dashboard) on gated node pages */
+  --ln-node-nav-chrome-block: 3.75rem;
+}
+
+/* Deep Onyx — BizNode, ProNode, TraderNode */
+html[data-lifenode-theme="deep-onyx"] {
+  --ln-surface: #0b0f17;
+  --ln-text: #e2e8f0;
+  --background: #0b0f17;
+  --foreground: #e2e8f0;
+}
+
+/* Studio Gray — VANode, VitalNode */
+html[data-lifenode-theme="studio-gray"] {
+  --ln-surface: #1a1f27;
+  --ln-text: #f1f5f9;
+  --background: #1a1f27;
+  --foreground: #f1f5f9;
+}
+
+/* Landing — Grainy Dawn (light; transparent shell) */
+html[data-lifenode-theme="grainy-dawn"] {
+  --ln-surface: transparent;
+  --ln-text: #1e293b;
+  --background: #ffffff;
+  --foreground: #0f172a;
+}
+
+/* HomeNode + Kitchen — Crisp Mint & Cream (shared) */
+html[data-lifenode-theme="mint-cream"] {
+  --ln-surface: transparent;
+  --ln-text: #1e293b;
+  --background: #f1ffea;
+  --foreground: #1e293b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-outfit: var(--font-outfit), "Outfit", system-ui, sans-serif;
+  --font-playfair: var(--font-playfair), "Playfair Display", Georgia, serif;
+  --font-dm-sans: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-lifenode-theme="deep-onyx"],
+  html[data-lifenode-theme="studio-gray"] {
+    color-scheme: dark;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Settings — UI density (compact vs spacious / Notion-like) */
+html[data-lifenode-density="compact"] {
+  --ln-space-unit: 0.75rem;
+  --ln-radius-card: 0.75rem;
+}
+
+html[data-lifenode-density="spacious"] {
+  --ln-space-unit: 1rem;
+  --ln-radius-card: 1rem;
+}
+
+html[data-lifenode-density="compact"] .ln-density-pad {
+  padding: calc(var(--ln-space-unit) * 0.75);
+}
+
+html[data-lifenode-density="spacious"] .ln-density-pad {
+  padding: calc(var(--ln-space-unit) * 1.25);
+}
+
+/* Node Gallery — hat cards (used with Tailwind utilities in `NodeGalleryModal`) */
+.ln-hat-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.ln-hat-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(0, 255, 200, 0.5);
+  box-shadow: 0 0 20px rgba(0, 255, 200, 0.2);
+}
+
+/* Landing — Grainy Dawn mesh + soft dust grain */
+.grainy-dawn-bg {
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 25%, rgba(130, 230, 170, 0.25) 0%, transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(250, 235, 160, 0.3) 0%, transparent 50%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.9));
+  background-attachment: fixed;
+}
+
+.grainy-dawn-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.018'/%3E%3C/svg%3E");
+}
+
+.grainy-dawn-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* HomeNode + Kitchen — Crisp Mint & Cream (shared module background) */
+.kitchen-mint-cream-bg,
+.mint-cream-module-bg {
+  min-height: 100vh;
+  background: linear-gradient(
+    to bottom,
+    rgba(230, 252, 199, 1) 0%,
+    rgba(241, 255, 234, 1) 100%
+  );
+  background-attachment: fixed;
+}
+
+.kitchen-glass-panel,
+.glass-card {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 28px rgba(110, 140, 100, 0.12);
+}
+
+.glass-card {
+  border-radius: 24px;
+}
+
+.glass-card--active {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 0 24px rgba(173, 214, 162, 0.35),
+    0 8px 32px 0 rgba(110, 140, 100, 0.2);
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+/* LifePulse — AI-Enhanced Planner sunrise mesh */
+.aura-planner-bg {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(165, 199, 231, 0.55) 0%, transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(252, 211, 192, 0.5) 0%, transparent 48%),
+    radial-gradient(circle at 72% 78%, rgba(232, 196, 224, 0.45) 0%, transparent 45%),
+    radial-gradient(circle at 28% 82%, rgba(210, 196, 217, 0.4) 0%, transparent 50%),
+    linear-gradient(165deg, #eef4fb 0%, #faf0ec 45%, #f3eaf5 100%);
+  background-attachment: fixed;
+}
+
+/* BizNode — Deal-Triage dark frosted glass */
+.biz-deal-glass {
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* VitalNode — Biological Pulse breathing glow by resilience tier */
+@keyframes vital-pulse-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--vital-glow, rgba(16, 185, 129, 0.35));
+  }
+  50% {
+    box-shadow: 0 0 28px 6px var(--vital-glow, rgba(16, 185, 129, 0.22));
+  }
+}
+
+.vital-pulse-breathe {
+  animation: vital-pulse-breathe 3.5s ease-in-out infinite;
+}
+
+.vital-pulse-breathe--high {
+  --vital-glow: rgba(16, 185, 129, 0.45);
+}
+
+.vital-pulse-breathe--mid {
+  --vital-glow: rgba(14, 165, 233, 0.42);
+}
+
+.vital-pulse-breathe--low {
+  --vital-glow: rgba(245, 158, 11, 0.45);
+}
+
+/* Global flare protocol — subtle recovery tint */
+.vital-flare-dashboard {
+  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.18);
+  border-radius: 1.5rem;
+}
+
+.vital-flare-dashboard::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(ellipse at top, rgba(244, 63, 94, 0.06), transparent 55%);
+}
+
+/* VitalNode — Wind Down sanctuary */
+@keyframes vital-winddown-gradient {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes vital-winddown-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes vital-winddown-moon-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes vital-winddown-music-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.08);
+  }
+}
+
+@keyframes vital-winddown-breath-inhale {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+}
+
+@keyframes vital-winddown-breath-hold {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes vital-winddown-breath-exhale {
+  0% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(0.5);
+    opacity: 0.4;
+  }
+}
+
+@keyframes vital-winddown-thought-fly {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(50vw - 4rem), calc(-40vh + 2rem)) scale(0.35);
+  }
+}
+
+.vital-winddown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  background: rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+}
+
+.vital-winddown-sanctuary {
+  position: fixed;
+  inset: 0;
+  z-index: 56;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: linear-gradient(
+    135deg,
+    #0f172a 0%,
+    #1e1b4b 28%,
+    #292524 52%,
+    #431407 78%,
+    #1e1b4b 100%
+  );
+  background-size: 240% 240%;
+  animation: vital-winddown-gradient 28s ease-in-out infinite;
+}
+
+.vital-winddown-sanctuary--circadian {
+  background: linear-gradient(
+    145deg,
+    #292524 0%,
+    #78350f 35%,
+    #c2410c 55%,
+    #451a03 80%,
+    #1c1917 100%
+  );
+  background-size: 220% 220%;
+}
+
+.vital-winddown-sanctuary--flare {
+  background: linear-gradient(
+    135deg,
+    #1c1917 0%,
+    #7f1d1d 30%,
+    #9a3412 55%,
+    #431407 75%,
+    #292524 100%
+  );
+  background-size: 240% 240%;
+}
+
+.vital-winddown-sanctuary--music-pulse {
+  animation:
+    vital-winddown-gradient 28s ease-in-out infinite,
+    vital-winddown-music-pulse var(--winddown-bpm-period, 1s) ease-in-out infinite;
+}
+
+.vital-winddown-waveform {
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.vital-winddown-stars {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 60% 70%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1px 1px at 80% 10%, rgba(255, 255, 255, 0.55), transparent),
+    radial-gradient(1px 1px at 90% 60%, rgba(255, 255, 255, 0.45), transparent),
+    radial-gradient(1px 1px at 33% 85%, rgba(255, 255, 255, 0.5), transparent);
+  background-size: 200% 200%;
+  animation: vital-winddown-star-twinkle 6s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+.vital-winddown-moon {
+  pointer-events: none;
+  position: absolute;
+  top: 12%;
+  right: 18%;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(254, 243, 199, 0.35), transparent 65%);
+  box-shadow: 0 0 80px 20px rgba(251, 191, 36, 0.12);
+  animation: vital-winddown-moon-glow 8s ease-in-out infinite;
+}
+
+.vital-winddown-breath-ring {
+  width: 9rem;
+  height: 9rem;
+  border-radius: 50%;
+  border: 2px solid rgba(251, 191, 36, 0.35);
+  box-shadow:
+    0 0 40px rgba(251, 191, 36, 0.25),
+    inset 0 0 30px rgba(251, 191, 36, 0.08);
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.12), transparent 70%);
+}
+
+.vital-winddown-breath-ring--inhale {
+  animation: vital-winddown-breath-inhale 4s ease-in-out forwards;
+}
+
+.vital-winddown-breath-ring--hold {
+  animation: vital-winddown-breath-hold 2s ease-in-out forwards;
+}
+
+.vital-winddown-breath-ring--exhale {
+  animation: vital-winddown-breath-exhale 6s ease-in-out forwards;
+}
+
+.vital-winddown-fly-thought {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 80;
+  max-width: 16rem;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.75);
+  font-size: 0.75rem;
+  color: rgba(254, 243, 199, 0.9);
+  pointer-events: none;
+  animation: vital-winddown-thought-fly 1.35s ease-in forwards;
+}
+
+/* VANode invoice — print only the preview card (see #printable-invoice) */
+@media print {
+  html[data-va-print="invoice"] body * {
+    visibility: hidden;
+  }
+  html[data-va-print="invoice"] #printable-invoice,
+  html[data-va-print="invoice"] #printable-invoice * {
+    visibility: visible;
+  }
+  html[data-va-print="invoice"] #printable-invoice {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 24px;
+    background: #fff !important;
+    color: #0f172a !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* ProNode Smart Vault — print only cloned editor canvas */
+  html[data-ln-print="vault"] body * {
+    visibility: hidden;
+  }
+  html[data-ln-print="vault"] #pro-vault-print-mount {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    clip-path: unset;
+    z-index: 99999;
+  }
+  html[data-ln-print="vault"] #pro-vault-print-root,
+  html[data-ln-print="vault"] #pro-vault-print-root * {
+    visibility: visible;
+  }
+  html[data-ln-print="vault"] #pro-vault-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 24px;
+    background: #fff !important;
+    color: #0f172a !important;
+  }
+}

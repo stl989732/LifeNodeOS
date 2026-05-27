@@ -1,0 +1,12 @@
+# Secret JSON keys
+lifenodeos-key
+.env
+.env.local
+
+# Supabase CLI local state (project-ref is committed at supabase/project-ref)
+supabase/.temp/
+supabase/.branches/
+# Google Cloud Secrets
+*.json
+!package.json
+!tsconfig.json
