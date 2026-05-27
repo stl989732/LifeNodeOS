@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { LayoutGrid, PenLine, Plus, Settings } from "lucide-react";
+import { LayoutGrid, LogOut, PenLine, Plus, Settings } from "lucide-react";
+import { signOut } from "next-auth/react";
 import GlobalWhiteboardOverlay from "./GlobalWhiteboardOverlay";
 import LifeNodeSettingsPanel from "@/src/components/settings/LifeNodeSettingsPanel";
 import {
@@ -249,18 +250,32 @@ export default function DualRailCommandCenter({
             </span>
           </button>
           {!showR2 ? (
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Open LifeNodeOS settings"
-              title="Settings"
-              className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] py-2 text-slate-600 transition hover:border-teal-400/35 hover:bg-teal-500/10 hover:text-teal-800 group-hover/rail1:justify-start dark:text-zinc-300 dark:hover:text-teal-100"
-            >
-              <Settings className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-              <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
-                Settings
-              </span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
+                aria-label="Sign out"
+                title="Sign out"
+                className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] py-2 text-slate-600 transition hover:border-rose-400/35 hover:bg-rose-500/10 hover:text-rose-900 group-hover/rail1:justify-start dark:text-zinc-300 dark:hover:text-rose-100"
+              >
+                <LogOut className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+                <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+                  Sign out
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Open LifeNodeOS settings"
+                title="Settings"
+                className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] py-2 text-slate-600 transition hover:border-teal-400/35 hover:bg-teal-500/10 hover:text-teal-800 group-hover/rail1:justify-start dark:text-zinc-300 dark:hover:text-teal-100"
+              >
+                <Settings className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+                <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+                  Settings
+                </span>
+              </button>
+            </>
           ) : null}
         </div>
       </nav>
@@ -301,7 +316,19 @@ export default function DualRailCommandCenter({
                 );
               })}
             </div>
-            <div className="mt-auto shrink-0 border-t border-solid border-white/10 pt-2">
+            <div className="mt-auto shrink-0 space-y-1 border-t border-solid border-white/10 pt-2">
+              <button
+                type="button"
+                onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
+                aria-label="Sign out"
+                title="Sign out"
+                className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] py-2.5 text-slate-600 transition hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-900 group-hover/rail2:justify-start dark:text-zinc-300 dark:hover:text-rose-100"
+              >
+                <LogOut className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/rail2:max-w-[9rem] group-hover/rail2:opacity-100">
+                  Sign out
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => setSettingsOpen(true)}

@@ -29,11 +29,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     label: "Attorney",
     nodeName: "Legal Pro",
     icon: Scale,
-    cases: [
-      "Case #882 — Miller v. SkyCorp",
-      "Deposition Notes — R. Tate",
-      "Settlement Draft — Q2",
-    ],
+    cases: [],
     knowledgeSignals: [
       "Citation: Smith v. Global has 92% argument overlap.",
       "Clio brief mentions identical timeline risk.",
@@ -50,11 +46,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     label: "Doctor",
     nodeName: "DoctorNode",
     icon: HeartPulse,
-    cases: [
-      "Patient: Sarah Chen — Intake",
-      "Post-op Review — Unit 8",
-      "Clinical Trial Packet — B12",
-    ],
+    cases: [],
     knowledgeSignals: [
       "Guideline: Similar symptom cluster in Epic Jan cohort.",
       "Drug interaction alert from uploaded allergy history.",
@@ -71,11 +63,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     label: "Engineer",
     nodeName: "EngineerNode",
     icon: Wrench,
-    cases: [
-      "RFC-219: Stream Processing",
-      "Incident 573 — Root Cause",
-      "Sprint 21 Architecture Notes",
-    ],
+    cases: [],
     knowledgeSignals: [
       "GitHub #771 references same memory bottleneck pattern.",
       "Jira epic E-34 contains prior mitigation strategy.",
@@ -92,11 +80,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     label: "Teacher",
     nodeName: "TeacherNode",
     icon: GraduationCap,
-    cases: [
-      "Unit 4 — Fractions Lesson Plan",
-      "Parent Conference — Rivera Family",
-      "Standards Map — Grade 7 ELA",
-    ],
+    cases: [],
     knowledgeSignals: [
       "Curriculum block aligns to CCSS.ELA-LITERACY.RL.7.1.",
       "Parent email sentiment trending positive this week.",
@@ -113,11 +97,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     label: "IT / Comp Eng",
     nodeName: "TechNode",
     icon: Code2,
-    cases: [
-      "Deploy — api-gateway v2.4",
-      "Incident — us-east-1 latency",
-      "Security audit — IAM policies",
-    ],
+    cases: [],
     knowledgeSignals: [
       "GitLab pipeline failed 12m after outage alert.",
       "Architecture diagram missing MFA boundary in docs.",
@@ -157,11 +137,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     label: "Designer",
     nodeName: "DesignerNode",
     icon: Palette,
-    cases: [
-      "App Redesign — Checkout Flow",
-      "Brand System — v3 Tokens",
-      "Client Review — Acme Mobile",
-    ],
+    cases: [],
     knowledgeSignals: [
       "Figma frame updated 2h ago — checkout step 3.",
       "12 Slack + Gmail comments grouped into 4 action items.",

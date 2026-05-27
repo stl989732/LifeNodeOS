@@ -1,25 +1,8 @@
 import type { ProRoleId, RedlineIssue, TimelineEvent } from "./types";
 import { contrastRatio, whiteTextFailsWcagAaOnBackground } from "./wcagContrast";
 
-const DRAFT_BY_ROLE: Record<ProRoleId, string> = {
-  legal:
-    "Phase 1 compensation shall not exceed $48,000. Payment due net-30 from signature.",
-  medical:
-    "Plan: Start amoxicillin 500mg TID for 7 days. Continue current supplements.",
-  engineering:
-    "Construction may begin immediately pending internal review. Permit status: pending.",
-  teacher:
-    "Objective: Students will compare two texts (RL.7.1). Homework: worksheet packet.",
-  tech:
-    "Architecture: public API routes bypass MFA for partner integrations.",
-  coach:
-    "Client committed to daily standups with manager; boundaries discussion deferred.",
-  designer:
-    "Checkout CTA uses #FF2200 on #FF3300 background — client approved contrast.",
-};
-
-export function getDraftForRole(role: ProRoleId): string {
-  return DRAFT_BY_ROLE[role];
+export function getDraftForRole(_role: ProRoleId): string {
+  return "";
 }
 
 export function detectRedlines(

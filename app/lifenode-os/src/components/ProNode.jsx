@@ -38,11 +38,7 @@ import { getNodeTypesForProRole } from "@/src/lib/proNode/workspaceContext";
 
 const proTheme = getNodeTheme("ProNode");
 
-const triageFeed = [
-  { title: "Partner requested revision before noon", type: "Action Required" },
-  { title: "Weekly digest from operations", type: "Review Only" },
-  { title: "Client comment on shared draft", type: "Action Required" },
-];
+const triageFeed = [];
 
 function toClock(totalSeconds) {
   const hrs = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
@@ -78,7 +74,7 @@ export default function ProNode() {
   const timelineRef = useRef(null);
 
   const roleConfig = getRoleConfig(role);
-  const [activeFile, setActiveFile] = useState(roleConfig.cases[0]);
+  const [activeFile, setActiveFile] = useState(roleConfig.cases[0] ?? "");
   const [draft, setDraft] = useState(() => getDraftForRole("legal"));
 
   const RoleIcon = roleConfig.icon;
@@ -502,7 +498,9 @@ export default function ProNode() {
                 </button>
               </div>
               <div className="space-y-4 p-5">
-                <h3 className="text-lg font-bold text-slate-900">{activeFile}</h3>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {activeFile || "New matter"}
+                </h3>
                 <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                   {briefing}
                 </p>

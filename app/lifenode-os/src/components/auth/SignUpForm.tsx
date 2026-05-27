@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { MailCheck, ShieldCheck, RefreshCw } from "lucide-react";
 import PasswordField from "@/src/components/auth/PasswordField";
+import AuthLegalFooter from "@/src/components/auth/AuthLegalFooter";
 import {
   SECURITY_QUESTION_OPTIONS,
   SECURITY_QUESTIONS_REQUIRED,
@@ -376,6 +377,7 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
           ← Back to home
         </Link>
       </p>
+      <AuthLegalFooter />
     </div>
   );
 }

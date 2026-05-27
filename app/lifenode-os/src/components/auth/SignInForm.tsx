@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { MailWarning, RefreshCw } from "lucide-react";
 import PasswordField from "@/src/components/auth/PasswordField";
+import AuthLegalFooter from "@/src/components/auth/AuthLegalFooter";
 
 type Props = {
   googleEnabled: boolean;
@@ -286,6 +287,7 @@ export function SignInForm({ googleEnabled, githubEnabled }: Props) {
           ← Back to home
         </Link>
       </p>
+      <AuthLegalFooter />
     </div>
   );
 }

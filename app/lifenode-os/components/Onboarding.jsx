@@ -544,6 +544,20 @@ export default function Onboarding() {
           </div>
         </div>
       )}
+
+      <footer className="w-full border-t border-slate-200 bg-white px-8 py-6 text-xs text-slate-500">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 sm:flex-row">
+          <div>&copy; {new Date().getFullYear()} LifeNodeOS. All rights reserved.</div>
+          <div className="flex items-center gap-6">
+            <Link href="/terms" className="transition-colors hover:text-slate-800">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="transition-colors hover:text-slate-800">
+              Privacy Policy
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

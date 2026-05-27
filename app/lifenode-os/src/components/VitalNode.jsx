@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
 import {
   Activity,
   AlertTriangle,
@@ -142,30 +144,22 @@ function getVerifiedSource(syncedApps) {
   return hit || syncedApps[0] || "Apple Health";
 }
 
-const DEFAULT_VITAL_DASH = {
-  bpm: 72,
-  spo2: 98,
-  sleepScore: 78,
-  hrv: 42,
-  steps: 6200,
-  hydrationMl: 840,
+const EMPTY_VITAL_DASH = {
+  bpm: 0,
+  spo2: 0,
+  sleepScore: 0,
+  hrv: 0,
+  steps: 0,
+  hydrationMl: 0,
   surfaceMode: "auto",
-  timeline: [
-    {
-      id: "seed-1",
-      type: "milestone",
-      title: "Baseline week",
-      date: new Date().toISOString().slice(0, 10),
-      subtitle: "Connected wearables + Kitchen bridge",
-    },
-  ],
+  timeline: [],
   symptomLogs: [],
   labResults: [],
   flareReports: [],
   sleep: { noMeals3h: false, lowLight: false, roomTemp: false },
-  clinicName: "your clinic",
-  lastMonthAvgRhr: 68,
-  thisMonthAvgRhr: 64,
+  clinicName: "",
+  lastMonthAvgRhr: 0,
+  thisMonthAvgRhr: 0,
 };
 
 function glassCard() {
@@ -176,18 +170,21 @@ function glassNight() {
   return "rounded-3xl border border-indigo-300/25 bg-slate-950/45 text-slate-100 shadow-[0_18px_50px_rgba(2,6,23,0.45)] backdrop-blur-[14px]";
 }
 
-function loadPersistedState() {
+function loadPersistedState(storageKey) {
   const defaults = {
     setupDone: false,
     onboardingStep: 1,
     syncedApps: [],
     tools: { aiHealthArchitect: true, smartVitalNotes: true },
     notes: [],
-    vitalDash: DEFAULT_VITAL_DASH,
+    vitalDash: EMPTY_VITAL_DASH,
   };
   if (typeof window === "undefined") return defaults;
   try {
-    let raw = window.localStorage.getItem(STORAGE_KEY_V3);
+    let raw = window.localStorage.getItem(storageKey);
+    if (!raw && storageKey.includes("::")) {
+      raw = window.localStorage.getItem(STORAGE_KEY_V3);
+    }
     if (!raw) raw = window.localStorage.getItem(STORAGE_KEY_V2);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
@@ -200,7 +197,7 @@ function loadPersistedState() {
         smartVitalNotes: parsed.tools?.smartVitalNotes ?? true,
       },
       notes: parsed.notes ?? [],
-      vitalDash: { ...DEFAULT_VITAL_DASH, ...(parsed.vitalDash || {}) },
+      vitalDash: { ...EMPTY_VITAL_DASH, ...(parsed.vitalDash || {}) },
     };
   } catch {
     return defaults;
@@ -227,6 +224,14 @@ function computeReadiness(d) {
 
 function buildVitalInsight(d, kitchen) {
   const lines = [];
+  const hasWearableData =
+    d.bpm > 0 || d.sleepScore > 0 || d.hrv > 0 || d.steps > 0 || d.spo2 > 0;
+  if (!hasWearableData) {
+    lines.push(
+      "Connect a wearable or health app during setup to populate vitals. Your dashboard stays empty until real data syncs in.",
+    );
+    return lines.join(" ");
+  }
   if (d.hrv < 40 && d.sleepScore < 72) {
     lines.push(
       `HRV is soft (${d.hrv} ms) while sleep score is ${d.sleepScore}. That pattern often follows a hard training day or higher sodium from dinner — check Kitchen for late heavy meals.`,
@@ -301,14 +306,32 @@ function appendNightCapture(entry) {
 }
 
 export default function VitalNode() {
-  const [initialState] = useState(() => loadPersistedState());
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
+  const storageKey = userScopedStorageKey(STORAGE_KEY_V3, userId);
 
-  const [setupDone, setSetupDone] = useState(initialState.setupDone);
-  const [onboardingStep, setOnboardingStep] = useState(initialState.onboardingStep);
-  const [syncedApps, setSyncedApps] = useState(initialState.syncedApps);
-  const [tools, setTools] = useState(initialState.tools);
-  const [notes, setNotes] = useState(initialState.notes);
-  const [vitalDash, setVitalDash] = useState(initialState.vitalDash);
+  const [storageHydrated, setStorageHydrated] = useState(false);
+  const [setupDone, setSetupDone] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(1);
+  const [syncedApps, setSyncedApps] = useState([]);
+  const [tools, setTools] = useState({
+    aiHealthArchitect: true,
+    smartVitalNotes: true,
+  });
+  const [notes, setNotes] = useState([]);
+  const [vitalDash, setVitalDash] = useState(EMPTY_VITAL_DASH);
+
+  useEffect(() => {
+    if (!userId) return;
+    const state = loadPersistedState(storageKey);
+    setSetupDone(state.setupDone);
+    setOnboardingStep(state.onboardingStep);
+    setSyncedApps(state.syncedApps);
+    setTools(state.tools);
+    setNotes(state.notes);
+    setVitalDash(state.vitalDash);
+    setStorageHydrated(true);
+  }, [userId, storageKey]);
 
   const [isWindDown, setIsWindDown] = useState(false);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPTS[0]);
@@ -384,7 +407,7 @@ export default function VitalNode() {
   }, [readiness, vitalDash.sleep, digestionOverlap]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !userId || !storageHydrated) return;
     const payload = {
       setupDone,
       onboardingStep,
@@ -393,8 +416,18 @@ export default function VitalNode() {
       notes,
       vitalDash,
     };
-    window.localStorage.setItem(STORAGE_KEY_V3, JSON.stringify(payload));
-  }, [setupDone, onboardingStep, syncedApps, tools, notes, vitalDash]);
+    window.localStorage.setItem(storageKey, JSON.stringify(payload));
+  }, [
+    userId,
+    storageKey,
+    storageHydrated,
+    setupDone,
+    onboardingStep,
+    syncedApps,
+    tools,
+    notes,
+    vitalDash,
+  ]);
 
   const toggleSync = (name) => {
     const isAdding = !syncedApps.includes(name);

@@ -703,17 +703,22 @@ export default function WorkNode() {
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
                   Pipeline Velocity
                 </p>
-                <div className="flex items-end justify-between gap-2 text-sm font-semibold text-slate-800">
-                  <span className="text-emerald-700">$124k closed-won</span>
-                  <span className="text-amber-800">$38k stalled</span>
-                </div>
-                <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full w-[68%] bg-gradient-to-r from-emerald-400 to-emerald-600" />
-                  <div className="h-full w-[32%] bg-gradient-to-r from-amber-300 to-rose-400" />
-                </div>
-                <p className="mt-2 text-[11px] text-slate-500">
-                  Live from {primaryDataTool || "CRM"} hooks — refresh via Discovery Hub.
-                </p>
+                {syncCount != null && syncCount > 0 ? (
+                  <>
+                    <div className="flex items-end justify-between gap-2 text-sm font-semibold text-slate-800">
+                      <span className="text-emerald-700">Synced from CRM</span>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      Live from {primaryDataTool || "CRM"} — {syncCount} record
+                      {syncCount === 1 ? "" : "s"} loaded.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    No pipeline data yet. Connect apps and run Sync Data to pull
+                    closed-won and stalled deals from your CRM.
+                  </p>
+                )}
               </div>
               <div className="space-y-4">
                 <div className="rounded-2xl bg-white/80 p-4">

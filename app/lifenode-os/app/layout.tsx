@@ -3,7 +3,6 @@ import { Geist, Geist_Mono, Outfit, Playfair_Display, DM_Sans } from "next/font/
 import LinoAlert from "@/src/components/LinoAlert";
 import LinoAssistantDynamic from "@/src/components/LinoAssistantDynamic";
 import { AuthProviders } from "@/src/components/AuthProviders";
-import DevModeBadge from "@/src/components/DevModeBadge";
 import NodeNavChrome from "@/src/components/NodeNavChrome";
 import { LifeNodeProvider } from "@/src/context/LifeNodeContext";
 import { WhiteboardVaultBridgeProvider } from "@/src/context/WhiteboardVaultBridgeContext";
@@ -67,7 +66,6 @@ export default function RootLayout({
                 <NodeNavChrome />
                 <LinoAlert />
                 <LinoAssistantDynamic />
-                <DevModeBadge />
               </WhiteboardVaultBridgeProvider>
             </LoadingOverlayProvider>
           </LifeNodeProvider>

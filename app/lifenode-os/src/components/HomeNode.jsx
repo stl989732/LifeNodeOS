@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
 import DualRailCommandCenter from "@/src/components/shell/DualRailCommandCenter";
 import AppCategoryRequestFooter from "@/src/components/AppCategoryRequestFooter";
 import ChefUtensilLoader from "@/src/components/ChefUtensilLoader";
@@ -76,24 +78,6 @@ const UPCOMING_ENGAGEMENT_KEY = "lifenode.homenode.upcoming-engagement.v1";
 const ACTIVITY_PREP_KEY = "lifenode.homenode.activity-prep.v1";
 
 const RECIPE_CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"];
-const DEFAULT_PACK_LIST = [
-  "Water bottle",
-  "Lunch",
-  "Permission slip",
-  "Hat",
-  "Light jacket",
-];
-/** Physical pack defaults + activity prep (Chore hub does not host pack list). */
-const ACTIVITY_PREP_PHYSICAL_DEFAULTS = [
-  ...new Set([
-    "Water bottle",
-    "Hat",
-    "Sunscreen",
-    "Healthy snack",
-    ...DEFAULT_PACK_LIST,
-  ]),
-];
-
 const HOME_APPS_PRIMARY = [
   "Google Calendar",
   "Any.do",
@@ -146,7 +130,6 @@ const PRIORITY_DETAILS = {
     "Coordinating check-ins, safety alerts, medication reminders, and shared emergency context across the household.",
 };
 
-const NATIVE_GROCERY_LIST = ["Milk", "Eggs", "Fruit", "Snacks", "Lunch boxes"];
 const NOTE_LABELS = ["Reminder", "Urgent", "School", "Health", "Finance", "General"];
 const NOTE_COLORS = [
   { name: "Sage", value: "#84A59D" },
@@ -154,17 +137,6 @@ const NOTE_COLORS = [
   { name: "Sky", value: "#60A5FA" },
   { name: "Amber", value: "#F59E0B" },
   { name: "Violet", value: "#A78BFA" },
-];
-const BUDGET_TRACKER_ITEMS = [
-  { category: "Tuition Fees", remaining: 680, total: 1200 },
-  { category: "Groceries", remaining: 290, total: 800 },
-  { category: "Kids' Discretionary Fund", remaining: 140, total: 300 },
-  { category: "Home Improvement", remaining: 560, total: 900 },
-];
-const CHORE_REWARD_ITEMS = [
-  { task: "Feed Pet", points: 20, status: "Due Today" },
-  { task: "Wipe Tables", points: 15, status: "Upcoming" },
-  { task: "Reading Time", points: 30, status: "Earned" },
 ];
 const MEAL_PRESETS = ["Comfort Stew", "Garden Grain Bowl", "Coastal Citrus Fish", "Sunrise Oat Bake"];
 
@@ -177,6 +149,9 @@ const HOME_FEATURE_DECK = [
 ];
 
 export default function HomeNode() {
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
+
   const [step, setStep] = useState(1);
   const [selectedApps, setSelectedApps] = useState([]);
   const [useNativeTools, setUseNativeTools] = useState(false);
@@ -189,16 +164,7 @@ export default function HomeNode() {
   const [calcInput, setCalcInput] = useState("");
   const [showMoreApps, setShowMoreApps] = useState(false);
   const [loginPromptApp, setLoginPromptApp] = useState("");
-  const [nativeGroceryList, setNativeGroceryList] = useState(() => {
-    if (typeof window === "undefined") return NATIVE_GROCERY_LIST;
-    try {
-      ensureNativeGrocerySeeded(NATIVE_GROCERY_LIST);
-      const g = readNativeGroceryList();
-      return g.length > 0 ? g : NATIVE_GROCERY_LIST;
-    } catch {
-      return NATIVE_GROCERY_LIST;
-    }
-  });
+  const [nativeGroceryList, setNativeGroceryList] = useState([]);
   const [savedNotes, setSavedNotes] = useState([]);
   const [noteLabel, setNoteLabel] = useState("General");
   const [noteColor, setNoteColor] = useState("#84A59D");
@@ -259,16 +225,37 @@ export default function HomeNode() {
     return () => window.removeEventListener(FLARE_MODE_CHANGED, syncFlare);
   }, []);
 
+  const scopedKeys = useMemo(
+    () => ({
+      setup: userScopedStorageKey(STORAGE_KEY, userId),
+      notes: userScopedStorageKey(NOTES_KEY, userId),
+      savedNotes: userScopedStorageKey(SAVED_NOTES_KEY, userId),
+      budget: userScopedStorageKey(BUDGET_ROWS_KEY, userId),
+      chores: userScopedStorageKey(CHORE_ROWS_KEY, userId),
+      prep: userScopedStorageKey(ACTIVITY_PREP_KEY, userId),
+      engagement: userScopedStorageKey(UPCOMING_ENGAGEMENT_KEY, userId),
+      childName: userScopedStorageKey(CHILD_NAME_KEY, userId),
+      nativeGrocery: userScopedStorageKey(NATIVE_GROCERY_STORAGE_KEY, userId),
+      recipeVault: userScopedStorageKey(RECIPE_VAULT_KEY, userId),
+    }),
+    [userId],
+  );
+
   useEffect(() => {
+    if (!userId) return;
     queueMicrotask(() => {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      const savedNotes = window.localStorage.getItem(NOTES_KEY);
-      const savedNotesList = window.localStorage.getItem(SAVED_NOTES_KEY);
-      const rawVault = window.localStorage.getItem(RECIPE_VAULT_KEY);
-      const rawBudget = window.localStorage.getItem(BUDGET_ROWS_KEY);
-      const rawChores = window.localStorage.getItem(CHORE_ROWS_KEY);
-      const rawPrep = window.localStorage.getItem(ACTIVITY_PREP_KEY);
-      const rawEng = window.localStorage.getItem(UPCOMING_ENGAGEMENT_KEY);
+      ensureNativeGrocerySeeded([], scopedKeys.nativeGrocery);
+      const g = readNativeGroceryList(scopedKeys.nativeGrocery);
+      setNativeGroceryList(g);
+
+      const saved = window.localStorage.getItem(scopedKeys.setup);
+      const savedNotes = window.localStorage.getItem(scopedKeys.notes);
+      const savedNotesList = window.localStorage.getItem(scopedKeys.savedNotes);
+      const rawVault = window.localStorage.getItem(scopedKeys.recipeVault);
+      const rawBudget = window.localStorage.getItem(scopedKeys.budget);
+      const rawChores = window.localStorage.getItem(scopedKeys.chores);
+      const rawPrep = window.localStorage.getItem(scopedKeys.prep);
+      const rawEng = window.localStorage.getItem(scopedKeys.engagement);
 
       if (savedNotes) setNotes(savedNotes);
       if (savedNotesList) {
@@ -288,7 +275,7 @@ export default function HomeNode() {
         }
       }
 
-      const cn = window.localStorage.getItem(CHILD_NAME_KEY);
+      const cn = window.localStorage.getItem(scopedKeys.childName);
 
       let setupInitialized = false;
       if (saved) {
@@ -321,14 +308,6 @@ export default function HomeNode() {
           /* ignore */
         }
       }
-      if (setupInitialized && nextBudget.length === 0) {
-        nextBudget = BUDGET_TRACKER_ITEMS.map((row) => ({
-          id: crypto.randomUUID(),
-          category: row.category,
-          remaining: row.remaining,
-          total: row.total,
-        }));
-      }
       setBudgetRows(nextBudget);
 
       let nextChores = [];
@@ -339,14 +318,6 @@ export default function HomeNode() {
         } catch {
           /* ignore */
         }
-      }
-      if (setupInitialized && nextChores.length === 0) {
-        nextChores = CHORE_REWARD_ITEMS.map((c) => ({
-          id: crypto.randomUUID(),
-          task: c.task,
-          points: c.points,
-          status: c.status,
-        }));
       }
       setChores(nextChores);
 
@@ -359,13 +330,6 @@ export default function HomeNode() {
           /* ignore */
         }
       }
-      if (setupInitialized && nextPrep.length === 0) {
-        nextPrep = ACTIVITY_PREP_PHYSICAL_DEFAULTS.map((label) => ({
-          id: crypto.randomUUID(),
-          label,
-          done: false,
-        }));
-      }
       setActivityPrepItems(nextPrep);
 
       let nextEng = null;
@@ -376,21 +340,14 @@ export default function HomeNode() {
           nextEng = null;
         }
       }
-      if (setupInitialized && !nextEng) {
-        nextEng = {
-          title: "Saturday Swim Class",
-          when: "This weekend · 9:00 AM",
-          source: "Google Calendar",
-        };
-        window.localStorage.setItem(UPCOMING_ENGAGEMENT_KEY, JSON.stringify(nextEng));
-      }
       setUpcomingEngagement(nextEng);
     });
-  }, []);
+  }, [userId, scopedKeys]);
 
   useEffect(() => {
-    writeNativeGroceryList(nativeGroceryList);
-  }, [nativeGroceryList]);
+    if (!userId) return;
+    writeNativeGroceryList(nativeGroceryList, scopedKeys.nativeGrocery);
+  }, [nativeGroceryList, userId, scopedKeys.nativeGrocery]);
 
   useEffect(() => {
     function syncGroceryFromStore() {
@@ -446,43 +403,47 @@ export default function HomeNode() {
   }, [isInitialized, recipeVault.length]);
 
   useEffect(() => {
-    window.localStorage.setItem(NOTES_KEY, notes);
-  }, [notes]);
+    if (!userId) return;
+    window.localStorage.setItem(scopedKeys.notes, notes);
+  }, [notes, userId, scopedKeys.notes]);
 
   useEffect(() => {
-    window.localStorage.setItem(SAVED_NOTES_KEY, JSON.stringify(savedNotes));
-  }, [savedNotes]);
+    if (!userId) return;
+    window.localStorage.setItem(scopedKeys.savedNotes, JSON.stringify(savedNotes));
+  }, [savedNotes, userId, scopedKeys.savedNotes]);
 
   useEffect(() => {
-    if (budgetRows.length === 0) return;
-    window.localStorage.setItem(BUDGET_ROWS_KEY, JSON.stringify(budgetRows));
-  }, [budgetRows]);
+    if (!userId) return;
+    window.localStorage.setItem(scopedKeys.budget, JSON.stringify(budgetRows));
+  }, [budgetRows, userId, scopedKeys.budget]);
 
   useEffect(() => {
-    if (chores.length === 0) return;
-    window.localStorage.setItem(CHORE_ROWS_KEY, JSON.stringify(chores));
-  }, [chores]);
+    if (!userId) return;
+    window.localStorage.setItem(scopedKeys.chores, JSON.stringify(chores));
+  }, [chores, userId, scopedKeys.chores]);
 
   useEffect(() => {
-    window.localStorage.setItem(RECIPE_VAULT_KEY, JSON.stringify(recipeVault));
-  }, [recipeVault]);
+    if (!userId) return;
+    window.localStorage.setItem(scopedKeys.recipeVault, JSON.stringify(recipeVault));
+  }, [recipeVault, userId, scopedKeys.recipeVault]);
 
   useEffect(() => {
-    window.localStorage.setItem(CHILD_NAME_KEY, childName.trim() || "Leo");
-  }, [childName]);
+    if (!userId) return;
+    window.localStorage.setItem(scopedKeys.childName, childName.trim());
+  }, [childName, userId, scopedKeys.childName]);
 
   useEffect(() => {
-    if (activityPrepItems.length === 0) return;
-    window.localStorage.setItem(ACTIVITY_PREP_KEY, JSON.stringify(activityPrepItems));
-  }, [activityPrepItems]);
+    if (!userId) return;
+    window.localStorage.setItem(scopedKeys.prep, JSON.stringify(activityPrepItems));
+  }, [activityPrepItems, userId, scopedKeys.prep]);
 
   useEffect(() => {
-    if (!upcomingEngagement) return;
+    if (!userId) return;
     window.localStorage.setItem(
-      UPCOMING_ENGAGEMENT_KEY,
+      scopedKeys.engagement,
       JSON.stringify(upcomingEngagement),
     );
-  }, [upcomingEngagement]);
+  }, [upcomingEngagement, userId, scopedKeys.engagement]);
 
   const smartCartSource = useMemo(() => {
     if (useNativeTools) return "LifeNode Native List";
@@ -626,37 +587,15 @@ export default function HomeNode() {
       selectedPriorities,
       isInitialized: true,
     };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    setBudgetRows(
-      BUDGET_TRACKER_ITEMS.map((row) => ({
-        id: crypto.randomUUID(),
-        category: row.category,
-        remaining: row.remaining,
-        total: row.total,
-      })),
-    );
-    setChores(
-      CHORE_REWARD_ITEMS.map((c) => ({
-        id: crypto.randomUUID(),
-        task: c.task,
-        points: c.points,
-        status: c.status,
-      })),
-    );
-    setActivityPrepItems(
-      ACTIVITY_PREP_PHYSICAL_DEFAULTS.map((label) => ({
-        id: crypto.randomUUID(),
-        label,
-        done: false,
-      })),
-    );
-    const defEng = {
-      title: "Saturday Swim Class",
-      when: "This weekend · 9:00 AM",
-      source: "Google Calendar",
-    };
-    setUpcomingEngagement(defEng);
-    window.localStorage.setItem(UPCOMING_ENGAGEMENT_KEY, JSON.stringify(defEng));
+    window.localStorage.setItem(scopedKeys.setup, JSON.stringify(payload));
+    setBudgetRows([]);
+    setChores([]);
+    setActivityPrepItems([]);
+    setUpcomingEngagement(null);
+    window.localStorage.setItem(scopedKeys.budget, JSON.stringify([]));
+    window.localStorage.setItem(scopedKeys.chores, JSON.stringify([]));
+    window.localStorage.setItem(scopedKeys.prep, JSON.stringify([]));
+    window.localStorage.removeItem(scopedKeys.engagement);
     setIsInitialized(true);
   }
 

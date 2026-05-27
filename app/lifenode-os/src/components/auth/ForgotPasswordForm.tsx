@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Mail, ShieldQuestion, CheckCircle2 } from "lucide-react";
+import AuthLegalFooter from "@/src/components/auth/AuthLegalFooter";
 
 type State =
   | { kind: "idle" }
@@ -157,6 +158,7 @@ export default function ForgotPasswordForm() {
           ← Back to sign in
         </Link>
       </p>
+      <AuthLegalFooter />
     </div>
   );
 }
