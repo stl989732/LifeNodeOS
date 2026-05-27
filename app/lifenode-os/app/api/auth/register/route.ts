@@ -85,15 +85,16 @@ export async function POST(request: Request) {
       user.name
     );
 
-    const exposeLink = process.env.NODE_ENV !== "production";
+    const activationLink = emailResult.link ?? null;
+    const exposeActivationLink =
+      process.env.NODE_ENV !== "production" || !emailResult.delivered;
 
     return NextResponse.json({
       ok: true,
       email: user.email,
       requiresActivation: true,
-      // In dev only: surface the link so the developer can click through
-      // without leaving the app. Never returned in production.
-      devActivationLink: exposeLink ? emailResult.link ?? null : null,
+      devActivationLink: exposeActivationLink ? activationLink : null,
+      activationLink: exposeActivationLink ? activationLink : null,
     });
   } catch (e) {
     if (e instanceof Error && ERROR_COPY[e.message]) {

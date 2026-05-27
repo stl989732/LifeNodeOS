@@ -100,6 +100,13 @@ async function dispatchEmail(_input: SendEmailInput): Promise<void> {
   );
 }
 
+function isServerlessProduction(): boolean {
+  return (
+    process.env.VERCEL === "1" ||
+    process.env.NODE_ENV === "production"
+  );
+}
+
 export async function sendEmail(
   input: SendEmailInput
 ): Promise<SendEmailResult> {
@@ -112,21 +119,43 @@ export async function sendEmail(
     }
   }
 
-  const previewPath = await writeDevPreview(input.to, input.subject, input.html);
-  console.log(
-    [
-      "──────────────────────────────────────────────────────",
-      `[LifeNode email · ${input.kind.toUpperCase()}] DEV DELIVERY`,
-      `to:      ${input.to}`,
-      `subject: ${input.subject}`,
-      input.link ? `link:    ${input.link}` : null,
-      `preview: ${previewPath}`,
-      "──────────────────────────────────────────────────────",
-    ]
-      .filter(Boolean)
-      .join("\n")
-  );
-  return { delivered: true, previewPath, link: input.link };
+  if (isServerlessProduction()) {
+    console.log(
+      [
+        "──────────────────────────────────────────────────────",
+        `[LifeNode email · ${input.kind.toUpperCase()}] LOG ONLY (no provider)`,
+        `to:      ${input.to}`,
+        `subject: ${input.subject}`,
+        input.link ? `link:    ${input.link}` : null,
+        "Set LIFENODE_EMAIL_PROVIDER_KEY + wire dispatchEmail to send real mail.",
+        "──────────────────────────────────────────────────────",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    );
+    return { delivered: false, link: input.link };
+  }
+
+  try {
+    const previewPath = await writeDevPreview(input.to, input.subject, input.html);
+    console.log(
+      [
+        "──────────────────────────────────────────────────────",
+        `[LifeNode email · ${input.kind.toUpperCase()}] DEV DELIVERY`,
+        `to:      ${input.to}`,
+        `subject: ${input.subject}`,
+        input.link ? `link:    ${input.link}` : null,
+        `preview: ${previewPath}`,
+        "──────────────────────────────────────────────────────",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    );
+    return { delivered: true, previewPath, link: input.link };
+  } catch (err) {
+    console.error("[LifeNode email] dev preview write failed:", err);
+    return { delivered: false, link: input.link };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

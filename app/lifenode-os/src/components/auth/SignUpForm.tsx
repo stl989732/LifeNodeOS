@@ -118,6 +118,7 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
         error?: string;
         email?: string;
         devActivationLink?: string | null;
+        activationLink?: string | null;
       };
       if (!res.ok || !data.ok) {
         setState({
@@ -129,7 +130,8 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
       setState({
         kind: "activate",
         email: data.email ?? email.trim(),
-        devLink: data.devActivationLink ?? null,
+        devLink:
+          data.activationLink ?? data.devActivationLink ?? null,
         resending: false,
         resent: false,
       });
@@ -185,10 +187,12 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
         </div>
 
         {state.devLink && (
-          <div className="space-y-1 rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-[11px] text-amber-100">
-            <p className="font-semibold">Dev shortcut (local only):</p>
+          <div className="space-y-1 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] text-cyan-100">
+            <p className="font-semibold">
+              Activate now (email delivery not configured yet):
+            </p>
             <a
-              className="block break-all underline text-amber-50"
+              className="block break-all underline text-cyan-50"
               href={state.devLink}
               rel="noreferrer"
             >

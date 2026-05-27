@@ -11,11 +11,23 @@ const githubConfigured =
   Boolean(process.env.GITHUB_CLIENT_ID?.trim()) &&
   Boolean(process.env.GITHUB_CLIENT_SECRET?.trim());
 
+function resolveAuthSecret(): string | undefined {
+  return (
+    process.env.AUTH_SECRET?.trim() ||
+    process.env.BETTER_AUTH_SECRET?.trim() ||
+    process.env.NEXTAUTH_SECRET?.trim()
+  );
+}
+
+const authSecret = resolveAuthSecret();
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: authSecret,
   trustHost: true,
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   pages: {
     signIn: "/auth/signin",
+    error: "/auth/error",
   },
   providers: [
     ...(googleConfigured

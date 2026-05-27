@@ -25,11 +25,14 @@ export async function POST(request: Request) {
       result.verificationToken,
       result.user.name
     );
-    const exposeLink = process.env.NODE_ENV !== "production";
+    const activationLink = emailResult.link ?? null;
+    const exposeActivationLink =
+      process.env.NODE_ENV !== "production" || !emailResult.delivered;
     return NextResponse.json({
       ok: true,
       dispatched: true,
-      devActivationLink: exposeLink ? emailResult.link ?? null : null,
+      devActivationLink: exposeActivationLink ? activationLink : null,
+      activationLink: exposeActivationLink ? activationLink : null,
     });
   } catch (e) {
     console.error("[auth/resend-verification] failed:", e);

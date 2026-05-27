@@ -2,10 +2,12 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
 
 /**
- * Credentialed account store. File-backed JSON at `data/auth-users.json`.
- * Mirrors the discipline of the rest of the persistence layer.
+ * Credentialed account store.
+ * Production (Vercel): Supabase table `credential_users` via service role.
+ * Local dev fallback: file-backed JSON at `data/auth-users.json`.
  *
  * Records carry everything needed for the activation + recovery flow:
  *   - `emailVerified` + verification token (LifeNode OS requires verification
@@ -74,6 +76,59 @@ const SECURITY_QUESTION_BY_ID = new Map(
 
 export const SECURITY_QUESTIONS_REQUIRED = 2;
 
+type SupabaseCredentialRow = {
+  id: string;
+  email: string;
+  password_hash: string;
+  name: string | null;
+  email_verified: boolean;
+  email_verification_token: TokenRecord | null;
+  password_reset_token: TokenRecord | null;
+  security_questions: SecurityQuestion[];
+  created_at: string;
+  updated_at: string;
+};
+
+function useSupabaseCredentialStore(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
+      (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+        process.env.SUPABASE_SERVICE_KEY?.trim()),
+  );
+}
+
+function userToRow(user: StoredCredentialUser): SupabaseCredentialRow {
+  return {
+    id: user.id,
+    email: user.email,
+    password_hash: user.passwordHash,
+    name: user.name,
+    email_verified: user.emailVerified,
+    email_verification_token: user.emailVerificationToken,
+    password_reset_token: user.passwordResetToken,
+    security_questions: user.securityQuestions,
+    created_at: user.createdAt,
+    updated_at: user.updatedAt,
+  };
+}
+
+function rowToUser(row: SupabaseCredentialRow): StoredCredentialUser {
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.password_hash,
+    name: row.name,
+    createdAt: row.created_at,
+    emailVerified: row.email_verified,
+    emailVerificationToken: row.email_verification_token,
+    passwordResetToken: row.password_reset_token,
+    securityQuestions: Array.isArray(row.security_questions)
+      ? row.security_questions
+      : [],
+    updatedAt: row.updated_at,
+  };
+}
+
 async function ensureStore(): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
   try {
@@ -138,6 +193,18 @@ function normalizeQuestion(raw: unknown): SecurityQuestion | null {
 }
 
 async function readUsers(): Promise<StoredCredentialUser[]> {
+  if (useSupabaseCredentialStore()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.from("credential_users").select("*");
+    if (error) {
+      console.error("[auth-users-store] Supabase read failed:", error);
+      throw error;
+    }
+    return (data ?? []).map((row) =>
+      rowToUser(row as SupabaseCredentialRow),
+    );
+  }
+
   await ensureStore();
   const raw = await fs.readFile(USERS_PATH, "utf8");
   try {
@@ -152,6 +219,18 @@ async function readUsers(): Promise<StoredCredentialUser[]> {
 }
 
 async function writeUsers(users: StoredCredentialUser[]): Promise<void> {
+  if (useSupabaseCredentialStore()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase
+      .from("credential_users")
+      .upsert(users.map(userToRow), { onConflict: "id" });
+    if (error) {
+      console.error("[auth-users-store] Supabase write failed:", error);
+      throw error;
+    }
+    return;
+  }
+
   await ensureStore();
   await fs.writeFile(USERS_PATH, JSON.stringify(users, null, 2), "utf8");
 }
