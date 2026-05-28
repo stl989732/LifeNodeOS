@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import KitchenOnboarding from "./KitchenOnboarding";
 import KitchenDashboard from "./KitchenDashboard";
-import { DEMO_ITEMS } from "./data";
 import { KITCHEN_BG_CLASS, KITCHEN_TEXT } from "@/src/lib/homeNode/kitchenMintCream";
 
 const SETUP_KEY = "lifenode.homenode.kitchen.setup.v1";
@@ -30,7 +29,7 @@ export default function KitchenHome() {
   function handleComplete(payload) {
     const merged = {
       enabledStorage: payload.enabledStorage,
-      items: DEMO_ITEMS.filter((i) => payload.enabledStorage.includes(i.storage)),
+      items: Array.isArray(payload.items) ? payload.items : [],
     };
     window.localStorage.setItem(SETUP_KEY, JSON.stringify(merged));
     setSetup(merged);

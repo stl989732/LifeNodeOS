@@ -395,6 +395,7 @@ export default function LinoOnboarding({ node }: Props) {
       }
 
       router.replace(NODE_ROUTE[node]);
+      window.dispatchEvent(new CustomEvent("lifenode:onboarding:changed"));
     } catch (e) {
       setErrorMessage(
         e instanceof Error

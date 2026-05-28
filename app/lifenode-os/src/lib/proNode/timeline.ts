@@ -206,10 +206,10 @@ export async function fetchTimelineEvents(nodeTypes: string[]): Promise<Timeline
       return rows.map(rowToEvent);
     }
   } catch {
-    /* mock fallback */
+    /* no mock fallback — blank slate until real events sync */
   }
 
-  return getTimelineForNodeTypes(nodeTypes);
+  return [];
 }
 
 export const TIMELINE_SNAPSHOT_DATES = [

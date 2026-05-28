@@ -47,6 +47,28 @@ function toClock(totalSeconds) {
   return `${hrs}:${mins}:${secs}`;
 }
 
+const BILLABLE_SESSIONS_KEY = "lifenode.pronode.billable-sessions.v1";
+
+function loadSavedBillableSessions() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(BILLABLE_SESSIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistBillableSessions(sessions) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(BILLABLE_SESSIONS_KEY, JSON.stringify(sessions));
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function ProNode() {
   const { proWorkspaceRole: role, setProWorkspaceRole } = useLifeNodeContext();
   const [setupStep, setSetupStep] = useState(1);
@@ -61,10 +83,12 @@ export default function ProNode() {
   const [timeTravelDate, setTimeTravelDate] = useState("2026-05-15");
   const [isDeepWork, setIsDeepWork] = useState(false);
   const [timersByFile, setTimersByFile] = useState({});
-  /** Billable Pulse timer on/off (independent of Auto-Timeline / Pulse toolkit). */
-  const [billablePulseEnabled, setBillablePulseEnabled] = useState(true);
+  /** Billable Pulse — off until the user explicitly starts a session. */
+  const [billablePulseEnabled, setBillablePulseEnabled] = useState(false);
+  const [billablePulsePaused, setBillablePulsePaused] = useState(false);
+  const [savedBillableSessions, setSavedBillableSessions] = useState([]);
   const [briefing, setBriefing] = useState(
-    "AI summary will appear here for a 10-second briefing."
+    "Your AI briefing will appear here once you add case context and timeline events.",
   );
 
   const [commandOpen, setCommandOpen] = useState(false);
@@ -108,7 +132,13 @@ export default function ProNode() {
   }, []);
 
   useEffect(() => {
-    if (setupStep !== 3 || !nativeToolkit.pulse || !billablePulseEnabled) return;
+    setSavedBillableSessions(loadSavedBillableSessions());
+  }, []);
+
+  useEffect(() => {
+    if (setupStep !== 3 || !nativeToolkit.pulse || !billablePulseEnabled || billablePulsePaused) {
+      return;
+    }
     const timer = setInterval(() => {
       setTimersByFile((prev) => ({
         ...prev,
@@ -116,7 +146,31 @@ export default function ProNode() {
       }));
     }, 1000);
     return () => clearInterval(timer);
-  }, [activeFile, nativeToolkit.pulse, setupStep, billablePulseEnabled]);
+  }, [activeFile, nativeToolkit.pulse, setupStep, billablePulseEnabled, billablePulsePaused]);
+
+  const saveBillableSession = useCallback(() => {
+    const seconds = timersByFile[activeFile] || 0;
+    if (!seconds) return;
+    const entry = {
+      id: crypto.randomUUID(),
+      caseTitle: activeFile || "Untitled matter",
+      role: roleConfig.label,
+      seconds,
+      savedAt: new Date().toISOString(),
+    };
+    setSavedBillableSessions((prev) => {
+      const next = [entry, ...prev].slice(0, 12);
+      persistBillableSessions(next);
+      return next;
+    });
+    setTimersByFile((prev) => ({ ...prev, [activeFile]: 0 }));
+    setBillablePulsePaused(false);
+  }, [activeFile, roleConfig.label, timersByFile]);
+
+  const toggleBillablePulse = useCallback((enabled) => {
+    setBillablePulseEnabled(enabled);
+    if (!enabled) setBillablePulsePaused(false);
+  }, []);
 
   const visibleDiscoveryGroups = useMemo(() => {
     const base = getDiscoveryCatalog(role);
@@ -522,17 +576,40 @@ export default function ProNode() {
                   </h2>
                 </div>
                 <div className="space-y-2">
-                  {roleConfig.knowledgeSignals.map((signal) => (
-                    <div
-                      key={signal}
-                      className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
-                    >
-                      {signal}
-                    </div>
-                  ))}
+                  {roleConfig.knowledgeSignals.length ? (
+                    roleConfig.knowledgeSignals.map((signal) => (
+                      <div
+                        key={signal}
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                      >
+                        {signal}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-500">
+                      Knowledge signals appear here once your stack syncs and you add case context.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+              <p className="mb-2 font-bold text-slate-800">Connected Stack</p>
+              <div className="flex flex-wrap gap-2">
+                {(connectedTools.length ? connectedTools : []).slice(0, 8).map((tool) => (
+                  <span
+                    key={tool}
+                    className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1"
+                  >
+                    {tool}
+                  </span>
+                ))}
+                {!connectedTools.length ? (
+                  <p className="text-slate-400">Connect Gmail, Slack, or role apps above.</p>
+                ) : null}
+              </div>
+            </div>
           </section>
 
           <aside
@@ -581,40 +658,78 @@ export default function ProNode() {
                     <input
                       type="checkbox"
                       checked={billablePulseEnabled}
-                      onChange={(e) => setBillablePulseEnabled(e.target.checked)}
+                      onChange={(e) => toggleBillablePulse(e.target.checked)}
                       className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-[#1E293B] accent-[#1E293B] focus:ring-2 focus:ring-slate-400 focus:ring-offset-0"
                     />
                     <span className="text-sm font-bold text-[#1E293B]">Billable Pulse</span>
                   </label>
+                  {billablePulseEnabled ? (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBillablePulsePaused((p) => !p)}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        {billablePulsePaused ? "Resume" : "Pause"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveBillableSession}
+                        disabled={!(timersByFile[activeFile] || 0)}
+                        className="rounded-lg border border-slate-900 bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 <p
                   className={`font-mono text-xl font-bold ${
-                    billablePulseEnabled ? "text-slate-900" : "text-slate-400"
+                    billablePulseEnabled && !billablePulsePaused
+                      ? "text-slate-900"
+                      : "text-slate-400"
                   }`}
                 >
-                  {billablePulseEnabled ? toClock(timersByFile[activeFile] || 0) : "—:—:—"}
+                  {billablePulseEnabled
+                    ? toClock(timersByFile[activeFile] || 0)
+                    : "—:—:—"}
                 </p>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  {billablePulseEnabled
-                    ? "Tracking time on the active case."
-                    : "Timer paused — turn on to resume billable tracking."}
+                  {!billablePulseEnabled
+                    ? "Check the box to start billable tracking for this case."
+                    : billablePulsePaused
+                      ? "Timer paused — resume or save this session."
+                      : "Tracking time on the active case."}
                 </p>
+                {activeFile ? (
+                  <p className="mt-2 text-[11px] font-medium text-slate-600">
+                    Case: {activeFile}
+                  </p>
+                ) : null}
+                {savedBillableSessions.length ? (
+                  <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Saved sessions
+                    </p>
+                    {savedBillableSessions.slice(0, 4).map((session) => (
+                      <div
+                        key={session.id}
+                        className="rounded-lg border border-slate-200 bg-slate-50 p-2.5"
+                      >
+                        <p className="text-xs font-semibold text-slate-900">
+                          {session.caseTitle}
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          {session.role} · {toClock(session.seconds)} ·{" "}
+                          {new Date(session.savedAt).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             )}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
-              <p className="mb-2 font-bold text-slate-800">Connected Stack</p>
-              <div className="flex flex-wrap gap-2">
-                {(connectedTools.length ? connectedTools : ["Gmail", "Slack"]).slice(0, 8).map((tool) => (
-                  <span
-                    key={tool}
-                    className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1"
-                  >
-                    {tool}
-                  </span>
-                ))}
-              </div>
-            </div>
           </aside>
         </div>
 

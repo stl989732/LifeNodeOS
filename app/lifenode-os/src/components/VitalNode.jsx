@@ -214,12 +214,17 @@ function getIconForApp(name) {
   return Waves;
 }
 
+function hasWearableData(d) {
+  return d.bpm > 0 || d.sleepScore > 0 || d.hrv > 0 || d.steps > 0 || d.spo2 > 0;
+}
+
 function computeReadiness(d) {
+  if (!hasWearableData(d)) return 0;
   const sleepW = d.sleepScore * 0.35;
   const hrvW = Math.min(100, d.hrv * 1.6) * 0.25;
   const rhrPenalty = d.bpm > 78 ? 12 : d.bpm < 60 ? 4 : 0;
   const base = sleepW + hrvW + (d.spo2 >= 97 ? 25 : 15) - rhrPenalty;
-  return Math.max(18, Math.min(100, Math.round(base)));
+  return Math.max(0, Math.min(100, Math.round(base)));
 }
 
 function buildVitalInsight(d, kitchen) {
@@ -334,7 +339,7 @@ export default function VitalNode() {
   }, [userId, storageKey]);
 
   const [isWindDown, setIsWindDown] = useState(false);
-  const [prompt, setPrompt] = useState(DEFAULT_PROMPTS[0]);
+  const [prompt, setPrompt] = useState("");
   const [architectOutput, setArchitectOutput] = useState("");
   const [noteInput, setNoteInput] = useState("");
   const [selectedLabel, setSelectedLabel] = useState(LABELS[0]);
@@ -398,13 +403,14 @@ export default function VitalNode() {
     (kitchenCtx.mealPlanLines.length > 0 || kitchenCtx.recentRecipeTitles.length > 0);
 
   const sleepRecoveryScore = useMemo(() => {
+    if (!hasWearableData(vitalDash)) return 0;
     let s = readiness;
     if (!vitalDash.sleep.noMeals3h) s -= 12;
     if (!vitalDash.sleep.lowLight) s -= 6;
     if (!vitalDash.sleep.roomTemp) s -= 4;
     if (digestionOverlap) s -= 10;
-    return Math.max(12, Math.min(100, Math.round(s)));
-  }, [readiness, vitalDash.sleep, digestionOverlap]);
+    return Math.max(0, Math.min(100, Math.round(s)));
+  }, [readiness, vitalDash, digestionOverlap]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !userId || !storageHydrated) return;
@@ -464,10 +470,22 @@ export default function VitalNode() {
     setNotes((prev) => prev.filter((n) => n.id !== id));
   };
 
-  const resilience = Math.min(
-    100,
-    Math.round(35 + syncedApps.length * 4 + notes.length * 2.5 + vitalDash.symptomLogs.length * 1.5),
-  );
+  const hasUserVitalActivity =
+    syncedApps.length > 0 ||
+    notes.length > 0 ||
+    vitalDash.symptomLogs.length > 0 ||
+    hasWearableData(vitalDash);
+  const resilience = hasUserVitalActivity
+    ? Math.min(
+        100,
+        Math.round(
+          syncedApps.length * 4 +
+            notes.length * 2.5 +
+            vitalDash.symptomLogs.length * 1.5 +
+            (readiness > 0 ? readiness * 0.35 : 0),
+        ),
+      )
+    : 0;
   const resilienceTone =
     resilience >= 75 ? "bg-emerald-500" : resilience >= 55 ? "bg-amber-500" : "bg-rose-500";
 
@@ -681,18 +699,22 @@ export default function VitalNode() {
     }));
   }
 
-  const momentumMode = flareActive
-    ? "Sustainability mode"
-    : readiness >= 80
-      ? "Power mode"
-      : readiness < 52
-        ? "Sustainability mode"
-        : "Steady cadence";
-  const momentumTasks = flareActive || readiness < 52
-    ? ["Light admin + inbox", "Review last night’s captured thoughts", "15-min walk + hydration"]
-    : readiness >= 80
-      ? ["Deep-work construction bid review", "Client negotiation block", "Site logistics sweep"]
-      : ["One priority task", "One health micro-win", "One relationship touchpoint"];
+  const momentumMode = !hasWearableData(vitalDash)
+    ? "Awaiting first sync"
+    : flareActive
+      ? "Sustainability mode"
+      : readiness >= 80
+        ? "Power mode"
+        : readiness < 52
+          ? "Sustainability mode"
+          : "Steady cadence";
+  const momentumTasks = !hasWearableData(vitalDash)
+    ? ["Connect a wearable or health app", "Log how you feel today", "Set your hydration goal"]
+    : flareActive || readiness < 52
+      ? ["Light admin + inbox", "Review last night's captured thoughts", "15-min walk + hydration"]
+      : readiness >= 80
+        ? ["Deep-work priority block", "Client or project focus", "Recovery micro-break"]
+        : ["One priority task", "One health micro-win", "One relationship touchpoint"];
   if (!setupDone) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-100 via-[#eef3f2] to-[#e5efee] p-6 text-slate-800">

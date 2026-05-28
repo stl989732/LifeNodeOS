@@ -6,28 +6,35 @@ import { useLifeNode } from "@/src/context/LifeNodeContext";
 /**
  * Background monitors for BizNode (leads), HomeNode (calendar), and related signals.
  * ProNode focus duration is tracked in LifeNodeContext while Pro is the active hat.
+ * Demo signal simulation runs only after Linos Alerts are armed (all hat onboardings done).
  */
 export function useLinoIntelligence() {
-  const { patchBridgeSignals, bridgeSignals, activeLogicBridgeAlerts } =
-    useLifeNode();
+  const {
+    patchBridgeSignals,
+    bridgeSignals,
+    activeLogicBridgeAlerts,
+    linoAlertsArmed,
+  } = useLifeNode();
 
-  // BizNode: simulated Lead API — unread count + time since last follow-up
   useEffect(() => {
+    if (!linoAlertsArmed) return;
+
     const id = window.setInterval(() => {
       patchBridgeSignals((s) => ({
         ...s,
         bizUnreadLeadCount: Math.min(
           24,
-          s.bizUnreadLeadCount + (Math.random() > 0.88 ? 1 : 0)
+          s.bizUnreadLeadCount + (Math.random() > 0.88 ? 1 : 0),
         ),
         bizLastFollowUpMinutesAgo: s.bizLastFollowUpMinutesAgo + 3,
       }));
     }, 9000);
     return () => window.clearInterval(id);
-  }, [patchBridgeSignals]);
+  }, [patchBridgeSignals, linoAlertsArmed]);
 
-  // HomeNode: simulated Calendar API — occasional conflict flag
   useEffect(() => {
+    if (!linoAlertsArmed) return;
+
     const id = window.setInterval(() => {
       patchBridgeSignals((s) => {
         let ev = s.homeNextEventMinutesUntil;
@@ -42,19 +49,22 @@ export function useLinoIntelligence() {
       });
     }, 14000);
     return () => window.clearInterval(id);
-  }, [patchBridgeSignals]);
+  }, [patchBridgeSignals, linoAlertsArmed]);
 
-  // Optional: enrich sandbox signals so bridges can fire in demo without manual state
   useEffect(() => {
+    if (!linoAlertsArmed) return;
+
     const id = window.setInterval(() => {
       patchBridgeSignals((s) => ({
         ...s,
         vaHighPriorityPingCount: Math.min(
           5,
-          s.vaHighPriorityPingCount + (Math.random() > 0.91 ? 1 : 0)
+          s.vaHighPriorityPingCount + (Math.random() > 0.91 ? 1 : 0),
         ),
         traderDailyPnlPercent:
-          Math.random() > 0.92 ? s.traderDailyPnlPercent - 0.35 : s.traderDailyPnlPercent,
+          Math.random() > 0.92
+            ? s.traderDailyPnlPercent - 0.35
+            : s.traderDailyPnlPercent,
         homeFridgeMilkLow: s.homeFridgeMilkLow || Math.random() > 0.93,
         homeUserNearStore: s.homeUserNearStore || Math.random() > 0.93,
         vitalSleepScore:
@@ -68,7 +78,7 @@ export function useLinoIntelligence() {
       }));
     }, 11000);
     return () => window.clearInterval(id);
-  }, [patchBridgeSignals]);
+  }, [patchBridgeSignals, linoAlertsArmed]);
 
   return {
     bizUnreadLeads: bridgeSignals.bizUnreadLeadCount,

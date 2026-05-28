@@ -11,7 +11,7 @@ import {
   Sparkles,
   Wand2,
 } from "lucide-react";
-import { DEMO_ITEMS, STORAGE_TYPES } from "./data";
+import { STORAGE_TYPES } from "./data";
 import { KITCHEN_GLASS_PANEL, KITCHEN_TEXT } from "@/src/lib/homeNode/kitchenMintCream";
 
 const STEPS = [
@@ -37,9 +37,7 @@ export default function KitchenOnboarding({ onComplete }) {
     cabinets: false,
   });
   const [photoTaken, setPhotoTaken] = useState({ outside: false, inside: false });
-  const [detected, setDetected] = useState(() =>
-    DEMO_ITEMS.filter((i) => i.storage === "refrigerator").map((i) => ({ ...i, kept: true }))
-  );
+  const [detected, setDetected] = useState([]);
 
   const enabledStorage = Object.entries(storage)
     .filter(([, v]) => v)
@@ -58,17 +56,14 @@ export default function KitchenOnboarding({ onComplete }) {
   }
 
   function finish() {
-    const finalItems = DEMO_ITEMS.filter(
-      (i) => enabledStorage.includes(i.storage) &&
-        (i.storage !== "refrigerator" || detected.find((d) => d.id === i.id)?.kept !== false)
-    );
+    const finalItems = detected.filter((d) => d.kept !== false);
     onComplete({ enabledStorage, items: finalItems });
   }
 
   const canContinue =
     (step === 1 && enabledStorage.length > 0) ||
     (step === 2 && photoTaken.outside && photoTaken.inside) ||
-    (step === 3 && detected.some((d) => d.kept)) ||
+    step === 3 ||
     step === 4;
 
   return (
@@ -189,11 +184,20 @@ export default function KitchenOnboarding({ onComplete }) {
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#84A59D]">Step 3</p>
             <h2 className={`mb-2 text-2xl font-semibold md:text-3xl ${KITCHEN_TEXT.title}`}>
-              We found {detected.length} items.
+              {detected.length
+                ? `We found ${detected.length} items.`
+                : "No items detected yet."}
             </h2>
             <p className="mb-6 max-w-xl text-sm leading-relaxed text-slate-500 md:text-base">
-              Toggle anything that's wrong — you can refine quantities and shelves on the dashboard.
+              {detected.length
+                ? "Toggle anything that's wrong — you can refine quantities and shelves on the dashboard."
+                : "Your pantry starts empty. Add items from the dashboard after setup, or continue with a blank kitchen."}
             </p>
+            {detected.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center text-sm text-slate-500">
+                Scan or add groceries later — nothing is pre-filled for new accounts.
+              </p>
+            ) : (
             <ul className="grid gap-2 sm:grid-cols-2">
               {detected.map((item) => (
                 <li key={item.id}>
@@ -225,6 +229,7 @@ export default function KitchenOnboarding({ onComplete }) {
                 </li>
               ))}
             </ul>
+            )}
           </div>
         )}
 
@@ -239,7 +244,7 @@ export default function KitchenOnboarding({ onComplete }) {
             <div className="grid gap-3 sm:grid-cols-3">
               <SummaryStat label="Storage spaces" value={enabledStorage.length} />
               <SummaryStat label="Items detected" value={detected.filter((d) => d.kept).length} />
-              <SummaryStat label="Recipes ready" value={3} />
+              <SummaryStat label="Recipes ready" value={0} />
             </div>
           </div>
         )}

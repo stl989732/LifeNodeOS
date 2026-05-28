@@ -170,7 +170,7 @@ export default function HomeNode() {
   const [noteColor, setNoteColor] = useState("#84A59D");
   const [assistantQuestion, setAssistantQuestion] = useState("");
   const [assistantReply, setAssistantReply] = useState(
-    "Ask me household-task questions, like traffic checks before drop-off or scheduling priorities.",
+    "Ask about household tasks once you've added your family context and connected apps.",
   );
   const [ingredientsOnHand, setIngredientsOnHand] = useState("");
   const [kitchenRecipeTabs, setKitchenRecipeTabs] = useState([]);
@@ -195,7 +195,7 @@ export default function HomeNode() {
   const [vaultFilter, setVaultFilter] = useState("All");
   const [chefTip, setChefTip] = useState("");
   const [chefTipLoading, setChefTipLoading] = useState(false);
-  const [childName, setChildName] = useState("Leo");
+  const [childName, setChildName] = useState("");
   const [activityPrepItems, setActivityPrepItems] = useState([]);
   const [upcomingEngagement, setUpcomingEngagement] = useState(null);
 

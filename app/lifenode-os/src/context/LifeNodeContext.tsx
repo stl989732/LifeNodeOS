@@ -119,18 +119,29 @@ export const ACTIVE_NODE_THEME: Record<ActiveNode, LifeNodeTheme> = {
 };
 
 const DEFAULT_BRIDGE_SIGNALS: BridgeSignals = {
-  traderDailyPnlPercent: -0.5,
+  traderDailyPnlPercent: 0,
   traderStopLossThresholdPercent: -2,
   vaHighPriorityPingCount: 0,
-  vitalSleepScore: 72,
-  proWorkloadScore: 40,
-  bizUnreadLeadCount: 3,
-  bizLastFollowUpMinutesAgo: 30,
+  vitalSleepScore: 0,
+  proWorkloadScore: 0,
+  bizUnreadLeadCount: 0,
+  bizLastFollowUpMinutesAgo: 0,
   homeCalendarHasConflict: false,
   homeNextEventMinutesUntil: 999,
   proFocusSecondsWhileOnPro: 0,
   homeFridgeMilkLow: false,
   homeUserNearStore: false,
+};
+
+const EMPTY_NODE_PULSE: NodePulse = { summary: "", alerts: [] };
+
+const EMPTY_PULSE_DATA: PulseData = {
+  BizNode: { ...EMPTY_NODE_PULSE },
+  HomeNode: { ...EMPTY_NODE_PULSE },
+  VitalNode: { ...EMPTY_NODE_PULSE },
+  TraderNode: { ...EMPTY_NODE_PULSE },
+  VANode: { ...EMPTY_NODE_PULSE },
+  ProNode: { ...EMPTY_NODE_PULSE },
 };
 
 function mergeAlertLists(...lists: LogicBridgeAlert[][]): LogicBridgeAlert[] {
@@ -431,6 +442,8 @@ type LifeNodeContextValue = {
   activeShellHatKey: string;
   /** Cross-hat global bridges (VA bottleneck, calendar handoff) are active. */
   isCrossHatGlobalAlertsEnabled: boolean;
+  /** True once every enabled hat finished node onboarding — unlocks Linos Alerts. */
+  linoAlertsArmed: boolean;
   /** Shell pages with `DualRailCommandCenter` register opening the Node / hat gallery modal. */
   registerHatGalleryLauncher: (fn: (() => void) | null) => void;
   /** Opens the hat gallery when a shell with rails is mounted; otherwise returns false. */
@@ -458,36 +471,12 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [activeNode, setActiveNode] = useState<ActiveNode>("BizNode");
   const [vitalStats, setVitalStats] = useState<VitalStats>({
-    heartRate: 72,
-    stressLevel: 28,
+    heartRate: 0,
+    stressLevel: 0,
     focusTime: 0,
   });
-  const [pulseData, setPulseData] = useState<PulseData>({
-    BizNode: {
-      summary: "Lead flow is stable. Two approvals pending.",
-      alerts: ["Follow up with enterprise lead by 4pm."],
-    },
-    HomeNode: {
-      summary: "Family logistics in control. Calendar conflict on Friday.",
-      alerts: ["Confirm pickup for Leo at 3:30pm."],
-    },
-    VitalNode: {
-      summary: "Resilience trending high with good sleep consistency.",
-      alerts: ["Hydration below target today."],
-    },
-    TraderNode: {
-      summary: "Sentiment mixed. A-tier setup approaching key level.",
-      alerts: ["Avoid revenge entry after two losses."],
-    },
-    VANode: {
-      summary: "Client queue healthy. One invoice overdue.",
-      alerts: ["Record first EOD proof-of-work clip."],
-    },
-    ProNode: {
-      summary: "Research context complete with three relevant citations.",
-      alerts: ["Review executive brief before 2pm call."],
-    },
-  });
+  const [pulseData, setPulseData] = useState<PulseData>(EMPTY_PULSE_DATA);
+  const [linoAlertsArmed, setLinoAlertsArmed] = useState(false);
   const [bridgeSignals, setBridgeSignals] = useState<BridgeSignals>(DEFAULT_BRIDGE_SIGNALS);
   const [activeLogicBridgeAlerts, setActiveLogicBridgeAlerts] = useState<LogicBridgeAlert[]>([]);
   const [linoMessage, setLinoMessage] = useState<LinoMessage | null>(null);
@@ -700,6 +689,46 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     };
   }, [setConfiguredHatsFromShellKeys]);
 
+  /** Linos Alerts fire only after the user finished onboarding for every enabled hat. */
+  useEffect(() => {
+    if (DEV_FRESH_SESSION || configuredHats.length === 0) {
+      setLinoAlertsArmed(false);
+      return;
+    }
+    let cancelled = false;
+    const refreshArmed = async () => {
+      try {
+        const res = await fetch("/api/user-state/onboarding", { cache: "no-store" });
+        if (!res.ok) {
+          if (!cancelled) setLinoAlertsArmed(false);
+          return;
+        }
+        const data = (await res.json()) as {
+          statuses?: Partial<
+            Record<
+              ActiveNode,
+              { onboardingCompleted?: boolean }
+            >
+          >;
+        };
+        const statuses = data.statuses ?? {};
+        const armed = configuredHats.every(
+          (hat) => statuses[hat]?.onboardingCompleted === true,
+        );
+        if (!cancelled) setLinoAlertsArmed(armed);
+      } catch {
+        if (!cancelled) setLinoAlertsArmed(false);
+      }
+    };
+    void refreshArmed();
+    const onChanged = () => void refreshArmed();
+    window.addEventListener("lifenode:onboarding:changed", onChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("lifenode:onboarding:changed", onChanged);
+    };
+  }, [configuredHats]);
+
   useEffect(() => {
     alertsRef.current = activeLogicBridgeAlerts;
   }, [activeLogicBridgeAlerts]);
@@ -834,6 +863,14 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
    *     Dropped silently — same logic as the previous filter.
    */
   useEffect(() => {
+    if (!linoAlertsArmed) {
+      queueMicrotask(() => {
+        setActiveLogicBridgeAlerts([]);
+        setLinoMessage(null);
+      });
+      return;
+    }
+
     const staticAlerts = evaluateLogicBridges(bridgeSignals);
     const globalAlerts = checkGlobalTriggers({
       signals: bridgeSignals,
@@ -874,6 +911,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     configuredHats,
     globalTriggerTick,
     persistOutOfScopeAlerts,
+    linoAlertsArmed,
   ]);
 
   const isLinoInterrupting = useMemo(() => {
@@ -921,6 +959,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       ensureHatForRoute,
       activeShellHatKey,
       isCrossHatGlobalAlertsEnabled,
+      linoAlertsArmed,
       registerHatGalleryLauncher,
       openHatGallery,
       proWorkspaceRole,
@@ -952,6 +991,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       ensureHatForRoute,
       activeShellHatKey,
       isCrossHatGlobalAlertsEnabled,
+      linoAlertsArmed,
       dismissLino,
       registerHatGalleryLauncher,
       openHatGallery,

@@ -30,10 +30,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     nodeName: "Legal Pro",
     icon: Scale,
     cases: [],
-    knowledgeSignals: [
-      "Citation: Smith v. Global has 92% argument overlap.",
-      "Clio brief mentions identical timeline risk.",
-    ],
+    knowledgeSignals: [],
     specialtyTitle: "Compliance & matter logic",
     specialtyFeatures: [
       { title: "Redline Ghost", description: "Flags draft text that contradicts agreed facts in the Auto-Timeline." },
@@ -47,10 +44,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     nodeName: "DoctorNode",
     icon: HeartPulse,
     cases: [],
-    knowledgeSignals: [
-      "Guideline: Similar symptom cluster in Epic Jan cohort.",
-      "Drug interaction alert from uploaded allergy history.",
-    ],
+    knowledgeSignals: [],
     specialtyTitle: "Healthcare",
     specialtyFeatures: [
       { title: "Ambient Scribing", description: "Auto-draft SOAP notes from visit audio (Subjective → Plan)." },
@@ -64,10 +58,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     nodeName: "EngineerNode",
     icon: Wrench,
     cases: [],
-    knowledgeSignals: [
-      "GitHub #771 references same memory bottleneck pattern.",
-      "Jira epic E-34 contains prior mitigation strategy.",
-    ],
+    knowledgeSignals: [],
     specialtyTitle: "Technical / project",
     specialtyFeatures: [
       { title: "Dependency Watcher", description: "Permit-approved emails update the Connected Stack timeline." },
@@ -81,10 +72,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     nodeName: "TeacherNode",
     icon: GraduationCap,
     cases: [],
-    knowledgeSignals: [
-      "Curriculum block aligns to CCSS.ELA-LITERACY.RL.7.1.",
-      "Parent email sentiment trending positive this week.",
-    ],
+    knowledgeSignals: [],
     specialtyTitle: "Education",
     specialtyFeatures: [
       { title: "Curriculum Aligner", description: "Clause Library lesson plans map to state/national standards." },
@@ -98,10 +86,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     nodeName: "TechNode",
     icon: Code2,
     cases: [],
-    knowledgeSignals: [
-      "GitLab pipeline failed 12m after outage alert.",
-      "Architecture diagram missing MFA boundary in docs.",
-    ],
+    knowledgeSignals: [],
     specialtyTitle: "CompEng / IT",
     specialtyFeatures: [
       { title: "Deployment Ledger", description: "Timeline shows commits beside server outage events." },
@@ -115,15 +100,8 @@ export const PRO_ROLES: ProRoleConfig[] = [
     label: "Coach",
     nodeName: "CoachNode",
     icon: Sparkles,
-    cases: [
-      "Client — Jordan M. Q2 Goals",
-      "Session 14 — Accountability",
-      "Workshop — Leadership Cohort",
-    ],
-    knowledgeSignals: [
-      "Slack sentiment shifted frustrated → neutral after check-in.",
-      "Last session transcript suggests follow-up on boundaries.",
-    ],
+    cases: [],
+    knowledgeSignals: [],
     specialtyTitle: "Life / business coaching",
     specialtyFeatures: [
       { title: "Mindset Radar", description: "Analyzes client Slack/email tone (positive vs. frustrated)." },
@@ -138,10 +116,7 @@ export const PRO_ROLES: ProRoleConfig[] = [
     nodeName: "DesignerNode",
     icon: Palette,
     cases: [],
-    knowledgeSignals: [
-      "Figma frame updated 2h ago — checkout step 3.",
-      "12 Slack + Gmail comments grouped into 4 action items.",
-    ],
+    knowledgeSignals: [],
     specialtyTitle: "Creative / UX",
     specialtyFeatures: [
       { title: "Asset Pulse", description: "Timeline thumbnails for Figma/Canva edits." },

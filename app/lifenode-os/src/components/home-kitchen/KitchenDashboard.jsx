@@ -30,7 +30,6 @@ import {
 import {
   buildIntelligence,
   classifyExpiry,
-  DEMO_RECIPES,
   lowStockItems,
   recipeStats,
   STATUS_META,
@@ -38,6 +37,9 @@ import {
   SHELF_PRESETS,
 } from "./data";
 import ChefUtensilLoader from "@/src/components/ChefUtensilLoader";
+
+/** User-saved recipes only — no demo seed data for new accounts. */
+const USER_RECIPES = [];
 import { chefRecipeImageSrc, retryPollinationsDishImage } from "@/src/lib/kitchenDishImage";
 import {
   getActiveKitchenTab,
@@ -632,12 +634,12 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
     return c;
   }, [items]);
 
-  const intelligence = useMemo(() => buildIntelligence(items, DEMO_RECIPES), [items]);
+  const intelligence = useMemo(() => buildIntelligence(items, USER_RECIPES), [items]);
   const lowStock = useMemo(() => lowStockItems(items), [items]);
 
   const recipeMatches = useMemo(
     () =>
-      DEMO_RECIPES.map((r) => ({ recipe: r, ...recipeStats(r, items) }))
+      USER_RECIPES.map((r) => ({ recipe: r, ...recipeStats(r, items) }))
         .sort((a, b) => b.haveCount / b.totalCount - a.haveCount / a.totalCount)
         .slice(0, 3),
     [items],
@@ -649,16 +651,16 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
     const blob = mealPlanRows.map((r) => r.label).join(" ").toLowerCase();
     const inv = items.map((i) => `${i.name} ${i.id}`).join(" ").toLowerCase();
     const hay = `${blob} ${inv}`;
-    let pool = DEMO_RECIPES;
+    let pool = USER_RECIPES;
     if (flareActive) {
-      pool = DEMO_RECIPES.filter(
+      pool = USER_RECIPES.filter(
         (recipe) =>
           FLARE_HEALING_RE.test(recipe.title) ||
           FLARE_HEALING_RE.test(recipe.rationale) ||
           recipe.id === "salmon-greens",
       );
       if (pool.length === 0) {
-        pool = DEMO_RECIPES.filter((r) => r.id === "salmon-greens");
+        pool = USER_RECIPES.filter((r) => r.id === "salmon-greens");
       }
     }
     return pool
