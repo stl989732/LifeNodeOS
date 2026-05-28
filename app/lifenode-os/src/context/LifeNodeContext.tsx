@@ -606,11 +606,14 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       .filter((k): k is string => Boolean(k));
     void (async () => {
       try {
-        await fetch("/api/user-state", {
+        const res = await fetch("/api/user-state", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ configuredHats: shellKeys }),
         });
+        if (!res.ok) {
+          console.error("[LifeNodeContext] hat save failed:", res.status);
+        }
       } catch {
         /* offline / guest */
       }
@@ -679,7 +682,15 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
         };
         const hats = data.state?.configuredHats;
         if (cancelled || !Array.isArray(hats) || !hats.length) return;
-        queueMicrotask(() => setConfiguredHatsFromShellKeys(hats));
+        // Do not overwrite hats the user just picked on /shell (avoids stale server race).
+        queueMicrotask(() => {
+          setConfiguredHats((prev) => {
+            if (prev.length > 0) return prev;
+            return hats
+              .map((k) => HAT_SHELL_TO_ACTIVE[k])
+              .filter((n): n is ActiveNode => Boolean(n));
+          });
+        });
       } catch {
         /* ignore — unauthenticated or offline */
       }

@@ -326,11 +326,19 @@ export default function LinoOnboarding({ node }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ node, step }),
         });
-        if (!res.ok) throw new Error(`SAVE_${res.status}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const msg =
+            typeof body?.message === "string"
+              ? body.message
+              : `SAVE_${res.status}`;
+          throw new Error(msg);
+        }
       } catch (e) {
         setErrorMessage(
           e instanceof Error ? e.message : "Could not save this step."
         );
+        throw e;
       } finally {
         setSavingStep(null);
       }
@@ -341,7 +349,11 @@ export default function LinoOnboarding({ node }: Props) {
   const advance = useCallback(async () => {
     const step = NODE_ONBOARDING_STEPS[stepIdx];
     setErrorMessage(null);
-    await persistStep(step);
+    try {
+      await persistStep(step);
+    } catch {
+      return;
+    }
     setStepIdx((i) => Math.min(i + 1, NODE_ONBOARDING_STEPS.length));
   }, [stepIdx, persistStep]);
 
@@ -355,7 +367,14 @@ export default function LinoOnboarding({ node }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ node, completed: true }),
         });
-        if (!res.ok) throw new Error(`COMPLETE_${res.status}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const msg =
+            typeof body?.message === "string"
+              ? body.message
+              : `COMPLETE_${res.status}`;
+          throw new Error(msg);
+        }
       }
 
       // Optionally persist the named workflow as the first real automation.

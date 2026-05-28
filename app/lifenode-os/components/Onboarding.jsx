@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { savePendingShellHats } from "@/lib/pending-shell-hats";
 import {
   ArrowRight,
   Mail,
@@ -376,7 +377,10 @@ export default function Onboarding() {
           </div>
           <button
             type="button"
-            onClick={() => setStep(3)}
+            onClick={() => {
+              savePendingShellHats(selectedKeys);
+              setStep(3);
+            }}
             className="bg-slate-900 hover:bg-slate-800 text-white px-10 py-4 rounded-full font-bold text-lg inline-flex items-center gap-2 shadow-xl transition-transform hover:scale-[1.02]"
           >
             <Sparkles size={20} />

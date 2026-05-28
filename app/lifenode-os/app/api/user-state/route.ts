@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import {
   getUserState,
   patchUserState,
+  UserStatePersistenceError,
   SHELL_HAT_KEYS,
   type ShellHatKey,
   type ActiveNodeName,
@@ -93,6 +94,16 @@ export async function PUT(request: Request) {
     }
   }
 
-  const state = await patchUserState(userId, patch);
-  return NextResponse.json({ state });
+  try {
+    const state = await patchUserState(userId, patch);
+    return NextResponse.json({ state });
+  } catch (e) {
+    if (e instanceof UserStatePersistenceError) {
+      return NextResponse.json(
+        { error: "PERSISTENCE_FAILED", message: e.message },
+        { status: 503 },
+      );
+    }
+    throw e;
+  }
 }

@@ -16,6 +16,10 @@ import {
 } from "lucide-react";
 import { useLifeNode } from "@/src/context/LifeNodeContext";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
+import {
+  clearPendingShellHats,
+  readPendingShellHats,
+} from "@/lib/pending-shell-hats";
 import NotificationsBell from "@/src/components/NotificationsBell";
 
 const ONBOARDING_TOTAL_STEPS = 3;
@@ -172,9 +176,22 @@ export default function LifeNodeShell() {
         if (!res.ok) throw new Error(`USER_STATE_${res.status}`);
         const { state } = await res.json();
         if (cancelled) return;
-        const hats = Array.isArray(state?.configuredHats)
+        let hats = Array.isArray(state?.configuredHats)
           ? state.configuredHats.filter((h) => HAT_KEYS.includes(h))
           : [];
+        const pending = readPendingShellHats();
+        if (!hats.length && pending.length) {
+          hats = pending.filter((h) => HAT_KEYS.includes(h));
+          void fetch("/api/user-state", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ configuredHats: hats }),
+          })
+            .then((res) => {
+              if (res.ok) clearPendingShellHats();
+            })
+            .catch(() => undefined);
+        }
         const name =
           (typeof state?.displayName === "string" && state.displayName) ||
           sessionFallbackName;
@@ -284,7 +301,15 @@ export default function LifeNodeShell() {
           displayName: displayName?.trim() || null,
         }),
       });
-      if (!res.ok) throw new Error(`SAVE_${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg =
+          typeof body?.message === "string"
+            ? body.message
+            : `SAVE_${res.status}`;
+        throw new Error(msg);
+      }
+      clearPendingShellHats();
       const { state } = await res.json();
       const hats = Array.isArray(state?.configuredHats)
         ? state.configuredHats.filter((h) => HAT_KEYS.includes(h))

@@ -5,6 +5,7 @@ import {
   NODE_ONBOARDING_STEPS,
   getAllNodeOnboarding,
   patchNodeOnboarding,
+  UserStatePersistenceError,
   type ActiveNodeName,
   type NodeOnboardingStep,
 } from "@/lib/user-state-store";
@@ -59,11 +60,21 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "INVALID_STEP" }, { status: 400 });
   }
 
-  const status = await patchNodeOnboarding(userId, obj.node, {
-    step: isStep(obj.step) ? obj.step : undefined,
-    completed:
-      typeof obj.completed === "boolean" ? obj.completed : undefined,
-    reset: obj.reset === true,
-  });
-  return NextResponse.json({ status });
+  try {
+    const status = await patchNodeOnboarding(userId, obj.node, {
+      step: isStep(obj.step) ? obj.step : undefined,
+      completed:
+        typeof obj.completed === "boolean" ? obj.completed : undefined,
+      reset: obj.reset === true,
+    });
+    return NextResponse.json({ status });
+  } catch (e) {
+    if (e instanceof UserStatePersistenceError) {
+      return NextResponse.json(
+        { error: "PERSISTENCE_FAILED", message: e.message },
+        { status: 503 },
+      );
+    }
+    throw e;
+  }
 }

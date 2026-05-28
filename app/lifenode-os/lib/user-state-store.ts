@@ -371,6 +371,16 @@ export async function getUserState(userId: string): Promise<UserState> {
   }
 }
 
+export class UserStatePersistenceError extends Error {
+  constructor(
+    message: string,
+    public readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = "UserStatePersistenceError";
+  }
+}
+
 async function writeUserState(state: UserState): Promise<void> {
   if (useSupabaseUserState()) {
     try {
@@ -379,8 +389,10 @@ async function writeUserState(state: UserState): Promise<void> {
       return;
     } catch (e) {
       console.error("[user-state-store] Supabase write failed:", e);
-      cacheUserState(state);
-      return;
+      throw new UserStatePersistenceError(
+        "Could not save your LifeNode setup. Run the user_shell_state migration in Supabase and confirm service_role grants.",
+        e,
+      );
     }
   }
 
@@ -391,7 +403,7 @@ async function writeUserState(state: UserState): Promise<void> {
     cacheUserState(state);
   } catch (e) {
     console.error("[user-state-store] file write failed:", e);
-    cacheUserState(state);
+    throw new UserStatePersistenceError("Could not save user state to disk.", e);
   }
 }
 
