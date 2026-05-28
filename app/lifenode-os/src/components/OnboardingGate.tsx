@@ -47,10 +47,17 @@ export default async function OnboardingGate({
     return <div className={nodePageChromePadClass}>{children}</div>;
   }
 
-  // Lazy import keeps the file-store off the Edge bundle (matches the proxy.ts
-  // discipline). Server components run in Node runtime so this is safe.
-  const status = await readNodeOnboarding(session.user.id, node);
-  if (!status.onboardingCompleted) {
+  let onboardingCompleted = true;
+  try {
+    const status = await readNodeOnboarding(session.user.id, node);
+    onboardingCompleted = status.onboardingCompleted;
+  } catch (e) {
+    console.error("[OnboardingGate] user state read failed:", e);
+    // Allow node pages to render when persistence is temporarily unavailable.
+    onboardingCompleted = true;
+  }
+
+  if (!onboardingCompleted) {
     redirect(`/onboarding/${ACTIVE_TO_HAT_KEY[node]}`);
   }
 

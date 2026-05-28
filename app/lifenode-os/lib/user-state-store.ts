@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
 import {
   ACTIVE_NODE_NAMES,
   NODE_ONBOARDING_STEPS,
@@ -15,9 +16,9 @@ import {
 /**
  * Per-user persistent state for the LifeNode OS shell.
  *
- * Storage model: one JSON file per user at `data/user-state/<userId>.json`.
- * Mirrors the file-based pattern from `lib/auth-users-store.ts` so we stay
- * Prisma-free until/unless we move to a real DB.
+ * Storage model:
+ * - Production (Vercel): Supabase table `user_shell_state` (service role).
+ * - Local dev fallback: `data/user-state/<userId>.json`.
  *
  * The shape below maps cleanly onto a future Prisma schema:
  *   model UserState        { ...userId, displayName, ... }
@@ -155,8 +156,55 @@ function defaultState(userId: string): UserState {
   };
 }
 
+function useSupabaseUserState(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
+      (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+        process.env.SUPABASE_SERVICE_KEY?.trim()),
+  );
+}
+
+function stateToJson(state: UserState): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+}
+
+async function readUserStateFromSupabase(userId: string): Promise<UserState | null> {
+  const supabase = createSupabaseAdminClient();
+  const safeId = sanitizeUserId(userId);
+  const { data, error } = await supabase
+    .from("user_shell_state")
+    .select("state")
+    .eq("user_id", safeId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.state) return null;
+  return normalizeState(data.state, userId);
+}
+
+async function writeUserStateToSupabase(state: UserState): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  const safeId = sanitizeUserId(state.userId);
+  const { error } = await supabase.from("user_shell_state").upsert(
+    {
+      user_id: safeId,
+      state: stateToJson(state),
+      updated_at: state.updatedAt,
+    },
+    { onConflict: "user_id" },
+  );
+  if (error) throw error;
+}
+
 async function ensureDir(): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  if (useSupabaseUserState()) return;
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== "EEXIST" && code !== "EROFS" && code !== "EPERM") {
+      throw e;
+    }
+  }
 }
 
 function normalizeNodeOnboarding(
@@ -283,6 +331,14 @@ const userStateCache = new Map<
   { state: UserState; expiresAt: number }
 >();
 
+function cacheUserState(state: UserState): UserState {
+  userStateCache.set(state.userId, {
+    state,
+    expiresAt: Date.now() + USER_STATE_CACHE_MS,
+  });
+  return state;
+}
+
 export async function getUserState(userId: string): Promise<UserState> {
   if (!userId) throw new Error("MISSING_USER_ID");
 
@@ -291,42 +347,52 @@ export async function getUserState(userId: string): Promise<UserState> {
     return cached.state;
   }
 
+  if (useSupabaseUserState()) {
+    try {
+      const fromDb = await readUserStateFromSupabase(userId);
+      return cacheUserState(fromDb ?? defaultState(userId));
+    } catch (e) {
+      console.error("[user-state-store] Supabase read failed:", e);
+      return cacheUserState(defaultState(userId));
+    }
+  }
+
   await ensureDir();
   const filePath = userFilePath(userId);
   try {
     const raw = await fs.readFile(filePath, "utf8");
-    const state = normalizeState(JSON.parse(raw), userId);
-    userStateCache.set(userId, {
-      state,
-      expiresAt: Date.now() + USER_STATE_CACHE_MS,
-    });
-    return state;
+    return cacheUserState(normalizeState(JSON.parse(raw), userId));
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-      const state = defaultState(userId);
-      userStateCache.set(userId, {
-        state,
-        expiresAt: Date.now() + USER_STATE_CACHE_MS,
-      });
-      return state;
+      return cacheUserState(defaultState(userId));
     }
-    const state = defaultState(userId);
-    userStateCache.set(userId, {
-      state,
-      expiresAt: Date.now() + USER_STATE_CACHE_MS,
-    });
-    return state;
+    console.error("[user-state-store] file read failed:", e);
+    return cacheUserState(defaultState(userId));
   }
 }
 
 async function writeUserState(state: UserState): Promise<void> {
+  if (useSupabaseUserState()) {
+    try {
+      await writeUserStateToSupabase(state);
+      cacheUserState(state);
+      return;
+    } catch (e) {
+      console.error("[user-state-store] Supabase write failed:", e);
+      cacheUserState(state);
+      return;
+    }
+  }
+
   await ensureDir();
   const filePath = userFilePath(state.userId);
-  await fs.writeFile(filePath, JSON.stringify(state, null, 2), "utf8");
-  userStateCache.set(state.userId, {
-    state,
-    expiresAt: Date.now() + USER_STATE_CACHE_MS,
-  });
+  try {
+    await fs.writeFile(filePath, JSON.stringify(state, null, 2), "utf8");
+    cacheUserState(state);
+  } catch (e) {
+    console.error("[user-state-store] file write failed:", e);
+    cacheUserState(state);
+  }
 }
 
 export type UserStatePatch = {
