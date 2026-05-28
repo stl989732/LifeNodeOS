@@ -137,6 +137,7 @@ export default function LifeNodeShell() {
   const [switchHat, setSwitchHat] = useState("work");
   const [assemblingHat, setAssemblingHat] = useState(null);
   const [savingHats, setSavingHats] = useState(false);
+  const [setupWarning, setSetupWarning] = useState("");
   const [onboardingByNode, setOnboardingByNode] = useState({});
   const lastSavedNodeRef = useRef(null);
 
@@ -260,6 +261,7 @@ export default function LifeNodeShell() {
 
   const submitLogin = useCallback(async () => {
     if (!selectedHats.length) return;
+    setSetupWarning("");
 
     if (DEV_FRESH_SESSION) {
       const hats = selectedHats.filter((h) => HAT_KEYS.includes(h));
@@ -294,8 +296,17 @@ export default function LifeNodeShell() {
       const initialNode = HAT_TO_NODE[hats[0]];
       if (initialNode) setActiveNode(initialNode);
     } catch {
-      // Stay on the picker so the operator can retry; surfacing an inline error
-      // belongs to a follow-up UX pass.
+      // Production fallback: still unlock Unified Hub even if persistence is down.
+      const hats = selectedHats.filter((h) => HAT_KEYS.includes(h));
+      if (!hats.length) return;
+      setPersistedHats(hats);
+      setSwitchHat(hats[0]);
+      setConfiguredHatsFromShellKeys(hats);
+      const initialNode = HAT_TO_NODE[hats[0]];
+      if (initialNode) setActiveNode(initialNode);
+      setSetupWarning(
+        "We couldn't save your setup to the server yet. You're in the Unified Hub, but your hat selection may reset next login.",
+      );
     } finally {
       setSavingHats(false);
     }
@@ -417,6 +428,9 @@ export default function LifeNodeShell() {
               {savingHats ? "Saving..." : "Enter Unified Hub"}
               <ArrowRight className="h-4 w-4" />
             </button>
+            {setupWarning ? (
+              <p className="text-xs text-amber-200">{setupWarning}</p>
+            ) : null}
           </div>
         </div>
       </div>
