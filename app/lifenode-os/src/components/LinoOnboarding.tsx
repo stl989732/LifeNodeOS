@@ -417,7 +417,10 @@ export default function LinoOnboarding({ node }: Props) {
     );
 
   const progress = useMemo(() => {
-    return Math.min(100, Math.round((stepIdx / NODE_ONBOARDING_STEPS.length) * 100));
+    return Math.min(
+      100,
+      Math.round(((stepIdx + 1) / NODE_ONBOARDING_STEPS.length) * 100),
+    );
   }, [stepIdx]);
 
   const stepNumberLabel = `Step ${Math.min(stepIdx + 1, NODE_ONBOARDING_STEPS.length)} of ${NODE_ONBOARDING_STEPS.length}`;
@@ -542,31 +545,39 @@ export default function LinoOnboarding({ node }: Props) {
             >
               Skip back to Hub
             </button>
-            {stepIdx < NODE_ONBOARDING_STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={advance}
-                disabled={
-                  savingStep === NODE_ONBOARDING_STEPS[stepIdx] ||
-                  (stepIdx === 0 && stackSelections.length === 0) ||
-                  (stepIdx === 1 && kpiSelections.length === 0)
-                }
-                className="inline-flex items-center gap-2 rounded-2xl bg-[#1E293B] px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#24364d] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Continue
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={finish}
-                disabled={completing}
-                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-300 to-indigo-300 px-5 py-3 text-sm font-bold text-slate-900 shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {completing ? "Finalizing..." : "Enter " + content.intro}
-                <CheckCircle2 className="h-4 w-4" />
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {stepIdx < NODE_ONBOARDING_STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={finish}
+                  disabled={completing}
+                  className="rounded-2xl border border-white/15 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {completing ? "Opening…" : `Enter ${content.intro} now`}
+                </button>
+              ) : null}
+              {stepIdx < NODE_ONBOARDING_STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={advance}
+                  disabled={savingStep === NODE_ONBOARDING_STEPS[stepIdx]}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-[#1E293B] px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#24364d] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Continue
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={finish}
+                  disabled={completing}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-300 to-indigo-300 px-5 py-3 text-sm font-bold text-slate-900 shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {completing ? "Finalizing..." : "Enter " + content.intro}
+                  <CheckCircle2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
         </main>
 

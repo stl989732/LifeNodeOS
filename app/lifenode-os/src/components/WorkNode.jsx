@@ -26,6 +26,7 @@ import FounderUtilitiesPanel from "@/src/components/biz/FounderUtilitiesPanel";
 import ConnectedAppsPanel from "@/src/components/biz/ConnectedAppsPanel";
 import { appLabelToProvider, providerToAppLabel, toConnectedAppId } from "@/src/lib/integrations/appProviderMap";
 import { connectAppToNode } from "@/src/lib/integrations";
+import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
 import { integrationRedirectPathSegment } from "@/src/lib/integrations/oauthProviders";
 import {
   filterAppsForDataHub,
@@ -300,6 +301,21 @@ export default function WorkNode() {
     syncFlare();
     window.addEventListener(FLARE_MODE_CHANGED, syncFlare);
     return () => window.removeEventListener(FLARE_MODE_CHANGED, syncFlare);
+  }, []);
+
+  useServerOnboardingComplete("BizNode", useCallback(() => {
+    setIsSynced(true);
+    setSyncStep(3);
+  }, []));
+
+  useEffect(() => {
+    const onOnboardingDone = () => {
+      setIsSynced(true);
+      setSyncStep(3);
+    };
+    window.addEventListener("lifenode:onboarding:changed", onOnboardingDone);
+    return () =>
+      window.removeEventListener("lifenode:onboarding:changed", onOnboardingDone);
   }, []);
 
   useEffect(() => {

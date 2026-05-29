@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { getNodeTheme } from "@/src/lib/nodeTheme";
 import ConnectAppDialog from "@/src/components/ConnectAppDialog";
+import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
 import ProAutoTimeline from "@/src/components/pro/ProAutoTimeline";
 import ProClauseLibrary from "@/src/components/pro/ProClauseLibrary";
 import ProCommandPalette from "@/src/components/pro/ProCommandPalette";
@@ -72,6 +73,15 @@ function persistBillableSessions(sessions) {
 export default function ProNode() {
   const { proWorkspaceRole: role, setProWorkspaceRole } = useLifeNodeContext();
   const [setupStep, setSetupStep] = useState(1);
+
+  useServerOnboardingComplete("ProNode", useCallback(() => setSetupStep(3), []));
+
+  useEffect(() => {
+    const onOnboardingDone = () => setSetupStep(3);
+    window.addEventListener("lifenode:onboarding:changed", onOnboardingDone);
+    return () =>
+      window.removeEventListener("lifenode:onboarding:changed", onOnboardingDone);
+  }, []);
   const [query, setQuery] = useState("");
   const [connectedTools, setConnectedTools] = useState([]);
   const [loginPromptApp, setLoginPromptApp] = useState("");

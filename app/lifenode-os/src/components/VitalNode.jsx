@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
@@ -162,6 +163,38 @@ const EMPTY_VITAL_DASH = {
   thisMonthAvgRhr: 0,
 };
 
+/** Legacy demo seed shipped in early builds — strip on load for blank slate. */
+function isLegacyDemoVitalDash(d) {
+  if (!d) return false;
+  const demoMetrics =
+    d.sleepScore === 78 &&
+    d.hrv === 42 &&
+    d.spo2 === 98 &&
+    d.steps === 6200 &&
+    d.hydrationMl === 840;
+  const demoRhr = d.thisMonthAvgRhr === 64 && d.lastMonthAvgRhr === 68;
+  const demoTimeline = Array.isArray(d.timeline)
+    ? d.timeline.some(
+        (ev) =>
+          typeof ev?.title === "string" &&
+          /baseline week|connected wearables/i.test(ev.title),
+      )
+    : false;
+  return demoMetrics || demoRhr || demoTimeline;
+}
+
+function normalizeVitalDash(vitalDash) {
+  if (!vitalDash || isLegacyDemoVitalDash(vitalDash)) {
+    return {
+      ...EMPTY_VITAL_DASH,
+      surfaceMode: vitalDash?.surfaceMode === "day" || vitalDash?.surfaceMode === "night"
+        ? vitalDash.surfaceMode
+        : "auto",
+    };
+  }
+  return { ...EMPTY_VITAL_DASH, ...vitalDash };
+}
+
 function glassCard() {
   return "rounded-3xl border border-white/50 bg-white/40 shadow-[0_14px_40px_rgba(15,23,42,0.07)] backdrop-blur-[12px]";
 }
@@ -181,11 +214,12 @@ function loadPersistedState(storageKey) {
   };
   if (typeof window === "undefined") return defaults;
   try {
+    const isUserScoped = storageKey.includes("::");
     let raw = window.localStorage.getItem(storageKey);
-    if (!raw && storageKey.includes("::")) {
+    if (!raw && !isUserScoped) {
       raw = window.localStorage.getItem(STORAGE_KEY_V3);
+      if (!raw) raw = window.localStorage.getItem(STORAGE_KEY_V2);
     }
-    if (!raw) raw = window.localStorage.getItem(STORAGE_KEY_V2);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
     return {
@@ -197,7 +231,7 @@ function loadPersistedState(storageKey) {
         smartVitalNotes: parsed.tools?.smartVitalNotes ?? true,
       },
       notes: parsed.notes ?? [],
-      vitalDash: { ...EMPTY_VITAL_DASH, ...(parsed.vitalDash || {}) },
+      vitalDash: normalizeVitalDash(parsed.vitalDash),
     };
   } catch {
     return defaults;
@@ -325,6 +359,20 @@ export default function VitalNode() {
   });
   const [notes, setNotes] = useState([]);
   const [vitalDash, setVitalDash] = useState(EMPTY_VITAL_DASH);
+
+  const markSetupComplete = useCallback(() => {
+    setSetupDone(true);
+    setOnboardingStep(2);
+  }, []);
+
+  useServerOnboardingComplete("VitalNode", markSetupComplete);
+
+  useEffect(() => {
+    const onOnboardingDone = () => markSetupComplete();
+    window.addEventListener("lifenode:onboarding:changed", onOnboardingDone);
+    return () =>
+      window.removeEventListener("lifenode:onboarding:changed", onOnboardingDone);
+  }, [markSetupComplete]);
 
   useEffect(() => {
     if (!userId) return;
@@ -998,11 +1046,15 @@ export default function VitalNode() {
             <div className="mt-3 flex gap-2">
               <div className="flex-1 rounded-2xl bg-white/55 p-2 text-center">
                 <p className="text-[10px] font-bold uppercase text-slate-500">This Mo. RHR</p>
-                <p className="text-lg font-bold text-slate-900">{vitalDash.thisMonthAvgRhr}</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {vitalDash.thisMonthAvgRhr > 0 ? vitalDash.thisMonthAvgRhr : "—"}
+                </p>
               </div>
               <div className="flex-1 rounded-2xl bg-white/55 p-2 text-center">
                 <p className="text-[10px] font-bold uppercase text-slate-500">Last Mo.</p>
-                <p className="text-lg font-bold text-slate-700">{vitalDash.lastMonthAvgRhr}</p>
+                <p className="text-lg font-bold text-slate-700">
+                  {vitalDash.lastMonthAvgRhr > 0 ? vitalDash.lastMonthAvgRhr : "—"}
+                </p>
               </div>
             </div>
           </VitalFlipCard>
@@ -1022,7 +1074,11 @@ export default function VitalNode() {
         >
           <div className="mb-2 flex items-center gap-2">
             <LayoutGrid className="h-4 w-4 text-slate-600" />
-            <p className="text-xs text-slate-500">Tap a metric for its definition</p>
+            <p className="text-xs text-slate-500">
+              {hasWearableData(vitalDash)
+                ? "Tap a metric for its definition"
+                : "No vitals yet — connect a wearable or adjust sliders when you have readings."}
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {[

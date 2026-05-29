@@ -15,6 +15,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { useLifeNode } from "@/src/context/LifeNodeContext";
+import NodeGalleryModal from "@/src/components/shell/NodeGalleryModal";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
 import {
   clearPendingShellHats,
@@ -131,8 +132,15 @@ function OrreryAssembly({ targetLabel }) {
 export default function LifeNodeShell() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { setActiveNode, setNodePulse, setConfiguredHatsFromShellKeys } =
-    useLifeNode();
+  const {
+    setActiveNode,
+    setNodePulse,
+    setConfiguredHatsFromShellKeys,
+    configuredHats,
+    toggleConfiguredHat,
+    registerHatGalleryLauncher,
+  } = useLifeNode();
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   const [hydrated, setHydrated] = useState(false);
   const [persistedHats, setPersistedHats] = useState(null);
@@ -147,6 +155,11 @@ export default function LifeNodeShell() {
 
   const isLoggedIn = Array.isArray(persistedHats) && persistedHats.length > 0;
   const userId = session?.user?.id;
+
+  useEffect(() => {
+    registerHatGalleryLauncher(() => setGalleryOpen(true));
+    return () => registerHatGalleryLauncher(null);
+  }, [registerHatGalleryLauncher]);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -464,6 +477,12 @@ export default function LifeNodeShell() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0B0F17] px-6 pb-8 pt-[calc(var(--ln-node-nav-chrome-block)+1.5rem)] text-slate-100">
+      <NodeGalleryModal
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        activeHats={configuredHats}
+        onToggleHat={(node) => toggleConfiguredHat(node)}
+      />
       <style>{`
         @keyframes ln-priority-blink {
           0%, 100% { box-shadow: 0 0 0 0 rgba(56,189,248,0); opacity: 0.85; }

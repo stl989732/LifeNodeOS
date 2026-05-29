@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bot,
   Calculator,
@@ -50,6 +50,7 @@ import {
   TimezoneBridgeCard,
 } from "./VanodeVaProPanels";
 import { VanodeExportBackupMenu } from "./VanodeExportBackupMenu";
+import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
 
 type VaStageId =
   | "overview"
@@ -164,6 +165,18 @@ export function VANodeDashboard() {
   const router = useRouter();
   const store = useVanodeStore();
   const { openHatGallery } = useLifeNodeContext();
+
+  useServerOnboardingComplete(
+    "VANode",
+    useCallback(() => store.setDiscoveryComplete(true), [store.setDiscoveryComplete]),
+  );
+
+  useEffect(() => {
+    const onOnboardingDone = () => store.setDiscoveryComplete(true);
+    window.addEventListener("lifenode:onboarding:changed", onOnboardingDone);
+    return () =>
+      window.removeEventListener("lifenode:onboarding:changed", onOnboardingDone);
+  }, [store.setDiscoveryComplete]);
   const { registerVaultCapture } = useWhiteboardVaultBridge();
 
   useEffect(() => {
