@@ -444,6 +444,10 @@ type LifeNodeContextValue = {
   isCrossHatGlobalAlertsEnabled: boolean;
   /** True once every enabled hat finished node onboarding — unlocks Linos Alerts. */
   linoAlertsArmed: boolean;
+  /** True when user data exists on a node or connected integrations supply signals. */
+  linoSignalsReady: boolean;
+  /** Nodes call this when the user has entered real data on that dashboard. */
+  reportNodeUserData: (node: ActiveNode, ready: boolean) => void;
   /** Shell pages with `DualRailCommandCenter` register opening the Node / hat gallery modal. */
   registerHatGalleryLauncher: (fn: (() => void) | null) => void;
   /** Opens the hat gallery when a shell with rails is mounted; otherwise returns false. */
@@ -477,6 +481,10 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
   });
   const [pulseData, setPulseData] = useState<PulseData>(EMPTY_PULSE_DATA);
   const [linoAlertsArmed, setLinoAlertsArmed] = useState(false);
+  const [hasConnectedIntegrations, setHasConnectedIntegrations] = useState(false);
+  const [nodeUserDataReady, setNodeUserDataReady] = useState<
+    Partial<Record<ActiveNode, boolean>>
+  >({});
   const [bridgeSignals, setBridgeSignals] = useState<BridgeSignals>(DEFAULT_BRIDGE_SIGNALS);
   const [activeLogicBridgeAlerts, setActiveLogicBridgeAlerts] = useState<LogicBridgeAlert[]>([]);
   const [linoMessage, setLinoMessage] = useState<LinoMessage | null>(null);
@@ -729,6 +737,51 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     };
   }, [configuredHats]);
 
+  const reportNodeUserData = useCallback((node: ActiveNode, ready: boolean) => {
+    setNodeUserDataReady((prev) => {
+      if (!!prev[node] === ready) return prev;
+      return { ...prev, [node]: ready };
+    });
+  }, []);
+
+  const linoSignalsReady = useMemo(() => {
+    if (hasConnectedIntegrations) return true;
+    return configuredHats.some((hat) => nodeUserDataReady[hat] === true);
+  }, [configuredHats, hasConnectedIntegrations, nodeUserDataReady]);
+
+  /** Connected OAuth apps can feed bridge signals without manual card entry. */
+  useEffect(() => {
+    if (!linoAlertsArmed) {
+      setHasConnectedIntegrations(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/integrations", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!res.ok) {
+          if (!cancelled) setHasConnectedIntegrations(false);
+          return;
+        }
+        const data = (await res.json()) as {
+          integrations?: { connected?: boolean }[];
+        };
+        const connected = Array.isArray(data.integrations)
+          ? data.integrations.some((row) => row.connected === true)
+          : false;
+        if (!cancelled) setHasConnectedIntegrations(connected);
+      } catch {
+        if (!cancelled) setHasConnectedIntegrations(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [linoAlertsArmed]);
+
   useEffect(() => {
     alertsRef.current = activeLogicBridgeAlerts;
   }, [activeLogicBridgeAlerts]);
@@ -863,7 +916,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
    *     Dropped silently — same logic as the previous filter.
    */
   useEffect(() => {
-    if (!linoAlertsArmed) {
+    if (!linoAlertsArmed || !linoSignalsReady) {
       queueMicrotask(() => {
         setActiveLogicBridgeAlerts([]);
         setLinoMessage(null);
@@ -912,6 +965,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     globalTriggerTick,
     persistOutOfScopeAlerts,
     linoAlertsArmed,
+    linoSignalsReady,
   ]);
 
   const isLinoInterrupting = useMemo(() => {
@@ -960,6 +1014,8 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       activeShellHatKey,
       isCrossHatGlobalAlertsEnabled,
       linoAlertsArmed,
+      linoSignalsReady,
+      reportNodeUserData,
       registerHatGalleryLauncher,
       openHatGallery,
       proWorkspaceRole,
@@ -992,6 +1048,8 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       activeShellHatKey,
       isCrossHatGlobalAlertsEnabled,
       linoAlertsArmed,
+      linoSignalsReady,
+      reportNodeUserData,
       dismissLino,
       registerHatGalleryLauncher,
       openHatGallery,

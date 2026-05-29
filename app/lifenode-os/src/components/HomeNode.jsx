@@ -8,6 +8,8 @@ import DualRailCommandCenter from "@/src/components/shell/DualRailCommandCenter"
 import AppCategoryRequestFooter from "@/src/components/AppCategoryRequestFooter";
 import ChefUtensilLoader from "@/src/components/ChefUtensilLoader";
 import { useLoadingOverlay } from "@/src/context/LoadingOverlayContext";
+import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
+import { useReportNodeUserData } from "@/src/hooks/useReportNodeUserData";
 import {
   ensureNativeGrocerySeeded,
   NATIVE_GROCERY_CHANGED,
@@ -73,9 +75,39 @@ const NOTES_KEY = "lifenode.homenode.notes.v1";
 const SAVED_NOTES_KEY = "lifenode.homenode.saved-notes.v1";
 const BUDGET_ROWS_KEY = "lifenode.homenode.budget-rows.v1";
 const CHORE_ROWS_KEY = "lifenode.homenode.chore-rows.v1";
-const CHILD_NAME_KEY = "lifenode.homenode.child-name.v1";
-const UPCOMING_ENGAGEMENT_KEY = "lifenode.homenode.upcoming-engagement.v1";
 const ACTIVITY_PREP_KEY = "lifenode.homenode.activity-prep.v1";
+
+function normalizeActivityPrepRow(row) {
+  if (row && typeof row.title === "string") {
+    return {
+      id: row.id || crypto.randomUUID(),
+      title: row.title,
+      scheduledAt: row.scheduledAt || "",
+      participantType: row.participantType === "person" ? "person" : "child",
+      participantName: row.participantName || "",
+      itemsToBring: row.itemsToBring || "",
+    };
+  }
+  return {
+    id: row?.id || crypto.randomUUID(),
+    title: row?.label || "",
+    scheduledAt: "",
+    participantType: "child",
+    participantName: "",
+    itemsToBring: "",
+  };
+}
+
+function createEmptyActivityPrepRow() {
+  return {
+    id: crypto.randomUUID(),
+    title: "",
+    scheduledAt: "",
+    participantType: "child",
+    participantName: "",
+    itemsToBring: "",
+  };
+}
 
 const RECIPE_CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"];
 const HOME_APPS_PRIMARY = [
@@ -195,9 +227,9 @@ export default function HomeNode() {
   const [vaultFilter, setVaultFilter] = useState("All");
   const [chefTip, setChefTip] = useState("");
   const [chefTipLoading, setChefTipLoading] = useState(false);
-  const [childName, setChildName] = useState("");
   const [activityPrepItems, setActivityPrepItems] = useState([]);
   const [upcomingEngagement, setUpcomingEngagement] = useState(null);
+  const { patchBridgeSignals } = useLifeNodeContext();
 
   const cameraInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -234,7 +266,6 @@ export default function HomeNode() {
       chores: userScopedStorageKey(CHORE_ROWS_KEY, userId),
       prep: userScopedStorageKey(ACTIVITY_PREP_KEY, userId),
       engagement: userScopedStorageKey(UPCOMING_ENGAGEMENT_KEY, userId),
-      childName: userScopedStorageKey(CHILD_NAME_KEY, userId),
       nativeGrocery: userScopedStorageKey(NATIVE_GROCERY_STORAGE_KEY, userId),
       recipeVault: userScopedStorageKey(RECIPE_VAULT_KEY, userId),
     }),
@@ -275,7 +306,10 @@ export default function HomeNode() {
         }
       }
 
-      const cn = window.localStorage.getItem(scopedKeys.childName);
+      const legacyChildName =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("lifenode.homenode.child-name.v1")
+          : null;
 
       let setupInitialized = false;
       if (saved) {
@@ -290,14 +324,10 @@ export default function HomeNode() {
           }
           setupInitialized = !!parsed?.isInitialized;
           if (setupInitialized) setIsInitialized(true);
-          if (typeof parsed?.childName === "string" && parsed.childName.trim()) {
-            setChildName(parsed.childName.trim());
-          }
         } catch {
           // Ignore invalid persisted setup and start fresh.
         }
       }
-      if (cn?.trim()) setChildName(cn.trim());
 
       let nextBudget = [];
       if (rawBudget) {
@@ -325,10 +355,32 @@ export default function HomeNode() {
       if (rawPrep) {
         try {
           const p = JSON.parse(rawPrep);
-          if (Array.isArray(p) && p.length) nextPrep = p;
+          if (Array.isArray(p) && p.length) {
+            nextPrep = p.map(normalizeActivityPrepRow);
+          }
         } catch {
           /* ignore */
         }
+      }
+      const migratedChild =
+        (saved &&
+          (() => {
+            try {
+              const parsed = JSON.parse(saved);
+              return typeof parsed?.childName === "string" ? parsed.childName.trim() : "";
+            } catch {
+              return "";
+            }
+          })()) ||
+        legacyChildName?.trim() ||
+        "";
+      if (!nextPrep.length && migratedChild) {
+        nextPrep = [
+          {
+            ...createEmptyActivityPrepRow(),
+            participantName: migratedChild,
+          },
+        ];
       }
       setActivityPrepItems(nextPrep);
 
@@ -426,11 +478,6 @@ export default function HomeNode() {
     if (!userId) return;
     window.localStorage.setItem(scopedKeys.recipeVault, JSON.stringify(recipeVault));
   }, [recipeVault, userId, scopedKeys.recipeVault]);
-
-  useEffect(() => {
-    if (!userId) return;
-    window.localStorage.setItem(scopedKeys.childName, childName.trim());
-  }, [childName, userId, scopedKeys.childName]);
 
   useEffect(() => {
     if (!userId) return;
@@ -1308,24 +1355,68 @@ export default function HomeNode() {
     setChores((prev) => prev.filter((c) => c.id !== id));
   }
 
-  function addActivityPrepItem() {
-    const label = window.prompt("Prep item (e.g. water bottle)");
-    if (!label?.trim()) return;
-    setActivityPrepItems((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), label: label.trim(), done: false },
-    ]);
+  function addActivityPrepRow() {
+    setActivityPrepItems((prev) => [...prev, createEmptyActivityPrepRow()]);
+  }
+
+  function updateActivityPrepRow(id, patch) {
+    setActivityPrepItems((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    );
   }
 
   function deleteActivityPrepItem(id) {
     setActivityPrepItems((prev) => prev.filter((x) => x.id !== id));
   }
 
-  function toggleActivityPrep(id) {
-    setActivityPrepItems((prev) =>
-      prev.map((x) => (x.id === id ? { ...x, done: !x.done } : x)),
+  const hasHomeUserData = useMemo(() => {
+    if (isInitialized && selectedApps.length > 0) return true;
+    if (nativeGroceryList.length > 0) return true;
+    if (budgetRows.length > 0) return true;
+    if (chores.length > 0) return true;
+    if (savedNotes.length > 0) return true;
+    if (notes.trim()) return true;
+    if (recipeVault.length > 0) return true;
+    return activityPrepItems.some(
+      (row) =>
+        row.title?.trim() ||
+        row.participantName?.trim() ||
+        row.itemsToBring?.trim() ||
+        row.scheduledAt?.trim(),
     );
-  }
+  }, [
+    activityPrepItems,
+    budgetRows.length,
+    chores.length,
+    isInitialized,
+    nativeGroceryList.length,
+    notes,
+    recipeVault.length,
+    savedNotes.length,
+    selectedApps.length,
+  ]);
+
+  useReportNodeUserData("HomeNode", hasHomeUserData);
+
+  useEffect(() => {
+    if (!hasHomeUserData) {
+      patchBridgeSignals({
+        homeFridgeMilkLow: false,
+        homeUserNearStore: false,
+        homeCalendarHasConflict: false,
+        homeNextEventMinutesUntil: 999,
+        bizUnreadLeadCount: 0,
+        bizLastFollowUpMinutesAgo: 0,
+        vaHighPriorityPingCount: 0,
+      });
+      return;
+    }
+    const milkOnList = nativeGroceryList.some((item) => /milk/i.test(String(item)));
+    patchBridgeSignals({
+      homeFridgeMilkLow: milkOnList,
+      homeUserNearStore: false,
+    });
+  }, [hasHomeUserData, nativeGroceryList, patchBridgeSignals]);
 
   async function handleCameraFile(file) {
     if (!file?.type?.startsWith("image/")) return;
@@ -2487,54 +2578,118 @@ export default function HomeNode() {
               </div>
 
               <div className="rounded-[20px] bg-white/60 backdrop-blur-xl p-6 shadow-[0_12px_30px_rgba(15,23,42,0.06)] border border-white/50">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h2 className="font-semibold text-[#1E293B]">
-                    {childName.trim() || "Leo"}&apos;s Activity Prep
-                  </h2>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div>
+                    <h2 className="font-semibold text-[#1E293B]">Activity Prep</h2>
+                    <p className="text-xs text-[#475569]">
+                      Plan activities, who they&apos;re for, and what to bring.
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    onClick={addActivityPrepItem}
+                    onClick={addActivityPrepRow}
                     className="inline-flex items-center gap-1 rounded-full bg-[#84A59D]/15 hover:bg-[#84A59D]/25 text-[#3F5E58] text-xs font-semibold px-3 py-1"
                   >
                     <Plus size={13} />
-                    Add
+                    Add plan
                   </button>
                 </div>
-                <label className="block text-xs text-[#475569] mb-2">
-                  Child name
-                  <input
-                    value={childName}
-                    onChange={(e) => setChildName(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-[#1E293B]"
-                    placeholder="Leo"
-                  />
-                </label>
-                <ul className="space-y-2 max-h-[220px] overflow-auto pr-1">
-                  {activityPrepItems.map((row) => (
-                    <li
-                      key={row.id}
-                      className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white/80 px-3 py-2 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={row.done}
-                        onChange={() => toggleActivityPrep(row.id)}
-                        className="h-4 w-4 shrink-0 accent-[#84A59D] rounded border-slate-300"
-                      />
-                      <span className={row.done ? "text-slate-400 line-through" : "text-[#1E293B]"}>
-                        {row.label}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => deleteActivityPrepItem(row.id)}
-                        className="ml-auto p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
-                        aria-label="Remove item"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                {activityPrepItems.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-white/50 px-4 py-8 text-center text-sm text-[#475569]">
+                    No activity plans yet. Add a row to track titles, schedule, and packing lists.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-separate border-spacing-y-2 text-sm">
+                      <thead>
+                        <tr className="text-left text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
+                          <th className="px-2 pb-1">Activity title</th>
+                          <th className="px-2 pb-1">When</th>
+                          <th className="px-2 pb-1">For</th>
+                          <th className="px-2 pb-1">Things to bring</th>
+                          <th className="px-2 pb-1 w-10" aria-label="Remove" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activityPrepItems.map((row) => (
+                          <tr key={row.id} className="align-top">
+                            <td className="px-2">
+                              <input
+                                value={row.title}
+                                onChange={(e) =>
+                                  updateActivityPrepRow(row.id, { title: e.target.value })
+                                }
+                                placeholder="Soccer practice"
+                                className="w-full min-w-[8rem] rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-[#1E293B]"
+                              />
+                            </td>
+                            <td className="px-2">
+                              <input
+                                type="datetime-local"
+                                value={row.scheduledAt}
+                                onChange={(e) =>
+                                  updateActivityPrepRow(row.id, {
+                                    scheduledAt: e.target.value,
+                                  })
+                                }
+                                className="w-full min-w-[10rem] rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-[#1E293B]"
+                              />
+                            </td>
+                            <td className="px-2">
+                              <select
+                                value={row.participantType}
+                                onChange={(e) =>
+                                  updateActivityPrepRow(row.id, {
+                                    participantType: e.target.value,
+                                  })
+                                }
+                                className="mb-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-[#1E293B]"
+                              >
+                                <option value="child">Child&apos;s name</option>
+                                <option value="person">Person&apos;s name</option>
+                              </select>
+                              <input
+                                value={row.participantName}
+                                onChange={(e) =>
+                                  updateActivityPrepRow(row.id, {
+                                    participantName: e.target.value,
+                                  })
+                                }
+                                placeholder={
+                                  row.participantType === "person" ? "Alex" : "Leo"
+                                }
+                                className="w-full min-w-[7rem] rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-[#1E293B]"
+                              />
+                            </td>
+                            <td className="px-2">
+                              <textarea
+                                value={row.itemsToBring}
+                                onChange={(e) =>
+                                  updateActivityPrepRow(row.id, {
+                                    itemsToBring: e.target.value,
+                                  })
+                                }
+                                placeholder="Water bottle, cleats, snack…"
+                                rows={2}
+                                className="w-full min-w-[9rem] resize-y rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-[#1E293B]"
+                              />
+                            </td>
+                            <td className="px-2">
+                              <button
+                                type="button"
+                                onClick={() => deleteActivityPrepItem(row.id)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                aria-label="Remove activity plan"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <div
