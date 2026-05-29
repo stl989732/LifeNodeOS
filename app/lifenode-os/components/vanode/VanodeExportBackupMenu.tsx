@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Download, FileJson, FileText } from "lucide-react";
 import type { VanodePersisted } from "@/lib/vanode/types";
 import {
@@ -15,11 +16,41 @@ type Props = {
 export function VanodeExportBackupMenu({ data }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const placeMenu = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const width = Math.min(window.innerWidth - 16, 352);
+      setMenuPos({
+        top: rect.bottom + 8,
+        left: Math.max(8, rect.right - width),
+        width,
+      });
+    };
+    placeMenu();
+    window.addEventListener("resize", placeMenu);
+    window.addEventListener("scroll", placeMenu, true);
+    return () => {
+      window.removeEventListener("resize", placeMenu);
+      window.removeEventListener("scroll", placeMenu, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      const portal = document.getElementById("vanode-export-menu-portal");
+      if (portal?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -42,9 +73,67 @@ export function VanodeExportBackupMenu({ data }: Props) {
     setOpen(false);
   };
 
+  const menu =
+    open && menuPos && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            id="vanode-export-menu-portal"
+            role="menu"
+            style={{
+              position: "fixed",
+              top: menuPos.top,
+              left: menuPos.left,
+              width: menuPos.width,
+              zIndex: 120,
+            }}
+            className="overflow-hidden rounded-2xl border border-solid border-white/20 bg-white/95 p-1.5 shadow-[0_16px_48px_rgba(15,23,42,0.22)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={pickJson}
+              className="flex w-full gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-100/90 dark:hover:bg-white/10"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
+                <FileJson className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-slate-900 dark:text-white">
+                  Download System Backup (.json)
+                </span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
+                  For restoring your data or migrating your dashboard settings.
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={pickReport}
+              className="mt-0.5 flex w-full gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-100/90 dark:hover:bg-white/10"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white">
+                <FileText className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-slate-900 dark:text-white">
+                  Download Human-Readable Report (.md)
+                </span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
+                  A clean, structured summary of your workspace, tools, and
+                  configurations.
+                </span>
+              </span>
+            </button>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -58,51 +147,7 @@ export function VanodeExportBackupMenu({ data }: Props) {
           strokeWidth={1.75}
         />
       </button>
-
-      {open ? (
-        <div
-          role="menu"
-          className="absolute right-0 z-50 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border border-solid border-white/20 bg-white/95 p-1.5 shadow-[0_16px_48px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/95"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={pickJson}
-            className="flex w-full gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-100/90 dark:hover:bg-white/10"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
-              <FileJson className="h-4 w-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-slate-900 dark:text-white">
-                Download System Backup (.json)
-              </span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
-                For restoring your data or migrating your dashboard settings.
-              </span>
-            </span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={pickReport}
-            className="mt-0.5 flex w-full gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-100/90 dark:hover:bg-white/10"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white">
-              <FileText className="h-4 w-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-slate-900 dark:text-white">
-                Download Human-Readable Report (.md)
-              </span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
-                A clean, structured summary of your workspace, tools, and
-                configurations.
-              </span>
-            </span>
-          </button>
-        </div>
-      ) : null}
+      {menu}
     </div>
   );
 }

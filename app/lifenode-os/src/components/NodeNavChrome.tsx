@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import AppContextChrome from "@/src/components/AppContextChrome";
-import SupportChromeMenu from "@/src/components/SupportChromeMenu";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 
 /** SPA-friendly Back: listeners may call `preventDefault()` to handle in-app state first. */
@@ -33,14 +32,6 @@ export default function NodeNavChrome() {
   const { theme } = useLifeNodeContext();
 
   if (!pathname) return null;
-
-  if (pathname === "/") {
-    return (
-      <div className="pointer-events-none fixed right-3 top-3 z-[110] md:right-4 md:top-4">
-        <SupportChromeMenu variant="light" className="pointer-events-auto" />
-      </div>
-    );
-  }
 
   const onNodeRoute = matchesPrefix(pathname, NODE_ROUTE_PREFIXES);
   const onShell =

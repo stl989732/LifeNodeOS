@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { signOut, useSession } from "next-auth/react";
+import SupportChromeMenu from "@/src/components/SupportChromeMenu";
 import { savePendingShellHats } from "@/lib/pending-shell-hats";
 import {
   ArrowRight,
@@ -83,6 +85,7 @@ const LOADING_LINES = [
 ];
 
 export default function Onboarding() {
+  const { data: session } = useSession();
   const [step, setStep] = useState(0);
   const [selectedNodes, setSelectedNodes] = useState({
     work: false,
@@ -244,19 +247,32 @@ export default function Onboarding() {
             LifeNode <span className="font-light text-slate-400">OS</span>
           </span>
         </div>
-        <div className="flex items-center gap-3 text-sm font-semibold">
-          <Link
-            href="/auth/signin"
-            className="text-slate-600 transition hover:text-slate-900"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/auth/signup"
-            className="rounded-full bg-slate-900 px-4 py-2 text-white shadow-md transition hover:bg-slate-800"
-          >
-            Sign up
-          </Link>
+        <div className="flex flex-wrap items-center justify-end gap-3 text-sm font-semibold">
+          {session?.user ? (
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="text-slate-600 transition hover:text-slate-900"
+            >
+              Sign out
+            </button>
+          ) : (
+            <>
+              <Link
+                href="/auth/signin"
+                className="text-slate-600 transition hover:text-slate-900"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/auth/signup"
+                className="rounded-full bg-slate-900 px-4 py-2 text-white shadow-md transition hover:bg-slate-800"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
+          <SupportChromeMenu variant="light" />
         </div>
       </nav>
 

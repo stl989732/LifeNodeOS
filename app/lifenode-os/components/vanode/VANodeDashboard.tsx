@@ -308,7 +308,7 @@ export function VANodeDashboard() {
 
   const overview = (
     <>
-      <header className="relative z-10 border-b border-solid border-white/10 bg-white/35 backdrop-blur-[12px]">
+      <header className="relative z-30 overflow-visible border-b border-solid border-white/10 bg-white/35 backdrop-blur-[12px]">
         <div className="flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-5 md:px-8">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-lg shadow-teal-900/20">
@@ -348,7 +348,7 @@ export function VANodeDashboard() {
       </header>
 
       <div
-        className={`main-workspace relative z-10 mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-8 ${
+        className={`main-workspace relative z-0 mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-8 ${
           store.data.activeClientId
             ? "rounded-[2rem] ring-2 ring-[#00ffc8]/50 shadow-[0_0_40px_rgba(0,255,200,0.12)]"
             : ""

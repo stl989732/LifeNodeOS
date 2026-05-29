@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
+import { ArrowRight, Check, LogIn, Sparkles } from "lucide-react";
 import { WORKSPACE_TOOL_CATEGORIES } from "@/lib/vanode/constants";
 import type { NativeToolKey } from "@/lib/vanode/types";
 import ConnectAppDialog from "@/src/components/ConnectAppDialog";
@@ -68,11 +69,11 @@ function vaCommCardClass(status: "connected" | "syncing" | "disconnected") {
 function VaCommunicationGrid({
   userId,
   getCardStatus,
-  onConnect,
+  onPromptConnect,
 }: {
   userId: string;
   getCardStatus: (appId: string) => "connected" | "syncing" | "disconnected";
-  onConnect: (appId: string, name: string) => void;
+  onPromptConnect: (appId: string, name: string) => void;
 }) {
   const commApps = [
     { id: "slack", label: "# Slack", hint: "Live communication channel active." },
@@ -97,14 +98,11 @@ function VaCommunicationGrid({
         {commApps.map((app) => {
           const status = getCardStatus(app.id);
           return (
-            <button
+            <div
               key={app.id}
-              type="button"
-              onClick={() => onConnect(app.id, app.label)}
-              disabled={!userId || status === "syncing"}
-              className={`relative flex h-32 flex-col justify-between rounded-2xl border p-5 text-left transition-all ${vaCommCardClass(status)}`}
+              className={`relative flex h-36 flex-col justify-between rounded-2xl border p-5 text-left transition-all ${vaCommCardClass(status)}`}
             >
-              <div className="flex w-full items-center justify-between">
+              <div className="flex w-full items-center justify-between gap-2">
                 <span className="font-semibold text-slate-800">{app.label}</span>
                 {status === "connected" ? (
                   <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
@@ -121,10 +119,20 @@ function VaCommunicationGrid({
                 {status === "connected"
                   ? app.hint
                   : userId
-                    ? "Click to link workspace."
-                    : "Sign in to connect."}
+                    ? "Connect your account to sync this workspace."
+                    : "Sign in to LifeNodeOS, then connect."}
               </span>
-            </button>
+              {status !== "connected" && status !== "syncing" ? (
+                <button
+                  type="button"
+                  onClick={() => onPromptConnect(app.id, app.label)}
+                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-teal-500"
+                >
+                  <LogIn className="h-3.5 w-3.5" />
+                  Connect account
+                </button>
+              ) : null}
+            </div>
           );
         })}
       </div>
@@ -142,7 +150,11 @@ export function VanodeDiscovery({
   onComplete,
   onBack,
 }: Props) {
-  const [loginPromptApp, setLoginPromptApp] = useState<string | null>(null);
+  const router = useRouter();
+  const [pendingConnect, setPendingConnect] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const { data: session } = useSession();
   const userId = session?.user?.id ?? "";
   const { connectedApps, loading: appsLoading } = useConnectedApps(userId);
@@ -154,31 +166,52 @@ export function VanodeDiscovery({
 
   const getCardStatus = getVAAppStatus;
 
-  const handleToolClick = async (id: string, name: string) => {
-    if (!userId) {
-      setLoginPromptApp(name);
-      return;
-    }
-
-    const status = getCardStatus(id);
-    if (status === "connected") {
-      if (syncedToolIds.includes(id)) onToggleTool(id);
-      return;
-    }
-
+  const promptConnect = (id: string, name: string) => {
     if (!syncedToolIds.includes(id)) onToggleTool(id);
+    setPendingConnect({ id, name });
+  };
+
+  const runConnect = async (id: string) => {
+    if (!userId) {
+      router.push(`/auth/signin?callbackUrl=${encodeURIComponent("/vanode")}`);
+      return;
+    }
     await connectAppToNode(userId, "VA", id);
+  };
+
+  const toggleToolSelection = (id: string) => {
+    const status = getCardStatus(id);
+    if (status === "syncing") return;
+    onToggleTool(id);
   };
 
   if (step === 1) {
     return (
       <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-100 via-teal-50/40 to-indigo-100/80 px-4 py-16 text-slate-800">
         <ConnectAppDialog
-          app={loginPromptApp}
+          app={pendingConnect?.name ?? null}
           nodeLabel="VANode"
           accent="#0D9488"
-          onLogin={() => setLoginPromptApp(null)}
-          onLater={() => setLoginPromptApp(null)}
+          reason={
+            !userId
+              ? "Sign in to LifeNodeOS first, then connect this app so VANode can sync your workspace."
+              : undefined
+          }
+          onLogin={() => {
+            const target = pendingConnect;
+            setPendingConnect(null);
+            if (!target) return;
+            if (!userId) {
+              router.push(
+                `/auth/signin?callbackUrl=${encodeURIComponent("/vanode")}`,
+              );
+              return;
+            }
+            void runConnect(target.id);
+          }}
+          onLater={() => {
+            setPendingConnect(null);
+          }}
         />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(13,148,136,0.12),_transparent_55%)]" />
         <div className="relative mx-auto max-w-5xl">
@@ -200,7 +233,7 @@ export function VanodeDiscovery({
           <VaCommunicationGrid
             userId={userId}
             getCardStatus={getVAAppStatus}
-            onConnect={(id, name) => void handleToolClick(id, name)}
+            onPromptConnect={promptConnect}
           />
           <div className="space-y-10">
             {WORKSPACE_TOOL_CATEGORIES.map((cat) => (
@@ -217,40 +250,59 @@ export function VanodeDiscovery({
                       syncedToolIds.includes(t.id);
                     const Icon = t.Icon;
                     return (
-                      <button
+                      <div
                         key={t.id}
-                        type="button"
-                        onClick={() => void handleToolClick(t.id, t.name)}
                         className={`group flex flex-col items-start gap-2 rounded-2xl border px-4 py-4 text-left transition backdrop-blur-md ${cardStatusClass(status)}`}
                       >
-                        <span
-                          className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                            status === "connected"
-                              ? "bg-emerald-600 text-white"
-                              : status === "syncing"
-                                ? "bg-amber-500 text-white"
-                                : on
-                                  ? "bg-teal-600 text-white"
-                                  : "bg-slate-200/80 text-slate-600"
-                          }`}
+                        <button
+                          type="button"
+                          onClick={() => toggleToolSelection(t.id)}
+                          disabled={status === "syncing"}
+                          className="flex w-full flex-col items-start gap-2 text-left disabled:cursor-wait"
                         >
-                          <Icon className="h-4 w-4" strokeWidth={1.75} />
-                        </span>
-                        <span className="text-sm font-semibold">{t.name}</span>
-                        {status === "connected" ? (
-                          <span className="flex items-center gap-1 text-xs font-bold text-emerald-700">
-                            <Check className="h-3.5 w-3.5" /> Connected
+                          <span
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                              status === "connected"
+                                ? "bg-emerald-600 text-white"
+                                : status === "syncing"
+                                  ? "bg-amber-500 text-white"
+                                  : on
+                                    ? "bg-teal-600 text-white"
+                                    : "bg-slate-200/80 text-slate-600"
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" strokeWidth={1.75} />
                           </span>
-                        ) : status === "syncing" ? (
-                          <span className="text-xs font-semibold text-amber-800">
-                            Syncing…
-                          </span>
-                        ) : on ? (
-                          <span className="flex items-center gap-1 text-xs font-medium text-teal-700">
-                            <Check className="h-3.5 w-3.5" /> Selected
-                          </span>
+                          <span className="text-sm font-semibold">{t.name}</span>
+                          {status === "connected" ? (
+                            <span className="flex items-center gap-1 text-xs font-bold text-emerald-700">
+                              <Check className="h-3.5 w-3.5" /> Connected
+                            </span>
+                          ) : status === "syncing" ? (
+                            <span className="text-xs font-semibold text-amber-800">
+                              Syncing…
+                            </span>
+                          ) : on ? (
+                            <span className="flex items-center gap-1 text-xs font-medium text-teal-700">
+                              <Check className="h-3.5 w-3.5" /> Selected
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-500">
+                              Tap to include in your stack
+                            </span>
+                          )}
+                        </button>
+                        {status !== "connected" && status !== "syncing" ? (
+                          <button
+                            type="button"
+                            onClick={() => promptConnect(t.id, t.name)}
+                            className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-teal-600/30 bg-teal-600/10 px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-teal-800 transition hover:bg-teal-600 hover:text-white"
+                          >
+                            <LogIn className="h-3 w-3" />
+                            Connect
+                          </button>
                         ) : null}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
