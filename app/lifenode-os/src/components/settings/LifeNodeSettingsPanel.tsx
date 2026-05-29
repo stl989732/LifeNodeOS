@@ -14,7 +14,8 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import ScaleSurveyEmbed from "./ScaleSurveyEmbed";
+import Link from "next/link";
+import { SUPPORT_ROUTES } from "@/lib/support/routes";
 import type { ActiveNode } from "@/src/context/LifeNodeContext";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { NODE_GALLERY_ENTRIES } from "@/src/components/shell/node-gallery-nodes";
@@ -576,36 +577,40 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
             ) : null}
 
             {section === "support" ? (
-              <div className="space-y-8">
-                <div>
-                  <div className="mb-2 flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-teal-600" />
-                    <SectionTitle>Feedback & suggestions</SectionTitle>
-                  </div>
-                  <p className="mb-3 text-xs text-slate-500">
-                    Tell us what would make LifeNodeOS better for your workflow.
-                  </p>
-                  <ScaleSurveyEmbed
-                    surveyId="waJcGVAChC3S206wU851"
-                    title="LifeNodeOS feedback survey"
-                    minHeight={420}
-                  />
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center gap-2">
-                    <LifeBuoy className="h-4 w-4 text-teal-600" />
-                    <SectionTitle>Ticket escalation</SectionTitle>
-                  </div>
-                  <p className="mb-3 text-xs text-slate-500">
-                    Submit a ticket for bugs, billing, or account issues — our team
-                    will follow up by email.
-                  </p>
-                  <ScaleSurveyEmbed
-                    surveyId="W7Z3EOqPhYf9hBbvTcRw"
-                    title="LifeNodeOS support ticket"
-                    minHeight={420}
-                  />
-                </div>
+              <div className="space-y-4">
+                <p className="text-xs text-slate-500">
+                  Open a dedicated page for each form. You can also use the Support
+                  menu in the top bar on any node, the shell, or onboarding.
+                </p>
+                <Link
+                  href={SUPPORT_ROUTES.feedback}
+                  className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white/60 p-4 transition hover:border-teal-400/40 hover:bg-teal-500/5 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-teal-500/10"
+                >
+                  <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-teal-600" />
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      Feedback & suggestions
+                    </span>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Tell us what would make LifeNodeOS better for your workflow.
+                    </span>
+                  </span>
+                </Link>
+                <Link
+                  href={SUPPORT_ROUTES.ticket}
+                  className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white/60 p-4 transition hover:border-teal-400/40 hover:bg-teal-500/5 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-teal-500/10"
+                >
+                  <LifeBuoy className="mt-0.5 h-5 w-5 shrink-0 text-teal-600" />
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      Ticket escalation
+                    </span>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Submit a ticket for bugs, billing, or account issues — our
+                      team will follow up by email.
+                    </span>
+                  </span>
+                </Link>
               </div>
             ) : null}
 

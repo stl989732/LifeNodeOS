@@ -387,7 +387,7 @@ export default function LifeNodeShell() {
 
   if (!isLoggedIn) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-[#0B0F17] px-6 py-10 text-slate-100">
+      <div className="relative min-h-screen overflow-hidden bg-[#0B0F17] px-6 pb-10 pt-[calc(var(--ln-node-nav-chrome-block)+1.5rem)] text-slate-100">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(30,41,59,0.6),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(56,189,248,0.12),transparent_45%)]" />
         <div className="relative mx-auto max-w-3xl rounded-3xl border border-white/15 bg-white/[0.05] p-8 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
@@ -463,7 +463,7 @@ export default function LifeNodeShell() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0B0F17] px-6 py-8 text-slate-100">
+    <div className="relative min-h-screen overflow-hidden bg-[#0B0F17] px-6 pb-8 pt-[calc(var(--ln-node-nav-chrome-block)+1.5rem)] text-slate-100">
       <style>{`
         @keyframes ln-priority-blink {
           0%, 100% { box-shadow: 0 0 0 0 rgba(56,189,248,0); opacity: 0.85; }

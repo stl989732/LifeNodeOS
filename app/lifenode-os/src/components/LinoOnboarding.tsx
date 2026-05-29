@@ -429,7 +429,7 @@ export default function LinoOnboarding({ node }: Props) {
     ];
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0B0F17] px-6 py-12 text-slate-100">
+    <div className="relative min-h-screen overflow-hidden bg-[#0B0F17] px-6 pb-12 pt-[calc(var(--ln-node-nav-chrome-block)+2rem)] text-slate-100">
       <style>{`
         @keyframes ln-breathe {
           0%, 100% { transform: scale(1); opacity: 0.85; }
