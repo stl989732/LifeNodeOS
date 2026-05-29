@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
 import { savePendingShellHats } from "@/lib/pending-shell-hats";
@@ -241,8 +242,16 @@ export default function Onboarding() {
       `}</style>
 
       <nav className="absolute top-0 w-full p-6 flex justify-between items-center z-50">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-slate-900" />
+        <div className="flex items-center gap-2.5">
+          <Image
+            src="/lifenode-os-logo.png"
+            alt="LifeNode OS"
+            width={32}
+            height={32}
+            className="h-8 w-8 shrink-0 object-contain"
+            priority
+            unoptimized
+          />
           <span className="font-bold text-slate-900 tracking-wide text-xl">
             LifeNode <span className="font-light text-slate-400">OS</span>
           </span>

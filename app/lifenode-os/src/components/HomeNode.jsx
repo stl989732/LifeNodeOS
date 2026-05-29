@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
@@ -10,6 +10,7 @@ import ChefUtensilLoader from "@/src/components/ChefUtensilLoader";
 import { useLoadingOverlay } from "@/src/context/LoadingOverlayContext";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { useReportNodeUserData } from "@/src/hooks/useReportNodeUserData";
+import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
 import {
   ensureNativeGrocerySeeded,
   NATIVE_GROCERY_CHANGED,
@@ -76,6 +77,7 @@ const SAVED_NOTES_KEY = "lifenode.homenode.saved-notes.v1";
 const BUDGET_ROWS_KEY = "lifenode.homenode.budget-rows.v1";
 const CHORE_ROWS_KEY = "lifenode.homenode.chore-rows.v1";
 const ACTIVITY_PREP_KEY = "lifenode.homenode.activity-prep.v1";
+const UPCOMING_ENGAGEMENT_KEY = "lifenode.homenode.upcoming-engagement.v1";
 
 function normalizeActivityPrepRow(row) {
   if (row && typeof row.title === "string") {
@@ -245,6 +247,31 @@ export default function HomeNode() {
   const generatedMeal = activeKitchenTab?.recipe ?? null;
   const mealCategory = activeKitchenTab?.category ?? null;
   const loadingOverlay = useLoadingOverlay();
+
+  const markHomeSetupComplete = useCallback(() => {
+    setIsInitialized(true);
+    if (typeof window === "undefined" || !userId) return;
+    try {
+      const key = userScopedStorageKey(STORAGE_KEY, userId);
+      const raw = window.localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : {};
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({ ...parsed, isInitialized: true }),
+      );
+    } catch {
+      /* non-fatal */
+    }
+  }, [userId]);
+
+  useServerOnboardingComplete("HomeNode", markHomeSetupComplete);
+
+  useEffect(() => {
+    const onOnboardingDone = () => markHomeSetupComplete();
+    window.addEventListener("lifenode:onboarding:changed", onOnboardingDone);
+    return () =>
+      window.removeEventListener("lifenode:onboarding:changed", onOnboardingDone);
+  }, [markHomeSetupComplete]);
 
   const [isRecording, setIsRecording] = useState(false);
 
@@ -1545,7 +1572,7 @@ export default function HomeNode() {
     }
     setActivityPrepItems((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), label: item, done: false },
+      { ...createEmptyActivityPrepRow(), title: item },
     ]);
   }
 

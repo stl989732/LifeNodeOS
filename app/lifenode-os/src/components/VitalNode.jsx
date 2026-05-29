@@ -23,6 +23,7 @@ import {
   Shield,
   Sparkles,
   Sunrise,
+  Trash2,
   Upload,
   Watch,
   Waves,
@@ -646,6 +647,14 @@ export default function VitalNode() {
     setSymptomNote("");
   }
 
+  function deleteTimelineEvent(id) {
+    setVitalDash((d) => ({
+      ...d,
+      timeline: d.timeline.filter((ev) => ev.id !== id),
+      symptomLogs: d.symptomLogs.filter((s) => s.id !== id),
+    }));
+  }
+
   function ingestLab() {
     const combined = [labPaste.trim(), labFile ? `Attached: ${labFile.name}` : ""].filter(Boolean).join("\n\n");
     if (!combined) return;
@@ -1186,8 +1195,18 @@ export default function VitalNode() {
                 vitalDash.timeline.map((ev) => (
                   <div
                     key={ev.id}
-                    className="min-w-[200px] shrink-0 rounded-2xl border border-white/60 bg-white/55 p-3 shadow-sm"
+                    className="relative min-w-[200px] shrink-0 rounded-2xl border border-white/60 bg-white/55 p-3 pr-9 shadow-sm"
                   >
+                    {ev.type === "symptom" ? (
+                      <button
+                        type="button"
+                        onClick={() => deleteTimelineEvent(ev.id)}
+                        className="absolute right-2 top-2 rounded-lg p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                        aria-label={`Delete ${ev.title}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
                     <p className="text-[10px] font-bold uppercase text-slate-500">{ev.type}</p>
                     <p className="text-sm font-semibold text-slate-900">{ev.title}</p>
                     <p className="text-xs text-slate-500">{ev.date}</p>

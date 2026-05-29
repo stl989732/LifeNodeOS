@@ -18,8 +18,10 @@ const readNodeOnboarding = cache(
 );
 
 /**
- * Gate around any Node page (`/work`, `/home`, `/vital`, `/pro`, `/trader`,
- * `/vanode`). Resolves the session server-side, looks up onboarding status
+ * Gate around node pages (`/work`, `/home`, `/vital`, `/pro`, `/trader`,
+ * `/vanode`). LifePulse (`/pulse`) is intentionally excluded — it needs no
+ * onboarding or app connections. Resolves the session server-side, looks up
+ * onboarding status
  * for the requested node, and redirects to `/onboarding/<hat>` when it
  * hasn't been completed yet.
  *

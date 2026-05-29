@@ -394,8 +394,9 @@ export default function LinoOnboarding({ node }: Props) {
         }).catch(() => undefined);
       }
 
-      router.replace(NODE_ROUTE[node]);
       window.dispatchEvent(new CustomEvent("lifenode:onboarding:changed"));
+      // Full navigation avoids stale RSC onboarding cache and client chunk reload errors.
+      window.location.assign(NODE_ROUTE[node]);
     } catch (e) {
       setErrorMessage(
         e instanceof Error
@@ -546,16 +547,6 @@ export default function LinoOnboarding({ node }: Props) {
               Skip back to Hub
             </button>
             <div className="flex flex-wrap items-center gap-2">
-              {stepIdx < NODE_ONBOARDING_STEPS.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={finish}
-                  disabled={completing}
-                  className="rounded-2xl border border-white/15 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {completing ? "Opening…" : `Enter ${content.intro} now`}
-                </button>
-              ) : null}
               {stepIdx < NODE_ONBOARDING_STEPS.length - 1 ? (
                 <button
                   type="button"

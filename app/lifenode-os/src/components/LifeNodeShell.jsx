@@ -22,6 +22,7 @@ import {
   readPendingShellHats,
 } from "@/lib/pending-shell-hats";
 import NotificationsBell from "@/src/components/NotificationsBell";
+import { ACTIVE_TO_HAT_KEY } from "@/lib/node-mappings";
 
 const ONBOARDING_TOTAL_STEPS = 3;
 
@@ -30,43 +31,37 @@ const HATS = {
     label: "BizNode",
     route: "/work",
     Icon: Briefcase,
-    summary: "BizNode: 2 approvals are blocking this morning sprint.",
-    priority: false,
+    summary: "Connect your work stack and track priorities from one place.",
   },
   home: {
     label: "HomeNode",
     route: "/home",
     Icon: Home,
-    summary: "HomeNode: Pantry forecast is stable for the next 72 hours.",
-    priority: false,
+    summary: "Plan meals, chores, and family logistics in your home command center.",
   },
   vital: {
     label: "VitalNode",
     route: "/vital",
     Icon: HeartPulse,
-    summary: "VitalNode: Resilience is at 85% and trending upward.",
-    priority: false,
+    summary: "Log vitals, symptoms, and wellness habits on a blank slate.",
   },
   va: {
     label: "VANode",
     route: "/vanode",
     Icon: MessageSquare,
-    summary: "VANode: One overdue invoice needs approval before noon.",
-    priority: true,
+    summary: "Manage inbox tasks and assistant workflows when you're ready.",
   },
   trader: {
     label: "TraderNode",
     route: "/trader",
     Icon: TrendingUp,
-    summary: "TraderNode: Price alert near trigger on your A-tier setup.",
-    priority: true,
+    summary: "Set up watchlists and price alerts for your trading workflow.",
   },
   pro: {
     label: "ProNode",
     route: "/pro",
     Icon: Scale,
-    summary: "ProNode: AI sidecar surfaced 3 relevant citations for review.",
-    priority: false,
+    summary: "Organize cases, citations, and research in your legal sidecar.",
   },
 };
 
@@ -134,7 +129,6 @@ export default function LifeNodeShell() {
   const { data: session, status } = useSession();
   const {
     setActiveNode,
-    setNodePulse,
     setConfiguredHatsFromShellKeys,
     configuredHats,
     toggleConfiguredHat,
@@ -258,10 +252,36 @@ export default function LifeNodeShell() {
     return () => clearTimeout(timer);
   }, [assemblingHat, router, setActiveNode, userId]);
 
-  const activeCards = useMemo(
-    () => (isLoggedIn ? persistedHats.filter((hat) => HATS[hat]) : []),
-    [isLoggedIn, persistedHats]
+  const galleryShellHats = useMemo(
+    () =>
+      configuredHats
+        .map((node) => ACTIVE_TO_HAT_KEY[node])
+        .filter((h) => HAT_KEYS.includes(h)),
+    [configuredHats]
   );
+
+  const activeCards = useMemo(() => {
+    if (!isLoggedIn) return [];
+    if (galleryShellHats.length) return galleryShellHats;
+    return (persistedHats ?? []).filter((hat) => HATS[hat]);
+  }, [galleryShellHats, isLoggedIn, persistedHats]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !galleryShellHats.length) return;
+    queueMicrotask(() => {
+      setPersistedHats((prev) => {
+        const same =
+          Array.isArray(prev) &&
+          prev.length === galleryShellHats.length &&
+          prev.every((h, i) => h === galleryShellHats[i]);
+        return same ? prev : galleryShellHats;
+      });
+      setSelectedHats(galleryShellHats);
+      setSwitchHat((cur) =>
+        galleryShellHats.includes(cur) ? cur : galleryShellHats[0]
+      );
+    });
+  }, [galleryShellHats, isLoggedIn]);
 
   /**
    * Pull per-node onboarding completion so we can paint a glassmorphism
@@ -373,22 +393,6 @@ export default function LifeNodeShell() {
     if (!currentNode) return;
     queueMicrotask(() => setActiveNode(currentNode));
   }, [setActiveNode, switchHat]);
-
-  useEffect(() => {
-    if (!activeCards.length) return;
-    queueMicrotask(() => {
-      activeCards.forEach((hat) => {
-        const mappedNode = HAT_TO_NODE[hat];
-        if (!mappedNode) return;
-        setNodePulse(mappedNode, {
-          summary: HATS[hat].summary,
-          alerts: HATS[hat].priority
-            ? [`Priority bottleneck detected in ${HATS[hat].label}.`]
-            : [`${HATS[hat].label} is currently stable.`],
-        });
-      });
-    });
-  }, [activeCards, setNodePulse]);
 
   if (!hydrated || status === "loading") {
     return <div className="min-h-screen bg-[#0B0F17]" />;
@@ -587,22 +591,12 @@ export default function LifeNodeShell() {
                   </div>
 
                   <div className="mb-4 flex items-center justify-between">
-                    <span
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-[#1E293B] ${
-                        node.priority ? "ln-priority-blink" : ""
-                      }`}
-                    >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-[#1E293B]">
                       <Icon className="h-5 w-5 text-cyan-200" />
                     </span>
-                    {node.priority ? (
-                      <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
-                        Bottleneck
-                      </span>
-                    ) : (
-                      <span className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
-                        Stable
-                      </span>
-                    )}
+                    <span className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
+                      Ready
+                    </span>
                   </div>
                   <h2 className="text-base font-bold text-slate-100">{node.label}</h2>
                   <p className="mt-2 text-sm leading-relaxed text-slate-300">

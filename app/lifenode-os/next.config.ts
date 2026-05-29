@@ -8,6 +8,15 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(projectRoot, "..", "..");
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/favicon.ico",
+        destination: "/favicon.png",
+        permanent: false,
+      },
+    ];
+  },
   experimental: {
     /** Tree-shake lucide barrel imports across the app (faster dev compile, smaller chunks). */
     optimizePackageImports: ["lucide-react"],

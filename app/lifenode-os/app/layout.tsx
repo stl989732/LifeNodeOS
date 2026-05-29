@@ -44,6 +44,14 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "LifeNode OS",
   description: "The operating system for your whole life — LifeNode OS.",
+  icons: {
+    icon: [
+      { url: "/favicon.png", type: "image/png", sizes: "512x512" },
+      { url: "/lifenode-os-logo.png", type: "image/png", sizes: "512x512" },
+    ],
+    shortcut: "/favicon.png",
+    apple: "/lifenode-os-logo.png",
+  },
 };
 
 export default function RootLayout({

@@ -1,7 +1,7 @@
-import dynamic from "next/dynamic";
-import NodeRouteBinder from "@/src/components/NodeRouteBinder";
-import OnboardingGate from "@/src/components/OnboardingGate";
+import nextDynamic from "next/dynamic";
 import GenericNodeCommandShell from "@/src/components/shell/GenericNodeCommandShell";
+
+export const dynamic = "force-dynamic";
 
 function LifePulseLoading() {
   return (
@@ -11,19 +11,21 @@ function LifePulseLoading() {
   );
 }
 
-const LifePulseDashboard = dynamic(
+const LifePulseDashboard = nextDynamic(
   () => import("@/src/components/lifePulse/LifePulseDashboard"),
   { loading: LifePulseLoading },
 );
 
+/**
+ * LifePulse is always available — no node onboarding or app connections required.
+ * Auth is enforced by the edge proxy; do not wrap with OnboardingGate(HomeNode).
+ */
 export default function LifePulsePage() {
   return (
-    <OnboardingGate node="HomeNode">
-      <NodeRouteBinder node="HomeNode">
-        <GenericNodeCommandShell workspaceTone="light">
-          <LifePulseDashboard />
-        </GenericNodeCommandShell>
-      </NodeRouteBinder>
-    </OnboardingGate>
+    <div className="min-h-full pt-[calc(env(safe-area-inset-top,0px)+var(--ln-node-nav-chrome-block))]">
+      <GenericNodeCommandShell workspaceTone="light">
+        <LifePulseDashboard />
+      </GenericNodeCommandShell>
+    </div>
   );
 }
