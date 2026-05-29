@@ -7,6 +7,7 @@ import {
   clearPendingWhiteboardVault,
   readPendingWhiteboardVault,
 } from "@/lib/vanode/whiteboard-vault-pending";
+import { downloadVanodeJsonBackup } from "@/lib/vanode/export-backup";
 import type {
   ClientProfile,
   EodLog,
@@ -280,14 +281,7 @@ export function useVanodeStore() {
   }, []);
 
   const exportJson = useCallback(() => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `vanode-backup-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    downloadVanodeJsonBackup(data);
   }, [data]);
 
   const actions = useMemo(

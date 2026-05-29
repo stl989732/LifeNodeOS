@@ -49,6 +49,7 @@ import {
   LiveMeetingCaptureCard,
   TimezoneBridgeCard,
 } from "./VanodeVaProPanels";
+import { VanodeExportBackupMenu } from "./VanodeExportBackupMenu";
 
 type VaStageId =
   | "overview"
@@ -330,13 +331,7 @@ export function VANodeDashboard() {
             >
               Re-run discovery
             </button>
-            <button
-              type="button"
-              onClick={() => store.exportJson()}
-              className="rounded-xl border border-solid border-white/10 bg-white/50 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur-[12px] transition hover:bg-white/70"
-            >
-              Export backup
-            </button>
+            <VanodeExportBackupMenu data={store.data} />
             <button
               type="button"
               onClick={() => {

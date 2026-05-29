@@ -336,6 +336,11 @@ export default function WorkNode() {
     [selectedApps, primaryDataTool],
   );
 
+  const connectedOAuthApps = useMemo(
+    () => visibleApps.filter((app) => isAppOAuthConnected(app, integrations)),
+    [visibleApps, integrations],
+  );
+
   function selectPrimaryDataTool(tool) {
     setPrimaryDataTool(tool);
     writePrimaryDataTool(tool);
@@ -775,20 +780,22 @@ export default function WorkNode() {
                 <span className="text-xs text-slate-500">Past • Ongoing • Upcoming</span>
               </div>
               <div className="space-y-3">
-                {visibleApps.length === 0 ? (
-                  <div className="text-sm text-slate-500">No connected apps yet.</div>
+                {connectedOAuthApps.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200/80 bg-white/50 px-4 py-5 text-sm leading-relaxed text-slate-500">
+                    {visibleApps.length > 0
+                      ? "Apps are selected but not connected yet. Complete OAuth in the left rail to see live activity."
+                      : "No connected apps yet. Connect tools in the discovery hub to see activity here."}
+                  </div>
                 ) : (
-                  visibleApps.slice(0, 6).map((app) => (
+                  connectedOAuthApps.slice(0, 6).map((app) => (
                     <div key={app} className="rounded-2xl bg-white/80 p-3 flex items-center justify-between">
                       <div>
                         <p className="font-semibold text-sm text-slate-800">{app}</p>
-                        <p className="text-xs text-slate-500">Monitoring work, sales, and tasks</p>
+                        <p className="text-xs text-slate-500">Connected · awaiting first sync</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-slate-500">Progress</p>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {Math.min(95, 45 + app.length * 4)}%
-                        </p>
+                        <p className="text-xs text-slate-500">Status</p>
+                        <p className="text-sm font-semibold text-emerald-800">Live</p>
                       </div>
                     </div>
                   ))
@@ -807,6 +814,7 @@ export default function WorkNode() {
                 calcInput={calcInput}
                 setCalcInput={setCalcInput}
                 runCalculation={runCalculation}
+                connectedApps={connectedOAuthApps}
               />
             </section>
 

@@ -6,12 +6,15 @@ import {
   Bell,
   Bot,
   Laptop,
+  LifeBuoy,
+  MessageSquare,
   Palette,
   Plug,
   Shield,
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import ScaleSurveyEmbed from "./ScaleSurveyEmbed";
 import type { ActiveNode } from "@/src/context/LifeNodeContext";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { NODE_GALLERY_ENTRIES } from "@/src/components/shell/node-gallery-nodes";
@@ -35,7 +38,8 @@ type SectionId =
   | "ai"
   | "notifications"
   | "integrations"
-  | "appearance";
+  | "appearance"
+  | "support";
 
 const SECTIONS: { id: SectionId; label: string; icon: typeof Shield }[] = [
   { id: "account", label: "Account & Security", icon: Shield },
@@ -44,6 +48,7 @@ const SECTIONS: { id: SectionId; label: string; icon: typeof Shield }[] = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "integrations", label: "Integrations", icon: Plug },
   { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "support", label: "Support", icon: LifeBuoy },
 ];
 
 type Props = {
@@ -567,6 +572,40 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
                   Webhook signing keys and Zapier triggers are configured per workspace in
                   Settings → Integrations on each node dashboard.
                 </p>
+              </div>
+            ) : null}
+
+            {section === "support" ? (
+              <div className="space-y-8">
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-teal-600" />
+                    <SectionTitle>Feedback & suggestions</SectionTitle>
+                  </div>
+                  <p className="mb-3 text-xs text-slate-500">
+                    Tell us what would make LifeNodeOS better for your workflow.
+                  </p>
+                  <ScaleSurveyEmbed
+                    surveyId="waJcGVAChC3S206wU851"
+                    title="LifeNodeOS feedback survey"
+                    minHeight={420}
+                  />
+                </div>
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <LifeBuoy className="h-4 w-4 text-teal-600" />
+                    <SectionTitle>Ticket escalation</SectionTitle>
+                  </div>
+                  <p className="mb-3 text-xs text-slate-500">
+                    Submit a ticket for bugs, billing, or account issues — our team
+                    will follow up by email.
+                  </p>
+                  <ScaleSurveyEmbed
+                    surveyId="W7Z3EOqPhYf9hBbvTcRw"
+                    title="LifeNodeOS support ticket"
+                    minHeight={420}
+                  />
+                </div>
               </div>
             ) : null}
 

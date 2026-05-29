@@ -1,13 +1,6 @@
 "use client";
 
-import { Activity, Calculator, NotebookPen, TrendingDown, TrendingUp } from "lucide-react";
-
-const AUTOMATION_FLOWS = [
-  { id: "meta-leads", label: "Meta Lead Ads Stream", status: "ACTIVE", healthy: true },
-  { id: "sms-seq", label: "Conditional SMS Sequence", status: "INITIALIZED", healthy: true },
-  { id: "ghl-sync", label: "GoHighLevel CRM Sync", status: "MONITORING", healthy: true },
-  { id: "airtable", label: "Airtable Pipeline Webhook", status: "BOTTLENECK", healthy: false },
-];
+import { Activity, Calculator, NotebookPen } from "lucide-react";
 
 export default function FounderUtilitiesPanel({
   showNotesPanel,
@@ -19,9 +12,14 @@ export default function FounderUtilitiesPanel({
   calcInput,
   setCalcInput,
   runCalculation,
+  /** OAuth-connected app labels only — no demo automation rows. */
+  connectedApps = [],
 }) {
-  const activeOpps = 68;
-  const atRisk = 24;
+  const automationRows = connectedApps.map((label) => ({
+    id: label,
+    label,
+    status: "CONNECTED",
+  }));
 
   return (
     <div className="space-y-4">
@@ -104,25 +102,26 @@ export default function FounderUtilitiesPanel({
             Automation Posture Switchboard
           </p>
         </div>
-        <ul className="space-y-2">
-          {AUTOMATION_FLOWS.map((flow) => (
-            <li
-              key={flow.id}
-              className="flex items-center justify-between gap-2 rounded-xl border border-white/50 bg-white/45 px-3 py-2"
-            >
-              <span className="text-sm font-medium text-slate-800">{flow.label}</span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                  flow.healthy
-                    ? "bg-emerald-500/15 text-emerald-800"
-                    : "bg-amber-500/15 text-amber-900"
-                }`}
+        {automationRows.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-200/80 bg-white/40 px-3 py-4 text-sm leading-relaxed text-slate-500">
+            Connect apps in the discovery hub (Gmail, Slack, CRM, etc.) to see live
+            automation posture here. Nothing is pre-filled until you connect.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {automationRows.map((flow) => (
+              <li
+                key={flow.id}
+                className="flex items-center justify-between gap-2 rounded-xl border border-white/50 bg-white/45 px-3 py-2"
               >
-                {flow.status}
-              </span>
-            </li>
-          ))}
-        </ul>
+                <span className="text-sm font-medium text-slate-800">{flow.label}</span>
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
+                  {flow.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="rounded-2xl border border-white/60 bg-white/55 p-4 backdrop-blur-sm">
@@ -130,34 +129,18 @@ export default function FounderUtilitiesPanel({
           <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
             Pipeline Velocity
           </p>
-          <span className="text-[10px] font-semibold text-slate-500">Live estimate</span>
         </div>
-        <div className="mb-2 flex items-end justify-between gap-3">
-          <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-800">
-            <TrendingUp size={14} />
-            {activeOpps}% Active
-          </div>
-          <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-800">
-            <TrendingDown size={14} />
-            {atRisk}% At risk
-          </div>
-        </div>
-        <div className="flex h-3 overflow-hidden rounded-full bg-white/60 ring-1 ring-white/70">
-          <div
-            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all"
-            style={{ width: `${activeOpps}%` }}
-            title="Active opportunities"
-          />
-          <div
-            className="h-full bg-gradient-to-r from-amber-300 to-rose-400 transition-all"
-            style={{ width: `${atRisk}%` }}
-            title="Deals at risk"
-          />
-        </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
-          Closed-won volume trending up; stalled proposals need a Discovery Hub resync or manual
-          follow-up this week.
-        </p>
+        {connectedApps.length === 0 ? (
+          <p className="text-sm leading-relaxed text-slate-500">
+            Pipeline velocity appears after you connect CRM or sales apps and sync
+            data from BizNode.
+          </p>
+        ) : (
+          <p className="text-sm leading-relaxed text-slate-600">
+            Sync CRM data from the Unified Node Brain section to populate active vs.
+            at-risk deal metrics. Connected: {connectedApps.join(", ")}.
+          </p>
+        )}
       </div>
     </div>
   );
