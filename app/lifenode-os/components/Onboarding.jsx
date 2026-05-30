@@ -25,6 +25,10 @@ import {
   TrendingUp,
   Scale,
   Loader2,
+  Clock,
+  RefreshCw,
+  Moon,
+  Layers,
 } from "lucide-react";
 /** Fonts come from root layout CSS variables (--font-outfit, --font-playfair). */
 const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
@@ -97,6 +101,187 @@ async function persistConfiguredHatsToApi(hats) {
     throw new Error(body?.message || `SAVE_${res.status}`);
   }
   return res.json();
+}
+
+const LANDING_FEATURES = [
+  {
+    id: "household",
+    headline: "Your entire home, quietly in sync.",
+    subtext:
+      "Consolidate shared family calendars, grocery lists, and school tracking into a single command deck. No more fragmented threads.",
+    preview: "schedule",
+  },
+  {
+    id: "recovery",
+    headline: "Prioritize the parents.",
+    subtext:
+      "Track your personal wellness, sleep data via Whoop/Apple Health, and physical recovery milestones alongside your daily family tasks.",
+    preview: "vitals",
+    reverse: true,
+  },
+  {
+    id: "workspace",
+    headline: "Bridge work and life natively.",
+    subtext:
+      "Connect your professional stack like Slack, Gmail, and Notion. Let Lino triage the noise so you can focus on being present.",
+    preview: "workspace",
+  },
+];
+
+function LandingProductMock() {
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4">
+      <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+        <div className="flex items-center gap-2 border-b border-slate-800/80 bg-slate-900/60 px-4 py-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+          <span className="ml-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            HomeNode · Command deck
+          </span>
+        </div>
+        <div className="grid gap-4 p-5 md:grid-cols-2 md:p-6">
+          <div className="rounded-xl border border-slate-800/80 bg-white/[0.03] p-4">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-teal-400/90">
+              Today&apos;s family schedule
+            </p>
+            <ul className="space-y-3">
+              {[
+                { time: "7:30 AM", label: "School run", tone: "text-slate-200" },
+                { time: "2:15 PM", label: "Pediatrician appt", tone: "text-slate-200" },
+                { time: "5:00 PM", label: "Soccer pickup", tone: "text-slate-400" },
+              ].map((item) => (
+                <li
+                  key={item.label}
+                  className="flex items-center gap-3 rounded-lg border border-slate-800/60 bg-slate-900/40 px-3 py-2.5"
+                >
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                  <span className="text-[10px] font-mono text-slate-500">{item.time}</span>
+                  <span className={`text-sm font-medium ${item.tone}`}>{item.label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-slate-800/80 bg-white/[0.03] p-4">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-400/90">
+              Household automations
+            </p>
+            <ul className="space-y-3">
+              {[
+                "Syncing Instacart → weekly meal plan",
+                "Low pantry alert → Smart Cart draft",
+                "Calendar conflict → Lino heads-up",
+              ].map((label) => (
+                <li
+                  key={label}
+                  className="flex items-start gap-3 rounded-lg border border-slate-800/60 bg-slate-900/40 px-3 py-2.5"
+                >
+                  <RefreshCw className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400/80" />
+                  <span className="text-sm leading-snug text-slate-300">{label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeaturePreviewCard({ variant }) {
+  if (variant === "schedule") {
+    return (
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur-md">
+        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-amber-500/10 blur-2xl" />
+        <Home className="mb-4 h-8 w-8 text-amber-400/80" />
+        <div className="space-y-2">
+          {[72, 56, 88].map((w) => (
+            <div
+              key={w}
+              className="h-2 rounded-full bg-slate-800"
+              style={{ width: `${w}%` }}
+            />
+          ))}
+        </div>
+        <p className="mt-4 text-xs text-slate-500">Unified family timeline</p>
+      </div>
+    );
+  }
+  if (variant === "vitals") {
+    return (
+      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur-md">
+        <div className="absolute -left-6 -bottom-6 h-28 w-28 rounded-full bg-emerald-500/10 blur-2xl" />
+        <HeartPulse className="mb-4 h-8 w-8 text-emerald-400/80" />
+        <div className="flex gap-3">
+          <div className="flex-1 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+            <Moon className="mb-2 h-4 w-4 text-indigo-400" />
+            <p className="text-lg font-semibold text-slate-100">84%</p>
+            <p className="text-[10px] uppercase tracking-wide text-slate-500">Sleep</p>
+          </div>
+          <div className="flex-1 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+            <Activity className="mb-2 h-4 w-4 text-teal-400" />
+            <p className="text-lg font-semibold text-slate-100">HRV</p>
+            <p className="text-[10px] uppercase tracking-wide text-slate-500">Recovery</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur-md">
+      <div className="absolute -right-6 bottom-0 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl" />
+      <Layers className="mb-4 h-8 w-8 text-blue-400/80" />
+      <div className="space-y-2">
+        {["Slack triage", "Gmail digest", "Notion sync"].map((label) => (
+          <div
+            key={label}
+            className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2"
+          >
+            <span className="text-xs text-slate-400">{label}</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-teal-400" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LandingFeatureSections() {
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-24 md:py-32">
+      <div className="space-y-24 md:space-y-32">
+        {LANDING_FEATURES.map((feature) => (
+          <section
+            key={feature.id}
+            className={`grid items-center gap-10 md:grid-cols-2 md:gap-16 ${
+              feature.reverse ? "md:[direction:rtl]" : ""
+            }`}
+          >
+            <div className={feature.reverse ? "md:[direction:ltr]" : ""}>
+              <FeaturePreviewCard variant={feature.preview} />
+            </div>
+            <div className={feature.reverse ? "md:[direction:ltr]" : ""}>
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">
+                {feature.id === "household"
+                  ? "HomeNode"
+                  : feature.id === "recovery"
+                    ? "VitalNode"
+                    : "BizNode + Lino"}
+              </p>
+              <h2
+                className={`${FONT_PLAYFAIR} text-3xl font-semibold italic leading-tight text-slate-50 md:text-4xl`}
+              >
+                {feature.headline}
+              </h2>
+              <p className="mt-4 max-w-lg text-base leading-relaxed text-slate-400">
+                {feature.subtext}
+              </p>
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function Onboarding() {
@@ -187,7 +372,7 @@ export default function Onboarding() {
 
   return (
     <div
-      className={`${FONT_OUTFIT} grainy-dawn-bg min-h-screen text-[#1E293B] flex flex-col relative overflow-hidden transition-colors duration-700`}
+      className={`${FONT_OUTFIT} grainy-dawn-bg min-h-screen text-[#1E293B] flex flex-col relative overflow-x-hidden transition-colors duration-700`}
     >
       <style>{`
         .fade-in { animation: ln-fadeIn 0.8s ease-out forwards; }
@@ -300,47 +485,60 @@ export default function Onboarding() {
       </nav>
 
       {step === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10 fade-in mt-16">
-          <div className="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-8 border border-slate-200 shadow-sm">
-            Meet LifeNode OS
-          </div>
-          <h1 className="text-5xl md:text-7xl font-bold text-[#0F172A] max-w-4xl tracking-tight mb-6 leading-[1.1] transition-all duration-500">
-            The Operating System for <br />
-            <span
-              className={`${FONT_PLAYFAIR} italic text-[#1E293B] transition-colors duration-500 ${demographics[heroIndex].color}`}
+        <>
+          <div className="flex flex-col items-center p-6 text-center z-10 fade-in pt-28 pb-16 md:pt-32">
+            <div className="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-8 border border-slate-200 shadow-sm">
+              Meet LifeNode OS
+            </div>
+            <h1 className="text-5xl md:text-7xl font-bold text-[#0F172A] max-w-4xl tracking-tight mb-6 leading-[1.1] transition-all duration-500">
+              The Operating System for <br />
+              <span
+                className={`${FONT_PLAYFAIR} italic text-[#1E293B] transition-colors duration-500 ${demographics[heroIndex].color}`}
+              >
+                {demographics[heroIndex].role}.
+              </span>
+            </h1>
+            <p className="text-lg text-[#475569] max-w-2xl mb-10 leading-relaxed min-h-[4.5rem] md:min-h-[4rem]">
+              Stop toggling between 15 different apps. Unify your{" "}
+              <span className="font-bold text-[#1E293B]">
+                {demographics[heroIndex].highlight}
+              </span>
+              , physical recovery, and daily tasks into one intelligent dashboard.
+            </p>
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-full font-bold text-lg flex items-center gap-3 transition-all hover:scale-105 shadow-xl"
             >
-              {demographics[heroIndex].role}.
-            </span>
-          </h1>
-          <p className="text-lg text-[#475569] max-w-2xl mb-10 leading-relaxed min-h-[4.5rem] md:min-h-[4rem]">
-            Stop toggling between 15 different apps. Unify your{" "}
-            <span className="font-bold text-[#1E293B]">
-              {demographics[heroIndex].highlight}
-            </span>
-            , physical recovery, and daily tasks into one intelligent dashboard.
-          </p>
-          <button
-            type="button"
-            onClick={() => setStep(1)}
-            className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-full font-bold text-lg flex items-center gap-3 transition-all hover:scale-105 shadow-xl"
-          >
-            Build Your Dashboard <ArrowRight size={20} />
-          </button>
+              Build Your Dashboard <ArrowRight size={20} />
+            </button>
 
-          <div className="mt-16 w-full max-w-6xl overflow-hidden relative opacity-40 grayscale before:absolute before:left-0 before:top-0 before:w-32 before:h-full before:bg-gradient-to-r before:from-[#FDFDFD] before:to-transparent before:z-10 after:absolute after:right-0 after:top-0 after:w-32 after:h-full after:bg-gradient-to-l after:from-[#FDFDFD] after:to-transparent after:z-10">
-            <div className="animate-ln-marquee flex items-center">
-              {[...integrations, ...integrations].map((app, i) => (
-                <div
-                  key={`${app.name}-${i}`}
-                  className="flex items-center gap-2 font-bold text-sm whitespace-nowrap mx-6 text-slate-600"
-                >
-                  {app.icon} <span>{app.name}</span>{" "}
-                  <span className="text-slate-300 ml-6 text-[10px]">♦</span>
-                </div>
-              ))}
+            <p className="mt-5 text-[11px] font-medium tracking-wide text-slate-400/90 md:text-xs">
+              Join 500+ busy parents orchestrating their household logistics.
+            </p>
+
+            <div className="mt-10 w-full max-w-6xl overflow-hidden relative opacity-40 grayscale before:absolute before:left-0 before:top-0 before:w-32 before:h-full before:bg-gradient-to-r before:from-[#FDFDFD] before:to-transparent before:z-10 after:absolute after:right-0 after:top-0 after:w-32 after:h-full after:bg-gradient-to-l after:from-[#FDFDFD] after:to-transparent after:z-10">
+              <div className="animate-ln-marquee flex items-center">
+                {[...integrations, ...integrations].map((app, i) => (
+                  <div
+                    key={`${app.name}-${i}`}
+                    className="flex items-center gap-2 font-bold text-sm whitespace-nowrap mx-6 text-slate-600"
+                  >
+                    {app.icon} <span>{app.name}</span>{" "}
+                    <span className="text-slate-300 ml-6 text-[10px]">♦</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+
+          <section className="relative z-10 bg-gradient-to-b from-transparent via-slate-950/40 to-[#0B0F17] pb-8 pt-4">
+            <div className="mb-16 md:mb-24">
+              <LandingProductMock />
+            </div>
+            <LandingFeatureSections />
+          </section>
+        </>
       )}
 
       {step === 1 && (
@@ -596,14 +794,26 @@ export default function Onboarding() {
         </div>
       )}
 
-      <footer className="w-full border-t border-slate-200 bg-white px-8 py-6 text-xs text-slate-500">
+      <footer
+        className={`relative z-10 w-full border-t px-8 py-6 text-xs ${
+          step === 0
+            ? "border-slate-800 bg-[#0B0F17] text-slate-500"
+            : "border-slate-200 bg-white text-slate-500"
+        }`}
+      >
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 sm:flex-row">
           <div>&copy; {new Date().getFullYear()} LifeNodeOS. All rights reserved.</div>
           <div className="flex items-center gap-6">
-            <Link href="/terms" className="transition-colors hover:text-slate-800">
+            <Link
+              href="/terms"
+              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
+            >
               Terms of Service
             </Link>
-            <Link href="/privacy" className="transition-colors hover:text-slate-800">
+            <Link
+              href="/privacy"
+              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
+            >
               Privacy Policy
             </Link>
           </div>
