@@ -369,6 +369,22 @@ export default function LinoOnboarding({ node }: Props) {
     let cancelled = false;
     (async () => {
       try {
+        const onboardingRes = await fetch("/api/user-state/onboarding", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (onboardingRes.ok) {
+          const onboardingData = (await onboardingRes.json()) as {
+            statuses?: Partial<
+              Record<ActiveNodeName, { onboardingCompleted?: boolean }>
+            >;
+          };
+          if (onboardingData.statuses?.[node]?.onboardingCompleted) {
+            window.location.replace(NODE_ROUTE[node]);
+            return;
+          }
+        }
+
         const res = await fetch("/api/user-state", {
           cache: "no-store",
           credentials: "include",
@@ -440,6 +456,7 @@ export default function LinoOnboarding({ node }: Props) {
         const res = await fetch("/api/user-state/onboarding", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ node, step }),
         });
         if (!res.ok) {
@@ -470,7 +487,7 @@ export default function LinoOnboarding({ node }: Props) {
     } catch {
       return;
     }
-    setStepIdx((i) => Math.min(i + 1, NODE_ONBOARDING_STEPS.length));
+    setStepIdx((i) => Math.min(i + 1, NODE_ONBOARDING_STEPS.length - 1));
   }, [stepIdx, persistStep]);
 
   const finish = useCallback(async () => {
@@ -478,9 +495,13 @@ export default function LinoOnboarding({ node }: Props) {
     setErrorMessage(null);
     try {
       if (!DEV_FRESH_SESSION) {
+        const lastStep = NODE_ONBOARDING_STEPS[NODE_ONBOARDING_STEPS.length - 1];
+        await persistStep(lastStep);
+
         const res = await fetch("/api/user-state/onboarding", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ node, completed: true }),
         });
         if (!res.ok) {
@@ -498,6 +519,7 @@ export default function LinoOnboarding({ node }: Props) {
         await fetch("/api/user-state/workflows", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             name: workflowName.trim(),
             triggerNode: node,
@@ -511,8 +533,7 @@ export default function LinoOnboarding({ node }: Props) {
       }
 
       window.dispatchEvent(new CustomEvent("lifenode:onboarding:changed"));
-      // Full navigation avoids stale RSC onboarding cache and client chunk reload errors.
-      window.location.assign(NODE_ROUTE[node]);
+      window.location.replace(NODE_ROUTE[node]);
     } catch (e) {
       setErrorMessage(
         e instanceof Error
@@ -522,7 +543,7 @@ export default function LinoOnboarding({ node }: Props) {
     } finally {
       setCompleting(false);
     }
-  }, [node, router, workflowName]);
+  }, [node, workflowName, persistStep]);
 
   const toggleStack = (label: string) =>
     setStackSelections((prev) =>

@@ -92,6 +92,7 @@ const BUDGET_CURRENCIES = [
   { code: "AUD", symbol: "A$", label: "AUD · Australian Dollar" },
   { code: "JPY", symbol: "¥", label: "JPY · Japanese Yen" },
   { code: "INR", symbol: "₹", label: "INR · Indian Rupee" },
+  { code: "PHP", symbol: "₱", label: "PHP · Philippine Peso" },
   { code: "MXN", symbol: "MX$", label: "MXN · Mexican Peso" },
   { code: "SGD", symbol: "S$", label: "SGD · Singapore Dollar" },
   { code: "CHF", symbol: "CHF", label: "CHF · Swiss Franc" },
@@ -1515,6 +1516,22 @@ export default function HomeNode() {
     const row = activityPrepItems.find((r) => r.id === id);
     if (!row?.title?.trim()) return;
     updateActivityPrepRow(id, { saved: true });
+    if (row.scheduledAt?.trim()) {
+      const eventDate = row.scheduledAt.slice(0, 10);
+      const eventTime = new Date(row.scheduledAt).toISOString();
+      void fetch("/api/home/family-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          title: row.title.trim(),
+          event_time: eventTime,
+          event_date: eventDate,
+          category: "home",
+          source: "Activity Prep",
+        }),
+      }).catch(() => undefined);
+    }
   }
 
   const hasHomeUserData = useMemo(() => {
@@ -2796,7 +2813,6 @@ export default function HomeNode() {
                             </td>
                             <td className="px-2">
                               <DateTimeField
-                                label="When"
                                 value={row.scheduledAt}
                                 onChange={(value) =>
                                   updateActivityPrepRow(row.id, { scheduledAt: value })

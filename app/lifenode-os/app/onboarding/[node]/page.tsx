@@ -3,8 +3,11 @@ import { auth } from "@/auth";
 import LinoOnboarding from "@/src/components/LinoOnboarding";
 import {
   HAT_KEY_TO_ACTIVE,
+  NODE_ROUTE,
   isShellHatKey,
 } from "@/lib/node-mappings";
+import { getNodeOnboarding } from "@/lib/user-state-store";
+import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -22,5 +25,18 @@ export default async function NodeOnboardingPage({
     redirect(`/auth/signin?callbackUrl=${callback}`);
   }
 
-  return <LinoOnboarding node={HAT_KEY_TO_ACTIVE[param]} />;
+  const activeNode = HAT_KEY_TO_ACTIVE[param];
+
+  if (!DEV_FRESH_SESSION) {
+    try {
+      const status = await getNodeOnboarding(session.user.id, activeNode);
+      if (status.onboardingCompleted) {
+        redirect(NODE_ROUTE[activeNode]);
+      }
+    } catch {
+      /* allow onboarding UI when persistence is temporarily unavailable */
+    }
+  }
+
+  return <LinoOnboarding node={activeNode} />;
 }

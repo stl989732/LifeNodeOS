@@ -701,6 +701,11 @@ export async function patchNodeOnboarding(
     completedAt = null;
   }
 
+  const nextDrafts = { ...current.nodeOnboardingDrafts };
+  if (patch.completed) {
+    delete nextDrafts[node];
+  }
+
   const nextStatus: UserNodeStatus = {
     nodeType: node,
     onboardingCompleted,
@@ -712,6 +717,7 @@ export async function patchNodeOnboarding(
   const next: UserState = {
     ...current,
     nodeOnboarding: { ...current.nodeOnboarding, [node]: nextStatus },
+    nodeOnboardingDrafts: nextDrafts,
     updatedAt: now,
   };
   await writeUserState(next);
