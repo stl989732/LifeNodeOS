@@ -261,7 +261,11 @@ function LandingFeatureSections() {
               <FeaturePreviewCard variant={feature.preview} />
             </div>
             <div className={feature.reverse ? "md:[direction:ltr]" : ""}>
-              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.28em] text-[#90A1B9]">
+              <p
+                className={`mb-3 text-[10px] font-bold uppercase tracking-[0.28em] ${
+                  feature.id === "recovery" ? "text-[#BFCFFF]" : "text-[#90A1B9]"
+                }`}
+              >
                 {feature.id === "household"
                   ? "HomeNode"
                   : feature.id === "recovery"
@@ -273,7 +277,7 @@ function LandingFeatureSections() {
               >
                 {feature.headline}
               </h2>
-              <p className="mt-4 max-w-lg text-base leading-relaxed text-[#90A1B9]">
+              <p className="mt-4 max-w-lg text-base leading-relaxed text-[#DFFFE7]">
                 {feature.subtext}
               </p>
             </div>
