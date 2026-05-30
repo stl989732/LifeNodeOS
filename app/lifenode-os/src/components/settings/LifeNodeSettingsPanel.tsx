@@ -100,7 +100,7 @@ function exportUserDataJson() {
   const settings = loadLifeNodeSettings();
   const payload: Record<string, unknown> = {
     exportedAt: new Date().toISOString(),
-    app: "LifeNodeOS",
+    app: "LifeNode OS",
     localPreferences: settings,
   };
   return fetch("/api/user-state", { cache: "no-store" })
@@ -217,7 +217,7 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
           <header className="flex shrink-0 items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-white/10">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-600 dark:text-teal-400">
-                LifeNodeOS
+                LifeNode OS
               </p>
               <h2 id={titleId} className="text-lg font-semibold text-slate-900 dark:text-white">
                 Settings
@@ -324,7 +324,7 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
                     Danger zone
                   </p>
                   <p className="mt-1 text-xs text-rose-800/80 dark:text-rose-200/70">
-                    Permanently remove your account and all life data from LifeNodeOS.
+                    Permanently remove your account and all life data from LifeNode OS.
                   </p>
                   <button
                     type="button"
@@ -592,7 +592,7 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
                       Feedback & suggestions
                     </span>
                     <span className="mt-1 block text-xs text-slate-500">
-                      Tell us what would make LifeNodeOS better for your workflow.
+                      Tell us what would make LifeNode OS better for your workflow.
                     </span>
                   </span>
                 </Link>

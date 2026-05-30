@@ -120,7 +120,7 @@ function VaCommunicationGrid({
                   ? app.hint
                   : userId
                     ? "Connect your account to sync this workspace."
-                    : "Sign in to LifeNodeOS, then connect."}
+                    : "Sign in to LifeNode OS, then connect."}
               </span>
               {status !== "connected" && status !== "syncing" ? (
                 <button
@@ -194,7 +194,7 @@ export function VanodeDiscovery({
           accent="#0D9488"
           reason={
             !userId
-              ? "Sign in to LifeNodeOS first, then connect this app so VANode can sync your workspace."
+              ? "Sign in to LifeNode OS first, then connect this app so VANode can sync your workspace."
               : undefined
           }
           onLogin={() => {

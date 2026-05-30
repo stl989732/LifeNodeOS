@@ -76,7 +76,7 @@ export default function SupportChromeMenu({
             <span>
               <span className="block text-sm font-semibold">Feedback & suggestions</span>
               <span className="mt-0.5 block text-[11px] opacity-70">
-                Share ideas to improve LifeNodeOS
+                Share ideas to improve LifeNode OS
               </span>
             </span>
           </Link>

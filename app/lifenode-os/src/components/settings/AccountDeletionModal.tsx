@@ -108,7 +108,7 @@ export default function AccountDeletionModal({
         {step === "export" ? (
           <div className="space-y-4">
             <p className="text-sm text-slate-300">
-              Export a copy of your LifeNodeOS data before you delete. We include
+              Export a copy of your LifeNode OS data before you delete. We include
               profile settings, enabled nodes, and local preferences (JSON).
             </p>
             <button

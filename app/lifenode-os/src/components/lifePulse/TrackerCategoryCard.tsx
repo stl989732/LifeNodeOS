@@ -9,6 +9,7 @@ import { getTableRows } from "@/src/lib/lifePulse/tableRows";
 import { rowsHaveContent } from "@/src/lib/lifePulse/linosTableNormalize";
 import { repairBlankPlanTable } from "@/src/lib/lifePulse/repairBlankPlanTable";
 import type { LifePulseTracker } from "@/src/lib/lifePulse/types";
+import DateTimeField, { datetimeLocalToIso, isoToDatetimeLocal } from "@/src/components/ui/DateTimeField";
 import { formatPlannedTimestamp } from "./TrackerPlanBody";
 import TrackerGoalBar from "./TrackerGoalBar";
 import TrackerEditableTable, { mergeRowsIntoContext } from "./TrackerEditableTable";
@@ -142,6 +143,19 @@ export default function TrackerCategoryCard({
     }
   }
 
+  async function saveDueDate(localValue: string) {
+    setSavingId(tracker.id);
+    try {
+      const iso = datetimeLocalToIso(localValue);
+      const next = await updateLifePulseTracker(tracker.id, { due_date: iso });
+      onUpdated(next);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  const dueLocal = isoToDatetimeLocal(tracker.due_date ?? tracker.target_date ?? null);
+
   return (
     <TrackerGoalBar tracker={tracker} onDelete={onDelete} busy={busy}>
       <label className={`mb-3 block text-xs ${AURA_TEXT.label}`}>
@@ -156,6 +170,15 @@ export default function TrackerCategoryCard({
           disabled={busy}
         />
       </label>
+
+      <DateTimeField
+        label="When"
+        value={dueLocal}
+        onChange={(value) => void saveDueDate(value)}
+        disabled={busy}
+        inputClassName={`${AURA_INPUT_CLASS} mt-1`}
+        className="mb-3"
+      />
 
       {hasTable && tracker.category === "project_management" ? (
         <ProjectManagementTable
@@ -231,10 +254,57 @@ export default function TrackerCategoryCard({
       ) : null}
 
       {!hasTable && !isLinosPlan && tracker.category === "travel" ? (
-        <div className="space-y-2 text-sm">
-          <p className="text-slate-800">
-            {String(m.destination || "Destination TBD")} · Budget ${Number(m.budget) || 0}
-          </p>
+        <div className="space-y-3 text-sm">
+          <label className="block">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#90A1B9]">
+              Destination
+            </span>
+            <input
+              defaultValue={String(m.destination || "")}
+              onBlur={async (e) => {
+                const destination = e.target.value.trim();
+                if (destination === String(m.destination || "")) return;
+                await patchMetrics(tracker, { ...m, destination }, onUpdated, setSavingId);
+              }}
+              className={`${AURA_INPUT_CLASS} mt-1`}
+              disabled={busy}
+              placeholder="e.g. Manila, Italy"
+            />
+          </label>
+          <DateTimeField
+            label="Travel date & time"
+            value={isoToDatetimeLocal(
+              String(m.travel_date || tracker.due_date || tracker.target_date || ""),
+            )}
+            onChange={async (value) => {
+              const iso = datetimeLocalToIso(value);
+              await patchMetrics(
+                tracker,
+                { ...m, travel_date: iso ?? value },
+                onUpdated,
+                setSavingId,
+              );
+              if (iso) await saveDueDate(value);
+            }}
+            disabled={busy}
+            inputClassName={AURA_INPUT_CLASS}
+          />
+          <label className="block">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#90A1B9]">
+              Budget
+            </span>
+            <input
+              type="number"
+              defaultValue={Number(m.budget) || 0}
+              onBlur={async (e) => {
+                const budget = Number(e.target.value);
+                if (budget === Number(m.budget)) return;
+                await patchMetrics(tracker, { ...m, budget }, onUpdated, setSavingId);
+              }}
+              className={`${AURA_INPUT_CLASS} mt-1`}
+              disabled={busy}
+            />
+          </label>
           {(Array.isArray(m.packing_list) ? (m.packing_list as string[]) : []).map((item) => {
             const packed = (m.packed ?? {}) as Record<string, boolean>;
             return (

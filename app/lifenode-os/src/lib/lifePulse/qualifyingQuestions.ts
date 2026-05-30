@@ -4,7 +4,7 @@ import { detectStudySubject, parsePlanDurationDays } from "./planIntent";
 export type QualifyingQuestion = {
   id: string;
   prompt: string;
-  type: "choice" | "text" | "date";
+  type: "choice" | "text" | "date" | "datetime";
   options?: { id: string; label: string }[];
   placeholder?: string;
   required?: boolean;
@@ -135,7 +135,7 @@ export function getQualifyingQuestions(
         {
           id: "travel_date",
           prompt: "When is your travel date?",
-          type: "date",
+          type: "datetime",
           required: true,
         },
         {

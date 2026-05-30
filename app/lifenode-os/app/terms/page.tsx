@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Terms and Conditions | LifeNodeOS",
-  description: "Read the terms of service governing the usage of LifeNodeOS.",
+  title: "Terms and Conditions | LifeNode OS",
+  description: "Read the terms of service governing the usage of LifeNode OS.",
 };
 
 export default function TermsAndConditions() {
@@ -31,7 +31,7 @@ export default function TermsAndConditions() {
 
         <div className="space-y-8 leading-relaxed text-slate-300">
           <p>
-            Welcome to <strong className="text-white">LifeNodeOS</strong>! By
+            Welcome to <strong className="text-white">LifeNode OS</strong>! By
             accessing or using our web application located at{" "}
             <code className="rounded bg-slate-900 px-1.5 py-0.5 text-sm text-cyan-300">
               lifenodeos.com
@@ -67,7 +67,7 @@ export default function TermsAndConditions() {
             </h2>
             <p>
               You agree <strong className="font-medium text-white">not</strong> to
-              use LifeNodeOS to:
+              use LifeNode OS to:
             </p>
             <ul className="list-disc space-y-2 pl-5 marker:text-slate-500">
               <li>
@@ -94,10 +94,10 @@ export default function TermsAndConditions() {
               3. Intellectual Property
             </h2>
             <p>
-              <strong className="text-slate-200">Our Property:</strong> LifeNodeOS,
+              <strong className="text-slate-200">Our Property:</strong> LifeNode OS,
               including its branding, original software code, user interface designs,
               logos, and visual elements, is the exclusive intellectual property of
-              LifeNodeOS and is protected by copyright and trademark laws.
+              LifeNode OS and is protected by copyright and trademark laws.
             </p>
             <p>
               <strong className="text-slate-200">Your Property:</strong> You retain
@@ -113,7 +113,7 @@ export default function TermsAndConditions() {
               4. Limitation of Liability
             </h2>
             <p>
-              To the maximum extent permitted by law, LifeNodeOS shall not be liable
+              To the maximum extent permitted by law, LifeNode OS shall not be liable
               for any indirect, incidental, special, consequential, or punitive
               damages, including loss of profits, data, use, goodwill, or other
               intangible losses resulting from your access to or inability to use the
@@ -126,7 +126,7 @@ export default function TermsAndConditions() {
               5. Termination
             </h2>
             <p>
-              We reserve the right to suspend or terminate your access to LifeNodeOS
+              We reserve the right to suspend or terminate your access to LifeNode OS
               at our sole discretion, without notice, for conduct that we believe
               violates these Terms or is harmful to other users or our business
               interests.
@@ -138,7 +138,7 @@ export default function TermsAndConditions() {
               6. Modifications to the Service and Terms
             </h2>
             <p>
-              We reserve the right to modify or discontinue LifeNodeOS (or any part
+              We reserve the right to modify or discontinue LifeNode OS (or any part
               thereof) at any time. We may also update these Terms periodically.
               Continued use of the platform after updates implies acceptance of the
               revised Terms.

@@ -3,8 +3,8 @@ import ScaleSurveyEmbed from "@/src/components/settings/ScaleSurveyEmbed";
 import { SUPPORT_FEEDBACK_SURVEY_ID } from "@/lib/support/routes";
 
 export const metadata = {
-  title: "Feedback & Suggestions | LifeNodeOS",
-  description: "Share feedback to help improve LifeNodeOS.",
+  title: "Feedback & Suggestions | LifeNode OS",
+  description: "Share feedback to help improve LifeNode OS.",
 };
 
 export default function SupportFeedbackPage() {
@@ -19,20 +19,20 @@ export default function SupportFeedbackPage() {
         </Link>
         <header className="mb-6">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-teal-600">
-            LifeNodeOS Support
+            LifeNode OS Support
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
             Feedback & suggestions
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Tell us what would make LifeNodeOS better for your workflow. Your
+            Tell us what would make LifeNode OS better for your workflow. Your
             responses help us prioritize what we build next.
           </p>
         </header>
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <ScaleSurveyEmbed
             surveyId={SUPPORT_FEEDBACK_SURVEY_ID}
-            title="LifeNodeOS feedback survey"
+            title="LifeNode OS feedback survey"
             minHeight={520}
           />
         </div>

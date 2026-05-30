@@ -266,7 +266,7 @@ export default function DualRailCommandCenter({
               <button
                 type="button"
                 onClick={() => setSettingsOpen(true)}
-                aria-label="Open LifeNodeOS settings"
+                aria-label="Open LifeNode OS settings"
                 title="Settings"
                 className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] py-2 text-slate-600 transition hover:border-teal-400/35 hover:bg-teal-500/10 hover:text-teal-800 group-hover/rail1:justify-start dark:text-zinc-300 dark:hover:text-teal-100"
               >
@@ -332,7 +332,7 @@ export default function DualRailCommandCenter({
               <button
                 type="button"
                 onClick={() => setSettingsOpen(true)}
-                aria-label="Open LifeNodeOS settings"
+                aria-label="Open LifeNode OS settings"
                 title="Settings — account, AI, notifications, appearance"
                 className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] py-2.5 text-slate-600 transition hover:border-teal-400/40 hover:bg-teal-500/12 hover:text-teal-900 group-hover/rail2:justify-start dark:text-zinc-300 dark:hover:text-teal-100"
               >

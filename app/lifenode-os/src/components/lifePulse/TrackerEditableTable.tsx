@@ -5,11 +5,13 @@ import { Maximize2, Minimize2, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   getTableColumns,
   getTableRows,
+  isDateTimeColumn,
   newTableRowId,
   rowsToContext,
   type TrackerTableRow,
 } from "@/src/lib/lifePulse/tableRows";
 import type { LifePulseTracker } from "@/src/lib/lifePulse/types";
+import DateTimeField, { datetimeLocalToIso, isoToDatetimeLocal } from "@/src/components/ui/DateTimeField";
 import { AURA_INPUT_CLASS, AURA_TEXT } from "./lifePulseAura";
 
 type Props = {
@@ -142,19 +144,31 @@ export default function TrackerEditableTable({
                 <tr key={row.id} className="border-b border-white/10">
                   {columns.map((col) => (
                     <td key={col} className="px-1 py-1">
-                      <input
-                        value={row.cells[col] ?? ""}
-                        onChange={(e) =>
-                          updateCell(row.id, col, e.target.value)
-                        }
-                        disabled={busy}
-                        placeholder={
-                          emptyStatusDefault && col === "Status"
-                            ? "e.g. In progress"
-                            : undefined
-                        }
-                        className={`${AURA_INPUT_CLASS} min-w-[80px] py-1.5 text-xs`}
-                      />
+                      {isDateTimeColumn(col) ? (
+                        <DateTimeField
+                          value={isoToDatetimeLocal(row.cells[col]) || row.cells[col] || ""}
+                          onChange={(next) => {
+                            const stored = datetimeLocalToIso(next) ?? next;
+                            updateCell(row.id, col, stored);
+                          }}
+                          disabled={busy}
+                          inputClassName={`${AURA_INPUT_CLASS} min-w-[9rem] py-1.5 text-xs`}
+                        />
+                      ) : (
+                        <input
+                          value={row.cells[col] ?? ""}
+                          onChange={(e) =>
+                            updateCell(row.id, col, e.target.value)
+                          }
+                          disabled={busy}
+                          placeholder={
+                            emptyStatusDefault && col === "Status"
+                              ? "e.g. In progress"
+                              : undefined
+                          }
+                          className={`${AURA_INPUT_CLASS} min-w-[80px] py-1.5 text-xs`}
+                        />
+                      )}
                     </td>
                   ))}
                   <td className="px-1 py-1 text-center">

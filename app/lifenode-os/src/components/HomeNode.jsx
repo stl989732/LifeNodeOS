@@ -27,6 +27,10 @@ import {
 } from "@/src/lib/kitchenRecipeTabs";
 import KitchenRecipeTabBar from "@/src/components/home-kitchen/KitchenRecipeTabBar";
 import KitchenVaultToast from "@/src/components/home-kitchen/KitchenVaultToast";
+import HomeCommandDeckPreview, {
+  formatScheduleTime,
+} from "@/src/components/home/HomeCommandDeckPreview";
+import DateTimeField from "@/src/components/ui/DateTimeField";
 import { appendRecipeToVault, RECIPE_VAULT_KEY } from "@/src/lib/recipeVaultStorage";
 import {
   clearFlareTaskFlags,
@@ -64,6 +68,7 @@ import {
   Pencil,
   Plus,
   Refrigerator,
+  Save,
   ShoppingCart,
   Sparkles,
   Trash2,
@@ -79,8 +84,38 @@ const CHORE_ROWS_KEY = "lifenode.homenode.chore-rows.v1";
 const ACTIVITY_PREP_KEY = "lifenode.homenode.activity-prep.v1";
 const UPCOMING_ENGAGEMENT_KEY = "lifenode.homenode.upcoming-engagement.v1";
 
+const BUDGET_CURRENCIES = [
+  { code: "USD", symbol: "$", label: "USD · US Dollar" },
+  { code: "EUR", symbol: "€", label: "EUR · Euro" },
+  { code: "GBP", symbol: "£", label: "GBP · British Pound" },
+  { code: "CAD", symbol: "CA$", label: "CAD · Canadian Dollar" },
+  { code: "AUD", symbol: "A$", label: "AUD · Australian Dollar" },
+  { code: "JPY", symbol: "¥", label: "JPY · Japanese Yen" },
+  { code: "INR", symbol: "₹", label: "INR · Indian Rupee" },
+  { code: "MXN", symbol: "MX$", label: "MXN · Mexican Peso" },
+  { code: "SGD", symbol: "S$", label: "SGD · Singapore Dollar" },
+  { code: "CHF", symbol: "CHF", label: "CHF · Swiss Franc" },
+];
+
+function formatBudgetAmount(amount, currencyCode = "USD") {
+  const currency = BUDGET_CURRENCIES.find((c) => c.code === currencyCode) ?? BUDGET_CURRENCIES[0];
+  const n = Number(amount) || 0;
+  if (currency.code === "JPY") {
+    return `${currency.symbol}${Math.round(n).toLocaleString()}`;
+  }
+  return `${currency.symbol}${n.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 function normalizeActivityPrepRow(row) {
   if (row && typeof row.title === "string") {
+    const hasContent =
+      row.title?.trim() ||
+      row.participantName?.trim() ||
+      row.itemsToBring?.trim() ||
+      row.scheduledAt?.trim();
     return {
       id: row.id || crypto.randomUUID(),
       title: row.title,
@@ -88,6 +123,7 @@ function normalizeActivityPrepRow(row) {
       participantType: row.participantType === "person" ? "person" : "child",
       participantName: row.participantName || "",
       itemsToBring: row.itemsToBring || "",
+      saved: Boolean(row.saved ?? hasContent),
     };
   }
   return {
@@ -97,6 +133,7 @@ function normalizeActivityPrepRow(row) {
     participantType: "child",
     participantName: "",
     itemsToBring: "",
+    saved: false,
   };
 }
 
@@ -108,6 +145,7 @@ function createEmptyActivityPrepRow() {
     participantType: "child",
     participantName: "",
     itemsToBring: "",
+    saved: false,
   };
 }
 
@@ -221,6 +259,7 @@ export default function HomeNode() {
   const [flareActive, setFlareActive] = useState(false);
 
   const [budgetRows, setBudgetRows] = useState([]);
+  const [budgetCurrency, setBudgetCurrency] = useState("USD");
   const [budgetCollapsed, setBudgetCollapsed] = useState(false);
   const [chores, setChores] = useState([]);
   const [choreHubCollapsed, setChoreHubCollapsed] = useState(false);
@@ -230,6 +269,7 @@ export default function HomeNode() {
   const [chefTip, setChefTip] = useState("");
   const [chefTipLoading, setChefTipLoading] = useState(false);
   const [activityPrepItems, setActivityPrepItems] = useState([]);
+  const [focusedActivityId, setFocusedActivityId] = useState(null);
   const [upcomingEngagement, setUpcomingEngagement] = useState(null);
   const { patchBridgeSignals } = useLifeNodeContext();
 
@@ -357,15 +397,22 @@ export default function HomeNode() {
       }
 
       let nextBudget = [];
+      let nextCurrency = "USD";
       if (rawBudget) {
         try {
           const b = JSON.parse(rawBudget);
-          if (Array.isArray(b) && b.length) nextBudget = b;
+          if (Array.isArray(b) && b.length) {
+            nextBudget = b;
+          } else if (b && typeof b === "object") {
+            if (Array.isArray(b.rows)) nextBudget = b.rows;
+            if (typeof b.currency === "string") nextCurrency = b.currency;
+          }
         } catch {
           /* ignore */
         }
       }
       setBudgetRows(nextBudget);
+      setBudgetCurrency(nextCurrency);
 
       let nextChores = [];
       if (rawChores) {
@@ -493,8 +540,11 @@ export default function HomeNode() {
 
   useEffect(() => {
     if (!userId) return;
-    window.localStorage.setItem(scopedKeys.budget, JSON.stringify(budgetRows));
-  }, [budgetRows, userId, scopedKeys.budget]);
+    window.localStorage.setItem(
+      scopedKeys.budget,
+      JSON.stringify({ currency: budgetCurrency, rows: budgetRows }),
+    );
+  }, [budgetRows, budgetCurrency, userId, scopedKeys.budget]);
 
   useEffect(() => {
     if (!userId) return;
@@ -629,6 +679,66 @@ export default function HomeNode() {
     };
   }, [sectionFilter]);
 
+  const commandDeckData = useMemo(() => {
+    const scheduleItems = [];
+    if (upcomingEngagement?.title) {
+      scheduleItems.push({
+        time: upcomingEngagement.when || "Upcoming",
+        label: upcomingEngagement.title,
+      });
+    }
+    activityPrepItems
+      .filter((r) => r.saved && r.title?.trim())
+      .forEach((r) => {
+        scheduleItems.push({
+          time: r.scheduledAt ? formatScheduleTime(r.scheduledAt) : "TBD",
+          label: r.title.trim(),
+        });
+      });
+    chores
+      .filter((c) => c.status === "Due Today")
+      .forEach((c) => {
+        scheduleItems.push({ time: "Today", label: c.task });
+      });
+
+    const automationItems = [];
+    if (selectedApps.some((a) => /instacart|anylist|bring|ourgroceries|paprika/i.test(a))) {
+      automationItems.push("Syncing Instacart → weekly meal plan");
+    }
+    if (selectedApps.some((a) => /calendar|cozi|timetree|familywall|any\.do/i.test(a))) {
+      automationItems.push("Calendar conflict → Lino heads-up");
+    }
+    if (useNativeTools || nativeGroceryList.length > 0) {
+      automationItems.push("Low pantry alert → Smart Cart draft");
+    }
+    if (selectedPriorities.includes("Meal Planning")) {
+      automationItems.push("Weekly meal plan → grocery list");
+    }
+
+    return {
+      scheduleItems: scheduleItems.slice(0, 6),
+      automationItems: automationItems.slice(0, 5),
+    };
+  }, [
+    activityPrepItems,
+    chores,
+    nativeGroceryList.length,
+    selectedApps,
+    selectedPriorities,
+    upcomingEngagement,
+    useNativeTools,
+  ]);
+
+  const savedActivities = useMemo(
+    () => activityPrepItems.filter((r) => r.saved && r.title?.trim()),
+    [activityPrepItems],
+  );
+
+  const focusedActivity = useMemo(
+    () => activityPrepItems.find((r) => r.id === focusedActivityId) ?? null,
+    [activityPrepItems, focusedActivityId],
+  );
+
   useEffect(() => {
     if (!isInitialized || sectionFilter !== "chef-node") return;
     const t = window.setTimeout(() => {
@@ -663,10 +773,14 @@ export default function HomeNode() {
     };
     window.localStorage.setItem(scopedKeys.setup, JSON.stringify(payload));
     setBudgetRows([]);
+    setBudgetCurrency("USD");
     setChores([]);
     setActivityPrepItems([]);
     setUpcomingEngagement(null);
-    window.localStorage.setItem(scopedKeys.budget, JSON.stringify([]));
+    window.localStorage.setItem(
+      scopedKeys.budget,
+      JSON.stringify({ currency: "USD", rows: [] }),
+    );
     window.localStorage.setItem(scopedKeys.chores, JSON.stringify([]));
     window.localStorage.setItem(scopedKeys.prep, JSON.stringify([]));
     window.localStorage.removeItem(scopedKeys.engagement);
@@ -1394,6 +1508,13 @@ export default function HomeNode() {
 
   function deleteActivityPrepItem(id) {
     setActivityPrepItems((prev) => prev.filter((x) => x.id !== id));
+    if (focusedActivityId === id) setFocusedActivityId(null);
+  }
+
+  function saveActivityPrepRow(id) {
+    const row = activityPrepItems.find((r) => r.id === id);
+    if (!row?.title?.trim()) return;
+    updateActivityPrepRow(id, { saved: true });
   }
 
   const hasHomeUserData = useMemo(() => {
@@ -1859,6 +1980,14 @@ export default function HomeNode() {
               </div>
             </section>
             ) : null}
+            {isInitialized && (!sectionFilter || sectionFilter === "home-overview") ? (
+              <section className="rounded-[20px] border border-slate-800/15 bg-gradient-to-b from-slate-900/[0.03] to-slate-950/[0.06] p-4 md:p-6">
+                <HomeCommandDeckPreview
+                  scheduleItems={commandDeckData.scheduleItems}
+                  automationItems={commandDeckData.automationItems}
+                />
+              </section>
+            ) : null}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
                 {(homeDeck.strip ||
                   homeDeck.cart ||
@@ -2105,12 +2234,24 @@ export default function HomeNode() {
 
                     {homeDeck.budget ? (
             <section className="glass-card p-6 lg:col-span-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <div className="flex items-center gap-2 shrink-0">
                   <Calculator size={16} className={KITCHEN_TEXT.icon} />
                   <h2 className={`font-semibold ${KITCHEN_TEXT.title}`}>Monthly Budget Tracker</h2>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={budgetCurrency}
+                  onChange={(e) => setBudgetCurrency(e.target.value)}
+                  className="mx-auto min-w-[10rem] rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-[#475569] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                  aria-label="Budget currency"
+                >
+                  {BUDGET_CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex flex-wrap items-center gap-2 ml-auto">
                   <button
                     type="button"
                     onClick={addBudgetCategory}
@@ -2132,7 +2273,9 @@ export default function HomeNode() {
                 <div className="rounded-[20px] bg-white/40 backdrop-blur-xl border border-white/60 px-4 py-6 text-center shadow-inner">
                   <p className="text-lg font-semibold text-[#1E293B]">
                     Total Remaining:{" "}
-                    <span className="text-[#3F5E58]">${totalBudgetRemaining().toLocaleString()}</span>
+                    <span className="text-[#3F5E58]">
+                      {formatBudgetAmount(totalBudgetRemaining(), budgetCurrency)}
+                    </span>
                   </p>
                 </div>
               ) : (
@@ -2170,7 +2313,8 @@ export default function HomeNode() {
                                 </button>
                               </div>
                               <p className="text-xs text-[#475569] whitespace-nowrap">
-                                ${item.remaining} Remaining Of ${item.total}
+                                {formatBudgetAmount(item.remaining, budgetCurrency)} Remaining Of{" "}
+                                {formatBudgetAmount(item.total, budgetCurrency)}
                               </p>
                             </div>
                           </div>
@@ -2622,19 +2766,19 @@ export default function HomeNode() {
                   </button>
                 </div>
                 {activityPrepItems.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-slate-200 bg-white/50 px-4 py-8 text-center text-sm text-[#475569]">
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-white/50 px-4 py-8 text-center text-sm text-[#90A1B9]">
                     No activity plans yet. Add a row to track titles, schedule, and packing lists.
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full border-separate border-spacing-y-2 text-sm">
                       <thead>
-                        <tr className="text-left text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
+                        <tr className="text-left text-[10px] font-bold uppercase tracking-wider text-[#90A1B9]">
                           <th className="px-2 pb-1">Activity title</th>
                           <th className="px-2 pb-1">When</th>
                           <th className="px-2 pb-1">For</th>
                           <th className="px-2 pb-1">Things to bring</th>
-                          <th className="px-2 pb-1 w-10" aria-label="Remove" />
+                          <th className="px-2 pb-1 w-20" aria-label="Actions" />
                         </tr>
                       </thead>
                       <tbody>
@@ -2651,15 +2795,13 @@ export default function HomeNode() {
                               />
                             </td>
                             <td className="px-2">
-                              <input
-                                type="datetime-local"
+                              <DateTimeField
+                                label="When"
                                 value={row.scheduledAt}
-                                onChange={(e) =>
-                                  updateActivityPrepRow(row.id, {
-                                    scheduledAt: e.target.value,
-                                  })
+                                onChange={(value) =>
+                                  updateActivityPrepRow(row.id, { scheduledAt: value })
                                 }
-                                className="w-full min-w-[10rem] rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-[#1E293B]"
+                                inputClassName="min-w-[10rem] py-1.5 text-sm"
                               />
                             </td>
                             <td className="px-2">
@@ -2702,14 +2844,26 @@ export default function HomeNode() {
                               />
                             </td>
                             <td className="px-2">
-                              <button
-                                type="button"
-                                onClick={() => deleteActivityPrepItem(row.id)}
-                                className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                aria-label="Remove activity plan"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => saveActivityPrepRow(row.id)}
+                                  disabled={!row.title?.trim()}
+                                  className="rounded-lg p-1.5 text-[#84A59D] hover:bg-[#84A59D]/10 disabled:opacity-40"
+                                  aria-label="Save activity plan"
+                                  title="Save to Tasks"
+                                >
+                                  <Save size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteActivityPrepItem(row.id)}
+                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                  aria-label="Remove activity plan"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -2717,7 +2871,107 @@ export default function HomeNode() {
                     </table>
                   </div>
                 )}
+
+                <div className="mt-6 border-t border-slate-200/80 pt-5">
+                  <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#90A1B9]">
+                    Tasks
+                  </p>
+                  {savedActivities.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-slate-200 bg-white/50 px-4 py-5 text-center text-sm text-[#90A1B9]">
+                      Saved activities appear here. Use Save on a row to add it to your task vault.
+                    </p>
+                  ) : (
+                    <ul className="flex flex-wrap gap-2">
+                      {savedActivities.map((task) => (
+                        <li key={task.id}>
+                          <button
+                            type="button"
+                            onClick={() => setFocusedActivityId(task.id)}
+                            className="rounded-full border border-slate-200 bg-white/90 px-3.5 py-1.5 text-sm font-medium text-[#1E293B] shadow-sm transition hover:border-[#84A59D]/40 hover:bg-[#84A59D]/10"
+                          >
+                            {task.title}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
+
+              {focusedActivity ? (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={`Activity: ${focusedActivity.title}`}
+                >
+                  <div className="w-full max-w-lg rounded-[20px] border border-white/60 bg-white/95 p-6 shadow-2xl">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#90A1B9]">
+                          Activity focus
+                        </p>
+                        <h3 className="mt-1 text-xl font-semibold text-[#1E293B]">
+                          {focusedActivity.title}
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFocusedActivityId(null)}
+                        className="rounded-lg p-2 text-[#90A1B9] hover:bg-slate-100 hover:text-[#1E293B]"
+                        aria-label="Close activity"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="space-y-4 text-sm">
+                      <DateTimeField
+                        label="When"
+                        value={focusedActivity.scheduledAt}
+                        onChange={(value) =>
+                          updateActivityPrepRow(focusedActivity.id, { scheduledAt: value })
+                        }
+                      />
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#90A1B9]">
+                          For
+                        </p>
+                        <p className="mt-1 text-[#1E293B]">
+                          {focusedActivity.participantType === "person" ? "Person" : "Child"}:{" "}
+                          {focusedActivity.participantName || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#90A1B9]">
+                          Things to bring
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-[#1E293B]">
+                          {focusedActivity.itemsToBring || "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-6 flex flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => deleteActivityPrepItem(focusedActivity.id)}
+                        className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          saveActivityPrepRow(focusedActivity.id);
+                          setFocusedActivityId(null);
+                        }}
+                        className="rounded-xl bg-[#84A59D] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6d8f88]"
+                      >
+                        Save &amp; close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <div
                 className={`rounded-[20px] p-6 shadow-[0_12px_30px_rgba(15,23,42,0.06)] border border-white/50 transition-all ${

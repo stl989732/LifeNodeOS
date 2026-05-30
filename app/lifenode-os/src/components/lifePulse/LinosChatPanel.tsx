@@ -16,6 +16,7 @@ import {
 } from "@/src/lib/lifePulse/trackers";
 import type { LifePulseCategoryId, LifePulseTracker } from "@/src/lib/lifePulse/types";
 import { LIFE_PULSE_CATEGORIES } from "@/src/lib/lifePulse/types";
+import DateTimeField from "@/src/components/ui/DateTimeField";
 import {
   AURA_BTN_PRIMARY,
   AURA_GLASS_CLASS,
@@ -74,18 +75,22 @@ function QuestionField({
   onChange: (v: string) => void;
   disabled: boolean;
 }) {
-  if (question.type === "date") {
+  if (question.type === "date" || question.type === "datetime") {
     return (
-      <label className="block space-y-1.5">
-        <span className={`text-sm font-medium ${AURA_TEXT.title}`}>{question.prompt}</span>
-        <input
-          type="date"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          className={AURA_INPUT_CLASS}
-        />
-      </label>
+      <DateTimeField
+        label={question.prompt}
+        value={question.type === "datetime" ? value : value ? `${value}T09:00` : ""}
+        onChange={(next) => {
+          if (question.type === "datetime") {
+            onChange(next);
+            return;
+          }
+          onChange(next ? next.slice(0, 10) : "");
+        }}
+        disabled={disabled}
+        inputClassName={AURA_INPUT_CLASS}
+        labelClassName={`text-sm font-medium normal-case tracking-normal ${AURA_TEXT.title}`}
+      />
     );
   }
 
@@ -377,7 +382,7 @@ export default function LinosChatPanel({
               onClick={() => void handleSaveToTable()}
               className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-lg transition hover:from-violet-500 hover:to-indigo-500"
             >
-              ✨ Generate &amp; Save to LifeNodeOS Plan Table
+              ✨ Generate &amp; Save to LifeNode OS Plan Table
             </button>
             <p className={`mt-2 text-center text-[10px] ${AURA_TEXT.muted}`}>
               Your plan table will populate only after you confirm — nothing is saved until then.

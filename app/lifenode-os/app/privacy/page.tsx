@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Privacy Policy | LifeNodeOS",
-  description: "Learn how LifeNodeOS protects and handles your personal data.",
+  title: "Privacy Policy | LifeNode OS",
+  description: "Learn how LifeNode OS protects and handles your personal data.",
 };
 
 export default function PrivacyPolicy() {
@@ -33,7 +33,7 @@ export default function PrivacyPolicy() {
 
         <div className="space-y-8 leading-relaxed text-slate-300">
           <p>
-            At <strong className="text-white">LifeNodeOS</strong>, accessible via{" "}
+            At <strong className="text-white">LifeNode OS</strong>, accessible via{" "}
             <code className="rounded bg-slate-900 px-1.5 py-0.5 text-sm text-cyan-300">
               lifenodeos.com
             </code>
@@ -55,7 +55,7 @@ export default function PrivacyPolicy() {
               <li>
                 <strong className="text-slate-200">User-Generated Data:</strong>{" "}
                 We process the text, files, configurations, and workspace data you
-                input into LifeNodeOS to provide the orchestration and automation
+                input into LifeNode OS to provide the orchestration and automation
                 services.
               </li>
               <li>
@@ -73,7 +73,7 @@ export default function PrivacyPolicy() {
             </h2>
             <p>We use the collected data to:</p>
             <ul className="list-disc space-y-2 pl-5 marker:text-slate-500">
-              <li>Provide, operate, and maintain the features of LifeNodeOS.</li>
+              <li>Provide, operate, and maintain the features of LifeNode OS.</li>
               <li>
                 Improve, personalize, and expand our application&apos;s
                 functionality.

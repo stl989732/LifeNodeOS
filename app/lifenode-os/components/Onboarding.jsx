@@ -136,7 +136,7 @@ function LandingProductMock() {
           <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
           <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
           <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
-          <span className="ml-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+          <span className="ml-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#90A1B9]">
             HomeNode · Command deck
           </span>
         </div>
@@ -155,8 +155,8 @@ function LandingProductMock() {
                   key={item.label}
                   className="flex items-center gap-3 rounded-lg border border-slate-800/60 bg-slate-900/40 px-3 py-2.5"
                 >
-                  <Clock className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                  <span className="text-[10px] font-mono text-slate-500">{item.time}</span>
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-[#90A1B9]" />
+                  <span className="text-[10px] font-mono text-[#90A1B9]">{item.time}</span>
                   <span className={`text-sm font-medium ${item.tone}`}>{item.label}</span>
                 </li>
               ))}
@@ -203,7 +203,7 @@ function FeaturePreviewCard({ variant }) {
             />
           ))}
         </div>
-        <p className="mt-4 text-xs text-slate-500">Unified family timeline</p>
+        <p className="mt-4 text-xs text-[#90A1B9]">Unified family timeline</p>
       </div>
     );
   }
@@ -216,12 +216,12 @@ function FeaturePreviewCard({ variant }) {
           <div className="flex-1 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
             <Moon className="mb-2 h-4 w-4 text-indigo-400" />
             <p className="text-lg font-semibold text-slate-100">84%</p>
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">Sleep</p>
+            <p className="text-[10px] uppercase tracking-wide text-[#90A1B9]">Sleep</p>
           </div>
           <div className="flex-1 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
             <Activity className="mb-2 h-4 w-4 text-teal-400" />
             <p className="text-lg font-semibold text-slate-100">HRV</p>
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">Recovery</p>
+            <p className="text-[10px] uppercase tracking-wide text-[#90A1B9]">Recovery</p>
           </div>
         </div>
       </div>
@@ -237,7 +237,7 @@ function FeaturePreviewCard({ variant }) {
             key={label}
             className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2"
           >
-            <span className="text-xs text-slate-400">{label}</span>
+            <span className="text-xs text-[#90A1B9]">{label}</span>
             <span className="h-1.5 w-1.5 rounded-full bg-teal-400" />
           </div>
         ))}
@@ -261,7 +261,7 @@ function LandingFeatureSections() {
               <FeaturePreviewCard variant={feature.preview} />
             </div>
             <div className={feature.reverse ? "md:[direction:ltr]" : ""}>
-              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.28em] text-[#90A1B9]">
                 {feature.id === "household"
                   ? "HomeNode"
                   : feature.id === "recovery"
@@ -273,7 +273,7 @@ function LandingFeatureSections() {
               >
                 {feature.headline}
               </h2>
-              <p className="mt-4 max-w-lg text-base leading-relaxed text-slate-400">
+              <p className="mt-4 max-w-lg text-base leading-relaxed text-[#90A1B9]">
                 {feature.subtext}
               </p>
             </div>
@@ -513,7 +513,7 @@ export default function Onboarding() {
               Build Your Dashboard <ArrowRight size={20} />
             </button>
 
-            <p className="mt-5 text-[11px] font-medium tracking-wide text-slate-400/90 md:text-xs">
+            <p className="mt-5 text-[11px] font-medium tracking-wide text-[#90A1B9] md:text-xs">
               Join 500+ busy parents orchestrating their household logistics.
             </p>
 
@@ -797,12 +797,12 @@ export default function Onboarding() {
       <footer
         className={`relative z-10 w-full border-t px-8 py-6 text-xs ${
           step === 0
-            ? "border-slate-800 bg-[#0B0F17] text-slate-500"
+            ? "border-slate-800 bg-[#0B0F17] text-[#90A1B9]"
             : "border-slate-200 bg-white text-slate-500"
         }`}
       >
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 sm:flex-row">
-          <div>&copy; {new Date().getFullYear()} LifeNodeOS. All rights reserved.</div>
+          <div>&copy; {new Date().getFullYear()} LifeNode OS. All rights reserved.</div>
           <div className="flex items-center gap-6">
             <Link
               href="/terms"

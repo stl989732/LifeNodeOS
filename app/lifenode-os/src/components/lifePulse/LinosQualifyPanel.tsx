@@ -7,6 +7,7 @@ import {
   type QualifyingQuestion,
 } from "@/src/lib/lifePulse/qualifyingQuestions";
 import type { LifePulseCategoryId } from "@/src/lib/lifePulse/types";
+import DateTimeField from "@/src/components/ui/DateTimeField";
 import { AURA_BTN_PRIMARY, AURA_GLASS_CLASS, AURA_GLASS_STYLE, AURA_INPUT_CLASS, AURA_TEXT } from "./lifePulseAura";
 
 type Props = {
@@ -113,21 +114,23 @@ function QuestionField({
   onChange: (v: string) => void;
   disabled: boolean;
 }) {
-  if (question.type === "date") {
+  if (question.type === "date" || question.type === "datetime") {
     return (
-      <label className="block space-y-1.5">
-        <span className={`text-sm font-semibold ${AURA_TEXT.title}`}>
-          {question.prompt}
-        </span>
-        <input
-          type="date"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          required={question.required}
-          className={AURA_INPUT_CLASS}
-        />
-      </label>
+      <DateTimeField
+        label={question.prompt}
+        value={question.type === "datetime" ? value : value ? `${value}T09:00` : ""}
+        onChange={(next) => {
+          if (question.type === "datetime") {
+            onChange(next);
+            return;
+          }
+          onChange(next ? next.slice(0, 10) : "");
+        }}
+        disabled={disabled}
+        required={question.required}
+        inputClassName={AURA_INPUT_CLASS}
+        labelClassName={`text-sm font-semibold normal-case tracking-normal ${AURA_TEXT.title}`}
+      />
     );
   }
 

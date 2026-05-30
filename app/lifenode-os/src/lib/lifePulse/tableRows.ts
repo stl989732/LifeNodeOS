@@ -12,6 +12,19 @@ export function newTableRowId(): string {
   return `row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/** Table columns that should use a date/time picker instead of plain text. */
+export function isDateTimeColumn(col: string): boolean {
+  const c = col.trim().toLowerCase();
+  return (
+    c === "when" ||
+    c === "due" ||
+    c === "timeline" ||
+    c === "schedule" ||
+    c.includes("date") ||
+    c.includes("time")
+  );
+}
+
 export function getTableColumns(
   category: LifePulseCategoryId,
   context: Record<string, unknown>,

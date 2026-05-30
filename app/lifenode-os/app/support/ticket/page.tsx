@@ -3,8 +3,8 @@ import ScaleSurveyEmbed from "@/src/components/settings/ScaleSurveyEmbed";
 import { SUPPORT_TICKET_SURVEY_ID } from "@/lib/support/routes";
 
 export const metadata = {
-  title: "Ticket Escalation | LifeNodeOS",
-  description: "Submit a support ticket for LifeNodeOS.",
+  title: "Ticket Escalation | LifeNode OS",
+  description: "Submit a support ticket for LifeNode OS.",
 };
 
 export default function SupportTicketPage() {
@@ -19,7 +19,7 @@ export default function SupportTicketPage() {
         </Link>
         <header className="mb-6">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-teal-600">
-            LifeNodeOS Support
+            LifeNode OS Support
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
             Ticket escalation
@@ -32,7 +32,7 @@ export default function SupportTicketPage() {
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <ScaleSurveyEmbed
             surveyId={SUPPORT_TICKET_SURVEY_ID}
-            title="LifeNodeOS support ticket"
+            title="LifeNode OS support ticket"
             minHeight={520}
           />
         </div>
