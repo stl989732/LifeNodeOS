@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
 import type { ProRoleId } from "@/src/lib/proNode/types";
 import {
@@ -473,6 +474,7 @@ export function resolveLifeNodeTheme(
 
 export function LifeNodeProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { data: session, status } = useSession();
   const [activeNode, setActiveNode] = useState<ActiveNode>("BizNode");
   const [vitalStats, setVitalStats] = useState<VitalStats>({
     heartRate: 0,
@@ -606,6 +608,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
         const res = await fetch("/api/user-state", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ configuredHats: shellKeys }),
         });
         if (!res.ok) {
@@ -669,25 +672,23 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     if (DEV_FRESH_SESSION) return;
+    const userId = session?.user?.id;
+    if (status !== "authenticated" || !userId) return;
+
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/user-state", { cache: "no-store" });
+        const res = await fetch("/api/user-state", {
+          cache: "no-store",
+          credentials: "include",
+        });
         if (!res.ok) return;
         const data = (await res.json()) as {
           state?: { configuredHats?: string[] };
         };
         const hats = data.state?.configuredHats;
         if (cancelled || !Array.isArray(hats) || !hats.length) return;
-        // Do not overwrite hats the user just picked on /shell (avoids stale server race).
-        queueMicrotask(() => {
-          setConfiguredHats((prev) => {
-            if (prev.length > 0) return prev;
-            return hats
-              .map((k) => HAT_SHELL_TO_ACTIVE[k])
-              .filter((n): n is ActiveNode => Boolean(n));
-          });
-        });
+        setConfiguredHatsFromShellKeys(hats);
       } catch {
         /* ignore — unauthenticated or offline */
       }
@@ -695,7 +696,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [setConfiguredHatsFromShellKeys]);
+  }, [status, session?.user?.id, setConfiguredHatsFromShellKeys]);
 
   /** Linos Alerts fire only after the user finished onboarding for every enabled hat. */
   useEffect(() => {

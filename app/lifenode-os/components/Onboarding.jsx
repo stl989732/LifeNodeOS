@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
-import { savePendingShellHats } from "@/lib/pending-shell-hats";
+import { savePendingShellHats, clearPendingShellHats } from "@/lib/pending-shell-hats";
 import {
   ArrowRight,
   Mail,
@@ -84,6 +84,20 @@ const LOADING_LINES = [
   "Weaving your LifeNode…",
   "Locking the core — your OS awakens.",
 ];
+
+async function persistConfiguredHatsToApi(hats) {
+  const res = await fetch("/api/user-state", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ configuredHats: hats }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.message || `SAVE_${res.status}`);
+  }
+  return res.json();
+}
 
 export default function Onboarding() {
   const { data: session } = useSession();
@@ -402,8 +416,16 @@ export default function Onboarding() {
           </div>
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               savePendingShellHats(selectedKeys);
+              if (session?.user?.id && selectedKeys.length) {
+                try {
+                  await persistConfiguredHatsToApi(selectedKeys);
+                  clearPendingShellHats();
+                } catch {
+                  /* shell will retry pending hats after sign-in */
+                }
+              }
               setStep(3);
             }}
             className="bg-slate-900 hover:bg-slate-800 text-white px-10 py-4 rounded-full font-bold text-lg inline-flex items-center gap-2 shadow-xl transition-transform hover:scale-[1.02]"

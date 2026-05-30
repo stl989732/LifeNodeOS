@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -315,6 +315,122 @@ export default function LinoOnboarding({ node }: Props) {
   const [savingStep, setSavingStep] = useState<NodeOnboardingStep | null>(null);
   const [completing, setCompleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const draftReadyRef = useRef(false);
+  const saveDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persistDraft = useCallback(
+    async (
+      draft: {
+        stackSelections: string[];
+        kpiSelections: string[];
+        workflowName: string;
+        stepIdx: number;
+      },
+    ) => {
+      if (DEV_FRESH_SESSION) return;
+      try {
+        await fetch("/api/user-state", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            nodeOnboardingDraft: { node, draft },
+          }),
+        });
+      } catch {
+        /* non-fatal */
+      }
+    },
+    [node],
+  );
+
+  const queueDraftSave = useCallback(
+    (
+      draft: {
+        stackSelections: string[];
+        kpiSelections: string[];
+        workflowName: string;
+        stepIdx: number;
+      },
+    ) => {
+      if (saveDraftTimerRef.current) clearTimeout(saveDraftTimerRef.current);
+      saveDraftTimerRef.current = setTimeout(() => {
+        void persistDraft(draft);
+      }, 400);
+    },
+    [persistDraft],
+  );
+
+  useEffect(() => {
+    if (DEV_FRESH_SESSION) {
+      draftReadyRef.current = true;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/user-state", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          state?: {
+            nodeOnboardingDrafts?: Partial<
+              Record<
+                ActiveNodeName,
+                {
+                  stackSelections?: string[];
+                  kpiSelections?: string[];
+                  workflowName?: string;
+                  stepIdx?: number;
+                }
+              >
+            >;
+          };
+        };
+        if (cancelled) return;
+        const draft = data.state?.nodeOnboardingDrafts?.[node];
+        if (!draft) return;
+        if (Array.isArray(draft.stackSelections)) {
+          setStackSelections(draft.stackSelections);
+        }
+        if (Array.isArray(draft.kpiSelections)) {
+          setKpiSelections(draft.kpiSelections);
+        }
+        if (typeof draft.workflowName === "string") {
+          setWorkflowName(draft.workflowName);
+        }
+        if (typeof draft.stepIdx === "number") {
+          setStepIdx(Math.max(0, Math.min(2, draft.stepIdx)));
+        }
+      } catch {
+        /* start fresh */
+      } finally {
+        if (!cancelled) draftReadyRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (saveDraftTimerRef.current) clearTimeout(saveDraftTimerRef.current);
+    };
+  }, [node]);
+
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    queueDraftSave({
+      stackSelections,
+      kpiSelections,
+      workflowName,
+      stepIdx,
+    });
+  }, [
+    kpiSelections,
+    queueDraftSave,
+    stackSelections,
+    stepIdx,
+    workflowName,
+  ]);
 
   const persistStep = useCallback(
     async (step: NodeOnboardingStep) => {

@@ -192,6 +192,7 @@ export default function LifeNodeShell() {
           void fetch("/api/user-state", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({ configuredHats: hats }),
           })
             .then((res) => {
@@ -210,6 +211,7 @@ export default function LifeNodeShell() {
           setPersistedHats(hats);
         } else {
           setPersistedHats([]);
+          setConfiguredHatsFromShellKeys([]);
         }
       } catch {
         if (cancelled) return;
@@ -329,6 +331,7 @@ export default function LifeNodeShell() {
       const res = await fetch("/api/user-state", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           configuredHats: selectedHats,
           displayName: displayName?.trim() || null,

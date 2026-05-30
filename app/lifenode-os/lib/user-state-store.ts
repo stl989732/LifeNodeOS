@@ -100,6 +100,18 @@ export type Project = {
   updatedAt: string;
 };
 
+export type LinosDailyUsage = {
+  date: string;
+  count: number;
+};
+
+export type NodeOnboardingDraft = {
+  stackSelections: string[];
+  kpiSelections: string[];
+  workflowName: string;
+  stepIdx: number;
+};
+
 export type UserState = {
   userId: string;
   displayName: string | null;
@@ -107,6 +119,8 @@ export type UserState = {
   lastActiveNode: ActiveNodeName | null;
   workflows: WorkflowDefinition[];
   nodeOnboarding: Partial<Record<ActiveNodeName, UserNodeStatus>>;
+  nodeOnboardingDrafts: Partial<Record<ActiveNodeName, NodeOnboardingDraft>>;
+  linosDailyUsage: LinosDailyUsage | null;
   notifications: StoredNotification[];
   projects: Project[];
   createdAt: string;
@@ -149,11 +163,17 @@ function defaultState(userId: string): UserState {
     lastActiveNode: null,
     workflows: [],
     nodeOnboarding: {},
+    nodeOnboardingDrafts: {},
+    linosDailyUsage: null,
     notifications: [],
     projects: [],
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function isServerlessRuntime(): boolean {
+  return process.env.VERCEL === "1" || process.env.VERCEL === "true";
 }
 
 function useSupabaseUserState(): boolean {
@@ -162,6 +182,12 @@ function useSupabaseUserState(): boolean {
       (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
         process.env.SUPABASE_SERVICE_KEY?.trim()),
   );
+}
+
+/** Local JSON files are dev-only; Vercel/serverless must use Supabase. */
+function useFilesystemUserState(): boolean {
+  if (isServerlessRuntime()) return false;
+  return !useSupabaseUserState();
 }
 
 function stateToJson(state: UserState): Record<string, unknown> {
@@ -196,7 +222,7 @@ async function writeUserStateToSupabase(state: UserState): Promise<void> {
 }
 
 async function ensureDir(): Promise<void> {
-  if (useSupabaseUserState()) return;
+  if (!useFilesystemUserState()) return;
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
   } catch (e) {
@@ -205,6 +231,41 @@ async function ensureDir(): Promise<void> {
       throw e;
     }
   }
+}
+
+function normalizeNodeOnboardingDrafts(
+  raw: unknown,
+): Partial<Record<ActiveNodeName, NodeOnboardingDraft>> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Partial<Record<ActiveNodeName, NodeOnboardingDraft>> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!isActiveNodeName(key) || !value || typeof value !== "object") continue;
+    const v = value as Record<string, unknown>;
+    out[key] = {
+      stackSelections: Array.isArray(v.stackSelections)
+        ? v.stackSelections.filter((s): s is string => typeof s === "string")
+        : [],
+      kpiSelections: Array.isArray(v.kpiSelections)
+        ? v.kpiSelections.filter((s): s is string => typeof s === "string")
+        : [],
+      workflowName: typeof v.workflowName === "string" ? v.workflowName : "",
+      stepIdx:
+        typeof v.stepIdx === "number" && Number.isFinite(v.stepIdx)
+          ? Math.max(0, Math.min(2, Math.floor(v.stepIdx)))
+          : 0,
+    };
+  }
+  return out;
+}
+
+function normalizeLinosDailyUsage(raw: unknown): LinosDailyUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.date !== "string" || typeof obj.count !== "number") return null;
+  return {
+    date: obj.date,
+    count: Math.max(0, Math.floor(obj.count)),
+  };
 }
 
 function normalizeNodeOnboarding(
@@ -316,6 +377,10 @@ function normalizeState(raw: unknown, userId: string): UserState {
     lastActiveNode: lastActive,
     workflows,
     nodeOnboarding: normalizeNodeOnboarding(obj.nodeOnboarding),
+    nodeOnboardingDrafts: normalizeNodeOnboardingDrafts(
+      obj.nodeOnboardingDrafts,
+    ),
+    linosDailyUsage: normalizeLinosDailyUsage(obj.linosDailyUsage),
     notifications: normalizeNotifications(obj.notifications),
     projects: normalizeProjects(obj.projects),
     createdAt:
@@ -357,6 +422,13 @@ export async function getUserState(userId: string): Promise<UserState> {
     }
   }
 
+  if (!useFilesystemUserState()) {
+    console.error(
+      "[user-state-store] No persistence backend: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Vercel.",
+    );
+    return cacheUserState(defaultState(userId));
+  }
+
   await ensureDir();
   const filePath = userFilePath(userId);
   try {
@@ -396,6 +468,12 @@ async function writeUserState(state: UserState): Promise<void> {
     }
   }
 
+  if (!useFilesystemUserState()) {
+    throw new UserStatePersistenceError(
+      "Persistence unavailable on serverless. Configure Supabase (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) and apply the user_shell_state migration.",
+    );
+  }
+
   await ensureDir();
   const filePath = userFilePath(state.userId);
   try {
@@ -411,7 +489,71 @@ export type UserStatePatch = {
   displayName?: string | null;
   configuredHats?: ShellHatKey[];
   lastActiveNode?: ActiveNodeName | null;
+  nodeOnboardingDraft?: {
+    node: ActiveNodeName;
+    draft: NodeOnboardingDraft;
+  };
 };
+
+function todayDateKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function getLinosDailyUsageRecord(
+  userId: string,
+): Promise<LinosDailyUsage> {
+  const state = await getUserState(userId);
+  const today = todayDateKey();
+  if (state.linosDailyUsage?.date === today) {
+    return state.linosDailyUsage;
+  }
+  return { date: today, count: 0 };
+}
+
+export async function incrementLinosDailyUsageRecord(
+  userId: string,
+): Promise<LinosDailyUsage> {
+  const current = await getUserState(userId);
+  const today = todayDateKey();
+  const prev =
+    current.linosDailyUsage?.date === today
+      ? current.linosDailyUsage.count
+      : 0;
+  const linosDailyUsage: LinosDailyUsage = { date: today, count: prev + 1 };
+  await writeUserState({
+    ...current,
+    linosDailyUsage,
+    updatedAt: nowIso(),
+  });
+  return linosDailyUsage;
+}
+
+export async function patchNodeOnboardingDraft(
+  userId: string,
+  node: ActiveNodeName,
+  draft: NodeOnboardingDraft,
+): Promise<UserState> {
+  const current = await getUserState(userId);
+  const next: UserState = {
+    ...current,
+    nodeOnboardingDrafts: {
+      ...current.nodeOnboardingDrafts,
+      [node]: {
+        stackSelections: draft.stackSelections.filter(
+          (s) => typeof s === "string",
+        ),
+        kpiSelections: draft.kpiSelections.filter(
+          (s) => typeof s === "string",
+        ),
+        workflowName: draft.workflowName.slice(0, 120),
+        stepIdx: Math.max(0, Math.min(2, Math.floor(draft.stepIdx))),
+      },
+    },
+    updatedAt: nowIso(),
+  };
+  await writeUserState(next);
+  return next;
+}
 
 export async function patchUserState(
   userId: string,
@@ -426,6 +568,14 @@ export async function patchUserState(
       : {}),
     ...(patch.lastActiveNode !== undefined
       ? { lastActiveNode: patch.lastActiveNode }
+      : {}),
+    ...(patch.nodeOnboardingDraft
+      ? {
+          nodeOnboardingDrafts: {
+            ...current.nodeOnboardingDrafts,
+            [patch.nodeOnboardingDraft.node]: patch.nodeOnboardingDraft.draft,
+          },
+        }
       : {}),
     updatedAt: nowIso(),
   };

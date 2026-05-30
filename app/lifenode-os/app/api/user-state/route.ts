@@ -7,6 +7,7 @@ import {
   SHELL_HAT_KEYS,
   type ShellHatKey,
   type ActiveNodeName,
+  type NodeOnboardingDraft,
   type UserStatePatch,
 } from "@/lib/user-state-store";
 
@@ -92,6 +93,49 @@ export async function PUT(request: Request) {
         { status: 400 }
       );
     }
+  }
+
+  if ("nodeOnboardingDraft" in obj) {
+    const draftObj = obj.nodeOnboardingDraft;
+    if (!draftObj || typeof draftObj !== "object") {
+      return NextResponse.json(
+        { error: "INVALID_ONBOARDING_DRAFT" },
+        { status: 400 },
+      );
+    }
+    const d = draftObj as Record<string, unknown>;
+    const node = d.node;
+    const draft = d.draft;
+    if (
+      typeof node !== "string" ||
+      !(ACTIVE_NODES as string[]).includes(node) ||
+      !draft ||
+      typeof draft !== "object"
+    ) {
+      return NextResponse.json(
+        { error: "INVALID_ONBOARDING_DRAFT" },
+        { status: 400 },
+      );
+    }
+    const raw = draft as Record<string, unknown>;
+    const normalized: NodeOnboardingDraft = {
+      stackSelections: Array.isArray(raw.stackSelections)
+        ? raw.stackSelections.filter((s): s is string => typeof s === "string")
+        : [],
+      kpiSelections: Array.isArray(raw.kpiSelections)
+        ? raw.kpiSelections.filter((s): s is string => typeof s === "string")
+        : [],
+      workflowName:
+        typeof raw.workflowName === "string" ? raw.workflowName.slice(0, 120) : "",
+      stepIdx:
+        typeof raw.stepIdx === "number" && Number.isFinite(raw.stepIdx)
+          ? Math.max(0, Math.min(2, Math.floor(raw.stepIdx)))
+          : 0,
+    };
+    patch.nodeOnboardingDraft = {
+      node: node as ActiveNodeName,
+      draft: normalized,
+    };
   }
 
   try {
