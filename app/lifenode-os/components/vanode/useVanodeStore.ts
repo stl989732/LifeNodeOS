@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultVanodePersisted } from "@/lib/vanode/constants";
 import { loadVanode, saveVanode } from "@/lib/vanode/storage";
 import {
+  NODE_WIDGET_KEYS,
+  fetchNodeWidgets,
+  scheduleNodeWidgetSave,
+} from "@/src/lib/nodeWidgetSync";
+import {
   clearPendingWhiteboardVault,
   readPendingWhiteboardVault,
 } from "@/lib/vanode/whiteboard-vault-pending";
@@ -37,22 +42,39 @@ export function useVanodeStore() {
     const id = requestAnimationFrame(() => {
       const loaded = loadVanode();
       const pending = readPendingWhiteboardVault();
-      if (pending.length) {
-        const additions: Note[] = pending.map((p) => ({
-          id: uid(),
-          title: p.title,
-          body: p.body,
-          clientId: p.clientId,
-          labels: ["whiteboard", "visual-sop"],
-          updatedAt: p.createdAt,
-        }));
-        clearPendingWhiteboardVault();
-        setData({ ...loaded, notes: [...additions, ...loaded.notes] });
-      } else {
-        setData(loaded);
-      }
-      persistReady.current = true;
-      setBootstrapped(true);
+      const applyLoaded = (base: VanodePersisted) => {
+        if (pending.length) {
+          const additions: Note[] = pending.map((p) => ({
+            id: uid(),
+            title: p.title,
+            body: p.body,
+            clientId: p.clientId,
+            labels: ["whiteboard", "visual-sop"],
+            updatedAt: p.createdAt,
+          }));
+          clearPendingWhiteboardVault();
+          return { ...base, notes: [...additions, ...base.notes] };
+        }
+        return base;
+      };
+
+      void (async () => {
+        const remote = await fetchNodeWidgets([NODE_WIDGET_KEYS.vanode.dashboard]);
+        const serverPayload = remote[NODE_WIDGET_KEYS.vanode.dashboard];
+        let base = loaded;
+        if (serverPayload && typeof serverPayload === "object") {
+          base = { ...loaded, ...(serverPayload as Partial<VanodePersisted>) };
+        }
+        const merged = applyLoaded(base);
+        if (serverPayload && typeof serverPayload === "object") {
+          saveVanode(merged);
+        } else {
+          scheduleNodeWidgetSave(NODE_WIDGET_KEYS.vanode.dashboard, merged, 200);
+        }
+        setData(merged);
+        persistReady.current = true;
+        setBootstrapped(true);
+      })();
     });
     return () => cancelAnimationFrame(id);
   }, []);
@@ -60,6 +82,7 @@ export function useVanodeStore() {
   useEffect(() => {
     if (!persistReady.current) return;
     saveVanode(data);
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.vanode.dashboard, data);
   }, [data]);
 
   const setDiscoveryComplete = useCallback((v: boolean) => {

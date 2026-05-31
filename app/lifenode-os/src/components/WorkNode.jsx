@@ -27,6 +27,11 @@ import ConnectedAppsPanel from "@/src/components/biz/ConnectedAppsPanel";
 import { appLabelToProvider, providerToAppLabel, toConnectedAppId } from "@/src/lib/integrations/appProviderMap";
 import { connectAppToNode } from "@/src/lib/integrations";
 import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
+import {
+  NODE_WIDGET_KEYS,
+  hydrateWidgetsFromServer,
+  scheduleNodeWidgetSave,
+} from "@/src/lib/nodeWidgetSync";
 import { integrationRedirectPathSegment } from "@/src/lib/integrations/oauthProviders";
 import {
   filterAppsForDataHub,
@@ -175,14 +180,16 @@ export default function WorkNode() {
 
   useEffect(() => {
     if (!hasHydrated || isSynced) return;
-    writeOnboardingSyncDraft({
+    const draft = {
       selectedNode: BIZ_NODE_NAME,
       selectedApps,
       deferredApps,
       selectedFocusAreas,
       primaryDataTool,
       syncStep,
-    });
+    };
+    writeOnboardingSyncDraft(draft);
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.biz.onboardingSync, draft);
   }, [
     hasHydrated,
     isSynced,
@@ -319,33 +326,85 @@ export default function WorkNode() {
   }, []);
 
   useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
     try {
       const draft = readOnboardingSyncDraft();
-      if (!draft) {
-        setHasHydrated(true);
-        return;
+      if (draft) {
+        if (Array.isArray(draft.selectedApps)) setSelectedApps(draft.selectedApps);
+        if (Array.isArray(draft.deferredApps)) setDeferredApps(draft.deferredApps);
+        if (draft.primaryDataTool) setPrimaryDataTool(draft.primaryDataTool);
+        if (Array.isArray(draft.selectedFocusAreas)) {
+          setSelectedFocusAreas(draft.selectedFocusAreas);
+        }
+        if (typeof draft.syncStep === "number") setSyncStep(draft.syncStep);
+        if (draft.selectedFocusAreas?.length && draft.selectedApps?.length) {
+          setIsSynced(true);
+        }
       }
-      if (Array.isArray(draft.selectedApps)) setSelectedApps(draft.selectedApps);
-      if (Array.isArray(draft.deferredApps)) setDeferredApps(draft.deferredApps);
-      if (draft.primaryDataTool) setPrimaryDataTool(draft.primaryDataTool);
-      if (Array.isArray(draft.selectedFocusAreas)) {
-        setSelectedFocusAreas(draft.selectedFocusAreas);
-      }
-      if (typeof draft.syncStep === "number") setSyncStep(draft.syncStep);
-      if (draft.selectedFocusAreas?.length && draft.selectedApps?.length) {
-        setIsSynced(true);
-      }
+      const stored = readPrimaryDataTool();
+      if (stored) setPrimaryDataTool(stored);
     } catch {
       // Fallback to sync wizard if data is invalid.
     } finally {
       setHasHydrated(true);
     }
-  }, []);
+
+    void (async () => {
+      const localDraft = readOnboardingSyncDraft();
+      const localHub = readPrimaryDataTool();
+      const merged = await hydrateWidgetsFromServer(
+        [
+          NODE_WIDGET_KEYS.biz.founderNotes,
+          NODE_WIDGET_KEYS.biz.onboardingSync,
+          NODE_WIDGET_KEYS.biz.dataHub,
+        ],
+        {
+          [NODE_WIDGET_KEYS.biz.onboardingSync]: localDraft,
+          [NODE_WIDGET_KEYS.biz.dataHub]: localHub ? { primary: localHub } : null,
+        },
+      );
+      if (cancelled) return;
+
+      const remoteNotes = merged[NODE_WIDGET_KEYS.biz.founderNotes];
+      if (typeof remoteNotes === "string") setFounderNotes(remoteNotes);
+
+      const remoteDraft = merged[NODE_WIDGET_KEYS.biz.onboardingSync];
+      if (remoteDraft && typeof remoteDraft === "object") {
+        const d = remoteDraft;
+        if (Array.isArray(d.selectedApps)) setSelectedApps(d.selectedApps);
+        if (Array.isArray(d.deferredApps)) setDeferredApps(d.deferredApps);
+        if (d.primaryDataTool) setPrimaryDataTool(d.primaryDataTool);
+        if (Array.isArray(d.selectedFocusAreas)) {
+          setSelectedFocusAreas(d.selectedFocusAreas);
+        }
+        if (typeof d.syncStep === "number") setSyncStep(d.syncStep);
+        if (d.selectedFocusAreas?.length && d.selectedApps?.length) {
+          setIsSynced(true);
+        }
+      }
+
+      const remoteHub = merged[NODE_WIDGET_KEYS.biz.dataHub];
+      if (remoteHub && typeof remoteHub === "object" && remoteHub.primary) {
+        setPrimaryDataTool(remoteHub.primary);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
+    if (!userId || !hasHydrated) return;
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.biz.founderNotes, founderNotes);
+  }, [founderNotes, userId, hasHydrated]);
+
+  useEffect(() => {
+    if (!userId) return;
     const stored = readPrimaryDataTool();
     if (stored) setPrimaryDataTool(stored);
-  }, []);
+  }, [userId]);
 
   const visibleApps = useMemo(
     () => filterAppsForDataHub(selectedApps, primaryDataTool),
@@ -360,6 +419,7 @@ export default function WorkNode() {
   function selectPrimaryDataTool(tool) {
     setPrimaryDataTool(tool);
     writePrimaryDataTool(tool);
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.biz.dataHub, { primary: tool });
     setSelectedApps((prev) => reconcileHubSelection(prev, tool));
   }
 

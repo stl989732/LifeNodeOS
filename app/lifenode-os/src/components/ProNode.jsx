@@ -18,6 +18,13 @@ import {
 import { getNodeTheme } from "@/src/lib/nodeTheme";
 import ConnectAppDialog from "@/src/components/ConnectAppDialog";
 import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
+import { useSession } from "next-auth/react";
+import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
+import {
+  NODE_WIDGET_KEYS,
+  hydrateWidgetsFromServer,
+  scheduleNodeWidgetSave,
+} from "@/src/lib/nodeWidgetSync";
 import ProAutoTimeline from "@/src/components/pro/ProAutoTimeline";
 import ProClauseLibrary from "@/src/components/pro/ProClauseLibrary";
 import ProCommandPalette from "@/src/components/pro/ProCommandPalette";
@@ -50,10 +57,14 @@ function toClock(totalSeconds) {
 
 const BILLABLE_SESSIONS_KEY = "lifenode.pronode.billable-sessions.v1";
 
-function loadSavedBillableSessions() {
+function loadSavedBillableSessions(storageKey) {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(BILLABLE_SESSIONS_KEY);
+    let raw = window.localStorage.getItem(storageKey);
+    if (!raw && storageKey.includes("::")) {
+      raw = window.localStorage.getItem(BILLABLE_SESSIONS_KEY);
+      if (raw) window.localStorage.setItem(storageKey, raw);
+    }
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -61,16 +72,20 @@ function loadSavedBillableSessions() {
   }
 }
 
-function persistBillableSessions(sessions) {
+function persistBillableSessions(storageKey, sessions) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(BILLABLE_SESSIONS_KEY, JSON.stringify(sessions));
+    window.localStorage.setItem(storageKey, JSON.stringify(sessions));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.pro.billableSessions, sessions);
   } catch {
     /* ignore */
   }
 }
 
 export default function ProNode() {
+  const { data: session } = useSession();
+  const userId = session?.user?.id ?? "";
+  const billableStorageKey = userScopedStorageKey(BILLABLE_SESSIONS_KEY, userId);
   const { proWorkspaceRole: role, setProWorkspaceRole } = useLifeNodeContext();
   const [setupStep, setSetupStep] = useState(1);
 
@@ -142,8 +157,25 @@ export default function ProNode() {
   }, []);
 
   useEffect(() => {
-    setSavedBillableSessions(loadSavedBillableSessions());
-  }, []);
+    if (!userId) return;
+    let cancelled = false;
+    const local = loadSavedBillableSessions(billableStorageKey);
+    setSavedBillableSessions(local);
+
+    void (async () => {
+      const merged = await hydrateWidgetsFromServer(
+        [NODE_WIDGET_KEYS.pro.billableSessions],
+        { [NODE_WIDGET_KEYS.pro.billableSessions]: local },
+      );
+      if (cancelled) return;
+      const remote = merged[NODE_WIDGET_KEYS.pro.billableSessions];
+      if (Array.isArray(remote)) setSavedBillableSessions(remote);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, billableStorageKey]);
 
   useEffect(() => {
     if (setupStep !== 3 || !nativeToolkit.pulse || !billablePulseEnabled || billablePulsePaused) {
@@ -170,7 +202,7 @@ export default function ProNode() {
     };
     setSavedBillableSessions((prev) => {
       const next = [entry, ...prev].slice(0, 12);
-      persistBillableSessions(next);
+      persistBillableSessions(billableStorageKey, next);
       return next;
     });
     setTimersByFile((prev) => ({ ...prev, [activeFile]: 0 }));

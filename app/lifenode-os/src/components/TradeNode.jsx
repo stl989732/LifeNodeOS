@@ -3,6 +3,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
+import {
+  NODE_WIDGET_KEYS,
+  hydrateWidgetsFromServer,
+  scheduleNodeWidgetSave,
+} from "@/src/lib/nodeWidgetSync";
 import {
   Activity,
   AlertTriangle,
@@ -205,10 +211,14 @@ function defaultPersisted() {
   };
 }
 
-function loadPersisted() {
+function loadPersisted(storageKey) {
   if (typeof window === "undefined") return defaultPersisted();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    let raw = window.localStorage.getItem(storageKey);
+    if (!raw && storageKey.includes("::")) {
+      raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) window.localStorage.setItem(storageKey, raw);
+    }
     if (!raw) return defaultPersisted();
     const parsed = JSON.parse(raw);
     const defaults = defaultPersisted();
@@ -263,10 +273,14 @@ function isSameLocalDay(iso) {
   );
 }
 
-function loadJournal() {
+function loadJournal(journalKey) {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(JOURNAL_KEY);
+    let raw = window.localStorage.getItem(journalKey);
+    if (!raw && journalKey.includes("::")) {
+      raw = window.localStorage.getItem(JOURNAL_KEY);
+      if (raw) window.localStorage.setItem(journalKey, raw);
+    }
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -304,14 +318,49 @@ function buildAutopsyParagraph(trade, thesisSnapshot, sentimentScore) {
 
 export default function TradeNode() {
   const { data: session } = useSession();
+  const userId = session?.user?.id ?? "";
+  const traderStorageKey = userScopedStorageKey(STORAGE_KEY, userId);
+  const traderJournalKey = userScopedStorageKey(JOURNAL_KEY, userId);
   const firstName = useMemo(() => {
     const n = session?.user?.name?.trim();
     if (!n) return "Trader";
     return n.split(/\s+/)[0];
   }, [session?.user?.name]);
 
-  const [state, setState] = useState(() => loadPersisted());
-  const [journal, setJournal] = useState(() => loadJournal());
+  const [state, setState] = useState(() => defaultPersisted());
+  const [journal, setJournal] = useState([]);
+  const [traderHydrated, setTraderHydrated] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const localState = loadPersisted(traderStorageKey);
+    const localJournal = loadJournal(traderJournalKey);
+    setState(localState);
+    setJournal(localJournal);
+    setTraderHydrated(true);
+
+    void (async () => {
+      const merged = await hydrateWidgetsFromServer(
+        [NODE_WIDGET_KEYS.trader.settings, NODE_WIDGET_KEYS.trader.journal],
+        {
+          [NODE_WIDGET_KEYS.trader.settings]: localState,
+          [NODE_WIDGET_KEYS.trader.journal]: localJournal,
+        },
+      );
+      if (cancelled) return;
+      const remoteState = merged[NODE_WIDGET_KEYS.trader.settings];
+      if (remoteState && typeof remoteState === "object") {
+        setState({ ...defaultPersisted(), ...remoteState });
+      }
+      const remoteJournal = merged[NODE_WIDGET_KEYS.trader.journal];
+      if (Array.isArray(remoteJournal)) setJournal(remoteJournal);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, traderStorageKey, traderJournalKey]);
 
   // Three-step onboarding flow (welcome -> 1 -> 2 -> 3). Driven by spec.
   const [initStep, setInitStep] = useState(0); // 0 = welcome card
@@ -347,14 +396,16 @@ export default function TradeNode() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    if (typeof window === "undefined" || !userId || !traderHydrated) return;
+    window.localStorage.setItem(traderStorageKey, JSON.stringify(state));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.trader.settings, state);
+  }, [state, userId, traderStorageKey, traderHydrated]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal));
-  }, [journal]);
+    if (typeof window === "undefined" || !userId || !traderHydrated) return;
+    window.localStorage.setItem(traderJournalKey, JSON.stringify(journal));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.trader.journal, journal);
+  }, [journal, userId, traderJournalKey, traderHydrated]);
 
   const toggleApp = (app) => {
     setState((s) => {

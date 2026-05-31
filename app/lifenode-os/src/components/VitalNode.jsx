@@ -6,6 +6,11 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
 import {
+  NODE_WIDGET_KEYS,
+  hydrateWidgetsFromServer,
+  scheduleNodeWidgetSave,
+} from "@/src/lib/nodeWidgetSync";
+import {
   Activity,
   AlertTriangle,
   Beaker,
@@ -377,6 +382,7 @@ export default function VitalNode() {
 
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     const state = loadPersistedState(storageKey);
     setSetupDone(state.setupDone);
     setOnboardingStep(state.onboardingStep);
@@ -385,6 +391,28 @@ export default function VitalNode() {
     setNotes(state.notes);
     setVitalDash(state.vitalDash);
     setStorageHydrated(true);
+
+    void (async () => {
+      const merged = await hydrateWidgetsFromServer(
+        [NODE_WIDGET_KEYS.vital.dashboard],
+        { [NODE_WIDGET_KEYS.vital.dashboard]: state },
+      );
+      if (cancelled) return;
+      const remote = merged[NODE_WIDGET_KEYS.vital.dashboard];
+      if (remote && typeof remote === "object") {
+        const r = remote;
+        if (typeof r.setupDone === "boolean") setSetupDone(r.setupDone);
+        if (typeof r.onboardingStep === "number") setOnboardingStep(r.onboardingStep);
+        if (Array.isArray(r.syncedApps)) setSyncedApps(r.syncedApps);
+        if (r.tools && typeof r.tools === "object") setTools(r.tools);
+        if (Array.isArray(r.notes)) setNotes(r.notes);
+        if (r.vitalDash) setVitalDash(normalizeVitalDash(r.vitalDash));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId, storageKey]);
 
   const [isWindDown, setIsWindDown] = useState(false);
@@ -472,6 +500,7 @@ export default function VitalNode() {
       vitalDash,
     };
     window.localStorage.setItem(storageKey, JSON.stringify(payload));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.vital.dashboard, payload);
   }, [
     userId,
     storageKey,

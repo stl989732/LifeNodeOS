@@ -4,6 +4,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
+import {
+  NODE_WIDGET_KEYS,
+  hydrateWidgetsFromServer,
+  scheduleNodeWidgetSave,
+} from "@/src/lib/nodeWidgetSync";
 import DualRailCommandCenter from "@/src/components/shell/DualRailCommandCenter";
 import AppCategoryRequestFooter from "@/src/components/AppCategoryRequestFooter";
 import ChefUtensilLoader from "@/src/components/ChefUtensilLoader";
@@ -342,6 +347,7 @@ export default function HomeNode() {
 
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     queueMicrotask(() => {
       ensureNativeGrocerySeeded([], scopedKeys.nativeGrocery);
       const g = readNativeGroceryList(scopedKeys.nativeGrocery);
@@ -365,10 +371,14 @@ export default function HomeNode() {
         }
       }
 
+      let parsedVault = [];
       if (rawVault) {
         try {
           const v = JSON.parse(rawVault);
-          if (Array.isArray(v)) setRecipeVault(v);
+          if (Array.isArray(v)) {
+            parsedVault = v;
+            setRecipeVault(v);
+          }
         } catch {
           setRecipeVault([]);
         }
@@ -380,17 +390,18 @@ export default function HomeNode() {
           : null;
 
       let setupInitialized = false;
+      let parsedSetup = null;
       if (saved) {
         try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed?.selectedApps)) setSelectedApps(parsed.selectedApps);
-          if (typeof parsed?.useNativeTools === "boolean") setUseNativeTools(parsed.useNativeTools);
-          if (Array.isArray(parsed?.selectedPriorities)) {
-            setSelectedPriorities(parsed.selectedPriorities);
-          } else if (parsed?.priority) {
-            setSelectedPriorities([parsed.priority]);
+          parsedSetup = JSON.parse(saved);
+          if (Array.isArray(parsedSetup?.selectedApps)) setSelectedApps(parsedSetup.selectedApps);
+          if (typeof parsedSetup?.useNativeTools === "boolean") setUseNativeTools(parsedSetup.useNativeTools);
+          if (Array.isArray(parsedSetup?.selectedPriorities)) {
+            setSelectedPriorities(parsedSetup.selectedPriorities);
+          } else if (parsedSetup?.priority) {
+            setSelectedPriorities([parsedSetup.priority]);
           }
-          setupInitialized = !!parsed?.isInitialized;
+          setupInitialized = !!parsedSetup?.isInitialized;
           if (setupInitialized) setIsInitialized(true);
         } catch {
           // Ignore invalid persisted setup and start fresh.
@@ -438,15 +449,10 @@ export default function HomeNode() {
         }
       }
       const migratedChild =
-        (saved &&
-          (() => {
-            try {
-              const parsed = JSON.parse(saved);
-              return typeof parsed?.childName === "string" ? parsed.childName.trim() : "";
-            } catch {
-              return "";
-            }
-          })()) ||
+        (parsedSetup &&
+          typeof parsedSetup?.childName === "string"
+          ? parsedSetup.childName.trim()
+          : "") ||
         legacyChildName?.trim() ||
         "";
       if (!nextPrep.length && migratedChild) {
@@ -468,12 +474,87 @@ export default function HomeNode() {
         }
       }
       setUpcomingEngagement(nextEng);
+
+      void (async () => {
+        let parsedSavedNotes = [];
+        if (savedNotesList) {
+          try {
+            parsedSavedNotes = JSON.parse(savedNotesList);
+          } catch {
+            parsedSavedNotes = [];
+          }
+        }
+
+        const localPayload = {
+          [NODE_WIDGET_KEYS.home.setup]: parsedSetup,
+          [NODE_WIDGET_KEYS.home.notes]: savedNotes ?? "",
+          [NODE_WIDGET_KEYS.home.savedNotes]: parsedSavedNotes,
+          [NODE_WIDGET_KEYS.home.budget]: { currency: nextCurrency, rows: nextBudget },
+          [NODE_WIDGET_KEYS.home.chores]: nextChores,
+          [NODE_WIDGET_KEYS.home.activityPrep]: nextPrep,
+          [NODE_WIDGET_KEYS.home.engagement]: nextEng,
+          [NODE_WIDGET_KEYS.home.recipeVault]: parsedVault,
+          [NODE_WIDGET_KEYS.home.nativeGrocery]: g,
+        };
+
+        const merged = await hydrateWidgetsFromServer(
+          Object.values(NODE_WIDGET_KEYS.home),
+          localPayload,
+        );
+        if (cancelled) return;
+
+        const remoteSetup = merged[NODE_WIDGET_KEYS.home.setup];
+        if (remoteSetup && typeof remoteSetup === "object") {
+          const s = remoteSetup;
+          if (Array.isArray(s.selectedApps)) setSelectedApps(s.selectedApps);
+          if (typeof s.useNativeTools === "boolean") setUseNativeTools(s.useNativeTools);
+          if (Array.isArray(s.selectedPriorities)) setSelectedPriorities(s.selectedPriorities);
+          if (s.isInitialized) setIsInitialized(true);
+        }
+
+        const remoteNotes = merged[NODE_WIDGET_KEYS.home.notes];
+        if (typeof remoteNotes === "string") setNotes(remoteNotes);
+
+        const remoteSavedNotes = merged[NODE_WIDGET_KEYS.home.savedNotes];
+        if (Array.isArray(remoteSavedNotes)) setSavedNotes(remoteSavedNotes);
+
+        const remoteBudget = merged[NODE_WIDGET_KEYS.home.budget];
+        if (remoteBudget && typeof remoteBudget === "object") {
+          const b = remoteBudget;
+          if (Array.isArray(b.rows)) setBudgetRows(b.rows);
+          if (typeof b.currency === "string") setBudgetCurrency(b.currency);
+        }
+
+        const remoteChores = merged[NODE_WIDGET_KEYS.home.chores];
+        if (Array.isArray(remoteChores)) setChores(remoteChores);
+
+        const remotePrep = merged[NODE_WIDGET_KEYS.home.activityPrep];
+        if (Array.isArray(remotePrep)) {
+          setActivityPrepItems(remotePrep.map(normalizeActivityPrepRow));
+        }
+
+        const remoteEng = merged[NODE_WIDGET_KEYS.home.engagement];
+        if (remoteEng !== undefined) setUpcomingEngagement(remoteEng);
+
+        const remoteVault = merged[NODE_WIDGET_KEYS.home.recipeVault];
+        if (Array.isArray(remoteVault)) setRecipeVault(remoteVault);
+
+        const remoteGrocery = merged[NODE_WIDGET_KEYS.home.nativeGrocery];
+        if (Array.isArray(remoteGrocery)) {
+          setNativeGroceryList(remoteGrocery);
+          writeNativeGroceryList(remoteGrocery, scopedKeys.nativeGrocery);
+        }
+      })();
     });
+    return () => {
+      cancelled = true;
+    };
   }, [userId, scopedKeys]);
 
   useEffect(() => {
     if (!userId) return;
     writeNativeGroceryList(nativeGroceryList, scopedKeys.nativeGrocery);
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.nativeGrocery, nativeGroceryList);
   }, [nativeGroceryList, userId, scopedKeys.nativeGrocery]);
 
   useEffect(() => {
@@ -532,34 +613,38 @@ export default function HomeNode() {
   useEffect(() => {
     if (!userId) return;
     window.localStorage.setItem(scopedKeys.notes, notes);
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.notes, notes);
   }, [notes, userId, scopedKeys.notes]);
 
   useEffect(() => {
     if (!userId) return;
     window.localStorage.setItem(scopedKeys.savedNotes, JSON.stringify(savedNotes));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.savedNotes, savedNotes);
   }, [savedNotes, userId, scopedKeys.savedNotes]);
 
   useEffect(() => {
     if (!userId) return;
-    window.localStorage.setItem(
-      scopedKeys.budget,
-      JSON.stringify({ currency: budgetCurrency, rows: budgetRows }),
-    );
+    const payload = { currency: budgetCurrency, rows: budgetRows };
+    window.localStorage.setItem(scopedKeys.budget, JSON.stringify(payload));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.budget, payload);
   }, [budgetRows, budgetCurrency, userId, scopedKeys.budget]);
 
   useEffect(() => {
     if (!userId) return;
     window.localStorage.setItem(scopedKeys.chores, JSON.stringify(chores));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.chores, chores);
   }, [chores, userId, scopedKeys.chores]);
 
   useEffect(() => {
     if (!userId) return;
     window.localStorage.setItem(scopedKeys.recipeVault, JSON.stringify(recipeVault));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.recipeVault, recipeVault);
   }, [recipeVault, userId, scopedKeys.recipeVault]);
 
   useEffect(() => {
     if (!userId) return;
     window.localStorage.setItem(scopedKeys.prep, JSON.stringify(activityPrepItems));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.activityPrep, activityPrepItems);
   }, [activityPrepItems, userId, scopedKeys.prep]);
 
   useEffect(() => {
@@ -568,6 +653,7 @@ export default function HomeNode() {
       scopedKeys.engagement,
       JSON.stringify(upcomingEngagement),
     );
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.engagement, upcomingEngagement);
   }, [upcomingEngagement, userId, scopedKeys.engagement]);
 
   const smartCartSource = useMemo(() => {
@@ -773,18 +859,21 @@ export default function HomeNode() {
       isInitialized: true,
     };
     window.localStorage.setItem(scopedKeys.setup, JSON.stringify(payload));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.setup, payload);
     setBudgetRows([]);
     setBudgetCurrency("USD");
     setChores([]);
     setActivityPrepItems([]);
     setUpcomingEngagement(null);
-    window.localStorage.setItem(
-      scopedKeys.budget,
-      JSON.stringify({ currency: "USD", rows: [] }),
-    );
+    const emptyBudget = { currency: "USD", rows: [] };
+    window.localStorage.setItem(scopedKeys.budget, JSON.stringify(emptyBudget));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.budget, emptyBudget);
     window.localStorage.setItem(scopedKeys.chores, JSON.stringify([]));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.chores, []);
     window.localStorage.setItem(scopedKeys.prep, JSON.stringify([]));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.activityPrep, []);
     window.localStorage.removeItem(scopedKeys.engagement);
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.engagement, null);
     setIsInitialized(true);
   }
 
