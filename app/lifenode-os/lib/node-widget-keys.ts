@@ -10,6 +10,7 @@ export const NODE_WIDGET_KEYS = {
     engagement: "home.engagement",
     recipeVault: "home.recipe_vault",
     nativeGrocery: "home.native_grocery",
+    kitchenAi: "home.kitchen_ai",
   },
   vanode: {
     dashboard: "vanode.dashboard",

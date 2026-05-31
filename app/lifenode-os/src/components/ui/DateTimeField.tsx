@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef } from "react";
-import { Calendar, Clock } from "lucide-react";
 
 type Props = {
   label?: string;
@@ -55,7 +54,7 @@ function openPicker(input: HTMLInputElement | null) {
 }
 
 const fieldClass =
-  "w-full rounded-lg border border-slate-200 bg-white/90 px-2 py-1.5 text-sm text-[#1E293B] outline-none transition-shadow focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20 cursor-pointer";
+  "w-full rounded-lg border border-slate-200 bg-white/90 px-2 py-1.5 text-sm text-[#1E293B] outline-none transition-shadow focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20 cursor-pointer [color-scheme:light] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer";
 
 export default function DateTimeField({
   label,
@@ -90,18 +89,8 @@ export default function DateTimeField({
             onClick={() => openPicker(dateRef.current)}
             disabled={disabled}
             required={required}
-            className={`${fieldClass} pr-9 ${inputClassName}`}
+            className={`${fieldClass} ${inputClassName}`}
           />
-          <button
-            type="button"
-            tabIndex={-1}
-            disabled={disabled}
-            onClick={() => openPicker(dateRef.current)}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-[#90A1B9] hover:bg-slate-100 disabled:opacity-40"
-            aria-label="Open calendar"
-          >
-            <Calendar className="h-4 w-4" />
-          </button>
         </div>
         <div className="relative min-w-[7rem] flex-1">
           <input
@@ -112,18 +101,8 @@ export default function DateTimeField({
             onClick={() => openPicker(timeRef.current)}
             disabled={disabled || !date}
             required={required && Boolean(date)}
-            className={`${fieldClass} pr-9 ${inputClassName}`}
+            className={`${fieldClass} ${inputClassName}`}
           />
-          <button
-            type="button"
-            tabIndex={-1}
-            disabled={disabled || !date}
-            onClick={() => openPicker(timeRef.current)}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-[#90A1B9] hover:bg-slate-100 disabled:opacity-40"
-            aria-label="Open time picker"
-          >
-            <Clock className="h-4 w-4" />
-          </button>
         </div>
       </div>
     </div>

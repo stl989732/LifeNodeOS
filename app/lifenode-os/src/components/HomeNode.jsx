@@ -87,6 +87,7 @@ const SAVED_NOTES_KEY = "lifenode.homenode.saved-notes.v1";
 const BUDGET_ROWS_KEY = "lifenode.homenode.budget-rows.v1";
 const CHORE_ROWS_KEY = "lifenode.homenode.chore-rows.v1";
 const ACTIVITY_PREP_KEY = "lifenode.homenode.activity-prep.v1";
+const KITCHEN_AI_KEY = "lifenode.homenode.kitchen-ai.v1";
 const UPCOMING_ENGAGEMENT_KEY = "lifenode.homenode.upcoming-engagement.v1";
 
 const BUDGET_CURRENCIES = [
@@ -117,11 +118,6 @@ function formatBudgetAmount(amount, currencyCode = "USD") {
 
 function normalizeActivityPrepRow(row) {
   if (row && typeof row.title === "string") {
-    const hasContent =
-      row.title?.trim() ||
-      row.participantName?.trim() ||
-      row.itemsToBring?.trim() ||
-      row.scheduledAt?.trim();
     return {
       id: row.id || crypto.randomUUID(),
       title: row.title,
@@ -129,7 +125,7 @@ function normalizeActivityPrepRow(row) {
       participantType: row.participantType === "person" ? "person" : "child",
       participantName: row.participantName || "",
       itemsToBring: row.itemsToBring || "",
-      saved: Boolean(row.saved ?? hasContent),
+      saved: row.saved === true,
     };
   }
   return {
@@ -152,6 +148,32 @@ function createEmptyActivityPrepRow() {
     participantName: "",
     itemsToBring: "",
     saved: false,
+  };
+}
+
+function parseKitchenAiPayload(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  return {
+    kitchenRecipeTabs: Array.isArray(payload.kitchenRecipeTabs)
+      ? payload.kitchenRecipeTabs.map((tab) => ({
+          ...tab,
+          loading: false,
+          error: tab?.error ?? null,
+        }))
+      : [],
+    activeKitchenTabId:
+      payload.activeKitchenTabId != null ? payload.activeKitchenTabId : null,
+    ingredientsOnHand:
+      typeof payload.ingredientsOnHand === "string" ? payload.ingredientsOnHand : "",
+    chefPhase: typeof payload.chefPhase === "string" ? payload.chefPhase : "idle",
+    chefIntro: typeof payload.chefIntro === "string" ? payload.chefIntro : "",
+    discoveryOptions: Array.isArray(payload.discoveryOptions)
+      ? payload.discoveryOptions
+      : [],
+    selectedDiscoveryIds: Array.isArray(payload.selectedDiscoveryIds)
+      ? payload.selectedDiscoveryIds
+      : [],
+    chefCookMode: payload.chefCookMode === true,
   };
 }
 
@@ -277,6 +299,7 @@ export default function HomeNode() {
   const [activityPrepItems, setActivityPrepItems] = useState([]);
   const [focusedActivityId, setFocusedActivityId] = useState(null);
   const [upcomingEngagement, setUpcomingEngagement] = useState(null);
+  const [kitchenHydrated, setKitchenHydrated] = useState(false);
   const { patchBridgeSignals } = useLifeNodeContext();
 
   const cameraInputRef = useRef(null);
@@ -341,6 +364,7 @@ export default function HomeNode() {
       engagement: userScopedStorageKey(UPCOMING_ENGAGEMENT_KEY, userId),
       nativeGrocery: userScopedStorageKey(NATIVE_GROCERY_STORAGE_KEY, userId),
       recipeVault: userScopedStorageKey(RECIPE_VAULT_KEY, userId),
+      kitchenAi: userScopedStorageKey(KITCHEN_AI_KEY, userId),
     }),
     [userId],
   );
@@ -550,6 +574,80 @@ export default function HomeNode() {
       cancelled = true;
     };
   }, [userId, scopedKeys]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    let localKitchen = null;
+    try {
+      const rawKitchen = window.localStorage.getItem(scopedKeys.kitchenAi);
+      if (rawKitchen) localKitchen = JSON.parse(rawKitchen);
+    } catch {
+      localKitchen = null;
+    }
+    const parsedLocal = parseKitchenAiPayload(localKitchen);
+    if (parsedLocal) {
+      setKitchenRecipeTabs(parsedLocal.kitchenRecipeTabs);
+      setActiveKitchenTabId(parsedLocal.activeKitchenTabId);
+      setIngredientsOnHand(parsedLocal.ingredientsOnHand);
+      setChefPhase(parsedLocal.chefPhase);
+      setChefIntro(parsedLocal.chefIntro);
+      setDiscoveryOptions(parsedLocal.discoveryOptions);
+      setSelectedDiscoveryIds(parsedLocal.selectedDiscoveryIds);
+      setChefCookMode(parsedLocal.chefCookMode);
+    }
+    setKitchenHydrated(true);
+
+    void (async () => {
+      const merged = await hydrateWidgetsFromServer(
+        [NODE_WIDGET_KEYS.home.kitchenAi],
+        { [NODE_WIDGET_KEYS.home.kitchenAi]: localKitchen },
+      );
+      if (cancelled) return;
+      const remote = parseKitchenAiPayload(merged[NODE_WIDGET_KEYS.home.kitchenAi]);
+      if (!remote) return;
+      setKitchenRecipeTabs(remote.kitchenRecipeTabs);
+      setActiveKitchenTabId(remote.activeKitchenTabId);
+      setIngredientsOnHand(remote.ingredientsOnHand);
+      setChefPhase(remote.chefPhase);
+      setChefIntro(remote.chefIntro);
+      setDiscoveryOptions(remote.discoveryOptions);
+      setSelectedDiscoveryIds(remote.selectedDiscoveryIds);
+      setChefCookMode(remote.chefCookMode);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, scopedKeys.kitchenAi]);
+
+  useEffect(() => {
+    if (!userId || !kitchenHydrated) return;
+    const payload = {
+      kitchenRecipeTabs,
+      activeKitchenTabId,
+      ingredientsOnHand,
+      chefPhase,
+      chefIntro,
+      discoveryOptions,
+      selectedDiscoveryIds,
+      chefCookMode,
+    };
+    window.localStorage.setItem(scopedKeys.kitchenAi, JSON.stringify(payload));
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.kitchenAi, payload);
+  }, [
+    userId,
+    kitchenHydrated,
+    scopedKeys.kitchenAi,
+    kitchenRecipeTabs,
+    activeKitchenTabId,
+    ingredientsOnHand,
+    chefPhase,
+    chefIntro,
+    discoveryOptions,
+    selectedDiscoveryIds,
+    chefCookMode,
+  ]);
 
   useEffect(() => {
     if (!userId) return;
@@ -818,6 +916,11 @@ export default function HomeNode() {
 
   const savedActivities = useMemo(
     () => activityPrepItems.filter((r) => r.saved && r.title?.trim()),
+    [activityPrepItems],
+  );
+
+  const draftPrepRows = useMemo(
+    () => activityPrepItems.filter((r) => !r.saved),
     [activityPrepItems],
   );
 
@@ -2871,7 +2974,7 @@ export default function HomeNode() {
                     Add plan
                   </button>
                 </div>
-                {activityPrepItems.length === 0 ? (
+                {draftPrepRows.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-slate-200 bg-white/50 px-4 py-8 text-center text-sm text-[#90A1B9]">
                     No activity plans yet. Add a row to track titles, schedule, and packing lists.
                   </p>
@@ -2888,7 +2991,7 @@ export default function HomeNode() {
                         </tr>
                       </thead>
                       <tbody>
-                        {activityPrepItems.map((row) => (
+                        {draftPrepRows.map((row) => (
                           <tr key={row.id} className="align-top">
                             <td className="px-2">
                               <input

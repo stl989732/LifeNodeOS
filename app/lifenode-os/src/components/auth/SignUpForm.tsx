@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { MailCheck, ShieldCheck, RefreshCw } from "lucide-react";
+import { MailCheck, ShieldCheck, RefreshCw, Eye, EyeOff } from "lucide-react";
 import PasswordField from "@/src/components/auth/PasswordField";
 import AuthLegalFooter from "@/src/components/auth/AuthLegalFooter";
 import {
@@ -47,6 +47,9 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rows, setRows] = useState<SecurityRow[]>(INITIAL_ROWS);
+  const [revealedAnswers, setRevealedAnswers] = useState(
+    () => Array.from({ length: SECURITY_QUESTIONS_REQUIRED }, () => false),
+  );
   const [state, setState] = useState<State>({ kind: "idle" });
 
   // Each row's dropdown should hide questions already chosen above it, so the
@@ -339,16 +342,40 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
                   ))}
                 </select>
               </label>
-              <input
-                type="text"
-                autoComplete="off"
-                required
-                placeholder="Your answer"
-                value={row.answer}
-                onChange={(e) => updateRow(idx, { answer: e.target.value })}
-                disabled={!row.id}
-                className="w-full rounded-xl border border-white/15 bg-slate-900/60 px-4 py-2.5 text-sm text-slate-100 outline-none ring-cyan-400/40 focus:ring-2 disabled:opacity-50"
-              />
+              <div className="relative">
+                <input
+                  type={revealedAnswers[idx] ? "text" : "password"}
+                  autoComplete="off"
+                  required
+                  placeholder="Your answer"
+                  value={row.answer}
+                  onChange={(e) => updateRow(idx, { answer: e.target.value })}
+                  disabled={!row.id}
+                  className="w-full rounded-xl border border-white/15 bg-slate-900/60 px-4 py-2.5 pr-12 text-sm text-slate-100 outline-none ring-cyan-400/40 focus:ring-2 disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRevealedAnswers((prev) =>
+                      prev.map((v, i) => (i === idx ? !v : v)),
+                    )
+                  }
+                  disabled={!row.id}
+                  aria-pressed={revealedAnswers[idx]}
+                  aria-label={
+                    revealedAnswers[idx]
+                      ? "Hide security answer"
+                      : "Show security answer"
+                  }
+                  className="absolute inset-y-0 right-2 inline-flex h-full items-center justify-center px-2 text-slate-400 transition hover:text-slate-200 focus:outline-none focus-visible:text-slate-100 disabled:opacity-40"
+                >
+                  {revealedAnswers[idx] ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
           ))}
         </div>
