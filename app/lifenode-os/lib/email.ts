@@ -41,11 +41,24 @@ export type SendEmailResult = {
 
 const DEV_OUTBOX = path.join(process.cwd(), "data", "dev-emails");
 
+function emailProviderKey(): string | null {
+  return (
+    process.env.RESEND_API_KEY?.trim() ||
+    process.env.LIFENODE_EMAIL_PROVIDER_KEY?.trim() ||
+    null
+  );
+}
+
+function emailFromAddress(): string {
+  return (
+    process.env.LIFENODE_EMAIL_FROM?.trim() ||
+    process.env.RESEND_FROM?.trim() ||
+    "LifeNode OS <onboarding@resend.dev>"
+  );
+}
+
 function emailProviderConfigured(): boolean {
-  // Hook for a real provider, e.g. Resend / Postmark / SES. As soon as the
-  // operator drops a key into `.env.local` and wires `dispatchEmail`, this
-  // module flips automatically.
-  return Boolean(process.env.LIFENODE_EMAIL_PROVIDER_KEY?.trim());
+  return Boolean(emailProviderKey());
 }
 
 async function writeDevPreview(
@@ -94,10 +107,35 @@ function escapeHtml(s: string): string {
  *     text: input.text,
  *   });
  */
-async function dispatchEmail(_input: SendEmailInput): Promise<void> {
-  throw new Error(
-    "Real email provider not wired. Set LIFENODE_EMAIL_PROVIDER_KEY and implement dispatchEmail."
-  );
+async function dispatchEmail(input: SendEmailInput): Promise<void> {
+  const apiKey = emailProviderKey();
+  if (!apiKey) {
+    throw new Error(
+      "Email provider not configured. Set RESEND_API_KEY or LIFENODE_EMAIL_PROVIDER_KEY.",
+    );
+  }
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: emailFromAddress(),
+      to: [input.to],
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `Resend API ${res.status}${body ? `: ${body.slice(0, 240)}` : ""}`,
+    );
+  }
 }
 
 function isServerlessProduction(): boolean {

@@ -17,10 +17,7 @@ import {
 import { useLifeNode } from "@/src/context/LifeNodeContext";
 import NodeGalleryModal from "@/src/components/shell/NodeGalleryModal";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
-import {
-  clearPendingShellHats,
-  readPendingShellHats,
-} from "@/lib/pending-shell-hats";
+import { hydrateConfiguredHatKeys } from "@/lib/pending-shell-hats";
 import NotificationsBell from "@/src/components/NotificationsBell";
 import { ACTIVE_TO_HAT_KEY } from "@/lib/node-mappings";
 
@@ -179,31 +176,28 @@ export default function LifeNodeShell() {
 
     (async () => {
       try {
-        const res = await fetch("/api/user-state", { cache: "no-store" });
-        if (!res.ok) throw new Error(`USER_STATE_${res.status}`);
-        const { state } = await res.json();
+        const hats = (await hydrateConfiguredHatKeys()).filter((h) =>
+          HAT_KEYS.includes(h),
+        );
         if (cancelled) return;
-        let hats = Array.isArray(state?.configuredHats)
-          ? state.configuredHats.filter((h) => HAT_KEYS.includes(h))
-          : [];
-        const pending = readPendingShellHats();
-        if (!hats.length && pending.length) {
-          hats = pending.filter((h) => HAT_KEYS.includes(h));
-          void fetch("/api/user-state", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
+
+        let displayName = sessionFallbackName;
+        try {
+          const res = await fetch("/api/user-state", {
+            cache: "no-store",
             credentials: "include",
-            body: JSON.stringify({ configuredHats: hats }),
-          })
-            .then((res) => {
-              if (res.ok) clearPendingShellHats();
-            })
-            .catch(() => undefined);
+          });
+          if (res.ok) {
+            const { state } = await res.json();
+            displayName =
+              (typeof state?.displayName === "string" && state.displayName) ||
+              sessionFallbackName;
+          }
+        } catch {
+          /* offline */
         }
-        const name =
-          (typeof state?.displayName === "string" && state.displayName) ||
-          sessionFallbackName;
-        setDisplayName(name);
+
+        setDisplayName(displayName);
         if (hats.length) {
           setSelectedHats(hats);
           setSwitchHat(hats[0]);

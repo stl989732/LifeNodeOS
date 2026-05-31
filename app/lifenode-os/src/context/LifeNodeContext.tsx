@@ -13,6 +13,12 @@ import {
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
+import {
+  hydrateConfiguredHatKeys,
+  notifyConfiguredHatsUpdated,
+  savePendingShellHats,
+} from "@/lib/sync-configured-hats";
+import type { ShellHatKey } from "@/lib/node-mappings";
 import type { ProRoleId } from "@/src/lib/proNode/types";
 import {
   readProWorkspaceRole,
@@ -611,7 +617,10 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
           credentials: "include",
           body: JSON.stringify({ configuredHats: shellKeys }),
         });
-        if (!res.ok) {
+        if (res.ok) {
+          savePendingShellHats(shellKeys as ShellHatKey[]);
+          notifyConfiguredHatsUpdated(shellKeys as ShellHatKey[]);
+        } else {
           console.error("[LifeNodeContext] hat save failed:", res.status);
         }
       } catch {
@@ -672,29 +681,29 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     if (DEV_FRESH_SESSION) return;
-    const userId = session?.user?.id;
-    if (status !== "authenticated" || !userId) return;
 
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/user-state", {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          state?: { configuredHats?: string[] };
-        };
-        const hats = data.state?.configuredHats;
-        if (cancelled || !Array.isArray(hats) || !hats.length) return;
-        setConfiguredHatsFromShellKeys(hats);
-      } catch {
-        /* ignore — unauthenticated or offline */
-      }
+
+    const applyHats = (hatKeys: string[]) => {
+      if (cancelled || !hatKeys.length) return;
+      setConfiguredHatsFromShellKeys(hatKeys);
+    };
+
+    const onHatsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ hats?: string[] }>).detail;
+      if (detail?.hats?.length) applyHats(detail.hats);
+    };
+
+    window.addEventListener("lifenode:hats:updated", onHatsUpdated);
+
+    void (async () => {
+      const hats = await hydrateConfiguredHatKeys();
+      applyHats(hats);
     })();
+
     return () => {
       cancelled = true;
+      window.removeEventListener("lifenode:hats:updated", onHatsUpdated);
     };
   }, [status, session?.user?.id, setConfiguredHatsFromShellKeys]);
 

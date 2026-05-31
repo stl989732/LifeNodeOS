@@ -5,7 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
-import { savePendingShellHats, clearPendingShellHats } from "@/lib/pending-shell-hats";
+import {
+  savePendingShellHats,
+  persistConfiguredHatsToApi,
+  hydrateConfiguredHatKeys,
+} from "@/lib/pending-shell-hats";
 import {
   ArrowRight,
   Mail,
@@ -88,20 +92,6 @@ const LOADING_LINES = [
   "Weaving your LifeNode…",
   "Locking the core — your OS awakens.",
 ];
-
-async function persistConfiguredHatsToApi(hats) {
-  const res = await fetch("/api/user-state", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ configuredHats: hats }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body?.message || `SAVE_${res.status}`);
-  }
-  return res.json();
-}
 
 const LANDING_FEATURES = [
   {
@@ -374,6 +364,32 @@ export default function Onboarding() {
 
   const isQuizValid = Object.values(selectedNodes).some(Boolean);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const hats = await hydrateConfiguredHatKeys();
+      if (cancelled || !hats.length) return;
+      setSelectedNodes((prev) => {
+        const next = { ...prev };
+        for (const key of hats) {
+          if (key in next) next[key] = true;
+        }
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (step < 1 || !selectedKeys.length) return;
+    savePendingShellHats(selectedKeys);
+    if (session?.user?.id) {
+      void persistConfiguredHatsToApi(selectedKeys);
+    }
+  }, [selectedKeys, step, session?.user?.id]);
+
   return (
     <div
       className={`${FONT_OUTFIT} grainy-dawn-bg min-h-screen text-[#1E293B] flex flex-col relative overflow-x-hidden transition-colors duration-700`}
@@ -620,13 +636,8 @@ export default function Onboarding() {
             type="button"
             onClick={async () => {
               savePendingShellHats(selectedKeys);
-              if (session?.user?.id && selectedKeys.length) {
-                try {
-                  await persistConfiguredHatsToApi(selectedKeys);
-                  clearPendingShellHats();
-                } catch {
-                  /* shell will retry pending hats after sign-in */
-                }
+              if (selectedKeys.length) {
+                await persistConfiguredHatsToApi(selectedKeys);
               }
               setStep(3);
             }}

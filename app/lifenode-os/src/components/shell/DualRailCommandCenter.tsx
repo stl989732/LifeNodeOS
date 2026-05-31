@@ -30,9 +30,19 @@ const ACTIVE_HAT =
 const ACTIVE_FEATURE =
   "shadow-[0_0_18px_rgba(45,212,191,0.28)] ring-2 ring-teal-400/45 bg-teal-500/12 text-teal-950 dark:text-teal-50";
 
+function activeHatSurface(darkRails: boolean): string {
+  if (darkRails) return ACTIVE_HAT;
+  return "shadow-[0_0_22px_rgba(45,212,191,0.35)] ring-2 ring-teal-400/50 bg-teal-500/15 text-teal-950";
+}
+
 /** Per-hat label contrast on the far-left rail (see LifePulse dark vs Biz/Vital/Pro light). */
 function hatLabelTone(hatId: string, active: boolean, darkRails: boolean): string {
-  if (active) return "text-teal-100";
+  if (active) {
+    if (!darkRails && (hatId === "home" || hatId === "pulse")) {
+      return "text-teal-900";
+    }
+    return darkRails ? "text-teal-100" : "text-teal-950";
+  }
   if (hatId === "pulse") return "text-slate-900";
   if (hatId === "work" || hatId === "vital" || hatId === "pro") {
     return darkRails ? "text-slate-100" : "text-slate-800";
@@ -202,7 +212,7 @@ export default function DualRailCommandCenter({
                   title={label}
                   className={`relative flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-xl py-2 transition-colors duration-200 group-hover/rail1:justify-start ${
                     active
-                      ? ACTIVE_HAT
+                      ? activeHatSurface(darkRails)
                       : `text-inherit hover:bg-white/10 dark:hover:bg-white/5 ${hatLinkSurface(id, active)}`
                   } px-0 group-hover/rail1:px-2.5`}
                 >
