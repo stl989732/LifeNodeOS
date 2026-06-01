@@ -8,6 +8,9 @@ import { LifeNodeProvider } from "@/src/context/LifeNodeContext";
 import { WhiteboardVaultBridgeProvider } from "@/src/context/WhiteboardVaultBridgeContext";
 import { LoadingOverlayProvider } from "@/src/context/LoadingOverlayContext";
 import TermlyCMP from "@/src/components/legal/TermlyCMP";
+import TermlyPreferencesTrigger from "@/src/components/legal/TermlyPreferencesTrigger";
+import { TERMLY_RESOURCE_BLOCKER_SRC } from "@/src/components/legal/termlyConfig";
+import Script from "next/script";
 import { Suspense } from "react";
 import "./globals.css";
 
@@ -68,6 +71,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} ${playfair.variable} ${dmSans.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
+        {TERMLY_RESOURCE_BLOCKER_SRC ? (
+          <Script
+            id="termly-resource-blocker"
+            src={TERMLY_RESOURCE_BLOCKER_SRC}
+            strategy="beforeInteractive"
+          />
+        ) : null}
+        <TermlyPreferencesTrigger />
         <Suspense fallback={null}>
           <TermlyCMP />
         </Suspense>
