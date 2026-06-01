@@ -14,6 +14,7 @@ import {
   Radio,
   Settings,
   Sparkles,
+  Trash2,
   Users,
 } from "lucide-react";
 import { useActiveClient } from "./ActiveClientContext";
@@ -696,6 +697,25 @@ export function LiveMeetingCaptureCard({
     });
   };
 
+  const clearCapture = () => {
+    if (isCapturing) {
+      try {
+        rec?.stop();
+      } catch {
+        /* ignore */
+      }
+      setRec(null);
+      if (mockTimerRef.current) {
+        clearInterval(mockTimerRef.current);
+        mockTimerRef.current = null;
+      }
+      setIsCapturing(false);
+      setActiveId(null);
+    }
+    setLines([]);
+    setSummary(null);
+  };
+
   const transcribeExternalMock = () => {
     const url = meetingUrl.trim();
     if (!isTranscribableMeetingUrl(url)) return;
@@ -831,6 +851,15 @@ export function LiveMeetingCaptureCard({
           className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
         >
           Save to Smart Vault
+        </button>
+        <button
+          type="button"
+          onClick={clearCapture}
+          disabled={lines.length === 0 && !summary && !isCapturing}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete
         </button>
       </div>
 

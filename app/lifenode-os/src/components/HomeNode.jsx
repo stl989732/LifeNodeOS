@@ -1132,17 +1132,15 @@ export default function HomeNode() {
     const list = recipes.filter(Boolean);
     if (!list.length) return;
     const pendingId = pendingChefTabIdRef.current;
-    const entries = await Promise.all(
-      list.map(async (recipe, index) => ({
-        id: index === 0 ? pendingId ?? undefined : undefined,
-        recipe,
-        category: await categorizeRecipe(recipe),
-        imageDataUrl: index === 0 ? apiImage || null : null,
-        imageFailed: false,
-        loading: false,
-        error: null,
-      })),
-    );
+    const entries = list.map((recipe, index) => ({
+      id: index === 0 ? pendingId ?? undefined : undefined,
+      recipe,
+      category: "Dinner",
+      imageDataUrl: index === 0 ? apiImage || null : null,
+      imageFailed: false,
+      loading: false,
+      error: null,
+    }));
     pendingChefTabIdRef.current = null;
     let nextActiveId = null;
     setKitchenRecipeTabs((prev) => {
@@ -1151,6 +1149,18 @@ export default function HomeNode() {
       return merged.tabs;
     });
     if (nextActiveId) setActiveKitchenTabId(nextActiveId);
+
+    void Promise.all(
+      entries.map(async (entry, index) => {
+        const recipe = list[index];
+        if (!recipe || !entry.id) return;
+        const category = await categorizeRecipe(recipe);
+        const tabId = entry.id;
+        setKitchenRecipeTabs((tabs) =>
+          tabs.map((t) => (t.id === tabId ? { ...t, category } : t)),
+        );
+      }),
+    );
   }
 
   function stageChefTabLoading(mealTitle, accumulate) {
@@ -1350,14 +1360,6 @@ export default function HomeNode() {
       if (Array.isArray(multiRaw) && multiRaw.length >= 2) {
         const list = multiRaw.map((x) => normalizeKitchenRecipe(x)).filter(Boolean);
         if (list.length >= 2) {
-          if (strictModelImage && !apiImage) {
-            setChefIntro("The kitchen model did not return an image. Try again.");
-            if (!accumulate) {
-              setKitchenRecipeTabs([]);
-              setActiveKitchenTabId(null);
-            }
-            return;
-          }
           await commitChefRecipes(list, apiImage);
           return;
         }
@@ -1373,19 +1375,17 @@ export default function HomeNode() {
       if (!recipe) {
         recipe = fallbackChefExecuteRecipe(meal);
       }
-      if (strictModelImage && !apiImage) {
-        setChefIntro("The kitchen model did not return an image. Try again.");
-        if (!accumulate) {
-          setKitchenRecipeTabs([]);
-          setActiveKitchenTabId(null);
-        } else {
-          patchActiveKitchenTab({ loading: false, error: "Could not load image." });
-        }
-        return;
-      }
       await commitChefRecipes([recipe], apiImage);
     } catch (e) {
-      if (strictModelImage) {
+      const timedOut =
+        e?.details?.error === "timeout" ||
+        (typeof e?.message === "string" && e.message.includes("timed out"));
+      if (timedOut) {
+        setChefIntro(
+          "The kitchen model took too long — here is a starter recipe. Try again for full AI details.",
+        );
+        await commitChefRecipes([fallbackChefExecuteRecipe(meal)], null);
+      } else if (strictModelImage) {
         if (e?.details?.error === "no_model_image") {
           setChefIntro(
             typeof e.details?.message === "string"
@@ -1410,6 +1410,7 @@ export default function HomeNode() {
       }
     } finally {
       pendingChefTabIdRef.current = null;
+      patchActiveKitchenTab({ loading: false });
       if (manageLoading) setMealLoading(false);
     }
   }
@@ -1450,31 +1451,51 @@ export default function HomeNode() {
     return chores.filter((c) => c.status === "Due Today").length;
   }
 
-  async function fetchKitchenAi(payload) {
-    const res = await fetch("/api/homenode/kitchen-ai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    let data = {};
+  async function fetchKitchenAi(payload, options = {}) {
+    const timeoutMs =
+      typeof options.timeoutMs === "number"
+        ? options.timeoutMs
+        : payload?.mode === "chef_execute" || payload?.mode === "recipe"
+          ? 110_000
+          : 45_000;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
     try {
-      data = await res.json();
-    } catch {
-      data = {};
+      const res = await fetch("/api/homenode/kitchen-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+      if (!res.ok) {
+        const err = new Error(
+          typeof data?.error === "string"
+            ? data.error
+            : typeof data?.message === "string"
+              ? data.message
+              : `Kitchen AI HTTP ${res.status}`,
+        );
+        err.details = data;
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    } catch (e) {
+      if (e?.name === "AbortError") {
+        const err = new Error("Kitchen AI request timed out. Try again.");
+        err.details = { error: "timeout" };
+        throw err;
+      }
+      throw e;
+    } finally {
+      window.clearTimeout(timer);
     }
-    if (!res.ok) {
-      const err = new Error(
-        typeof data?.error === "string"
-          ? data.error
-          : typeof data?.message === "string"
-            ? data.message
-            : `Kitchen AI HTTP ${res.status}`,
-      );
-      err.details = data;
-      err.status = res.status;
-      throw err;
-    }
-    return data;
   }
 
   function fallbackRecipeFromIngredients(cleanedIngredients) {

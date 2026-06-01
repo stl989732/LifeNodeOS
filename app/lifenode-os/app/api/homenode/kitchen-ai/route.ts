@@ -10,6 +10,7 @@ import {
 } from "@/src/lib/geminiModels";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type KitchenMode =
   | "recipe"
@@ -194,9 +195,30 @@ function normalizeCalories(rawCal: unknown): number {
   return 450;
 }
 
+const GEMINI_FETCH_TIMEOUT_MS = Number(process.env.KITCHEN_GEMINI_TIMEOUT_MS ?? 55_000);
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  timeoutMs = GEMINI_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`Gemini request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callGeminiText(apiKey: string, contents: unknown[]) {
   const url = geminiGenerateUrl(DEFAULT_GEMINI_TEXT_MODEL);
-  const res = await fetch(`${url}?key=${apiKey}`, {
+  const res = await fetchWithTimeout(`${url}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contents }),
@@ -224,7 +246,7 @@ async function callGeminiChefMultimodal(
       },
     },
   };
-  const res = await fetch(`${url}?key=${apiKey}`, {
+  const res = await fetchWithTimeout(`${url}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -242,24 +264,33 @@ async function callGeminiChefMultimodalWithImageRetry(
   apiKey: string,
   contents: unknown[],
 ): Promise<{ text: string; images: GeminiImagePart[]; imageRetried: boolean }> {
-  const first = await callGeminiChefMultimodal(apiKey, contents);
+  let first: { text: string; images: GeminiImagePart[] };
+  try {
+    first = await callGeminiChefMultimodal(apiKey, contents);
+  } catch (err) {
+    throw err;
+  }
   if (first.images.length > 0) {
     return { ...first, imageRetried: false };
   }
-  const retryContents = [
-    ...contents,
-    {
-      role: "user",
-      parts: [{ text: CHEF_IMAGE_RETRY_NUDGE }],
-    },
-  ];
-  const second = await callGeminiChefMultimodal(apiKey, retryContents);
-  if (second.images.length > 0) {
-    return {
-      text: second.text || first.text,
-      images: second.images,
-      imageRetried: true,
-    };
+  try {
+    const retryContents = [
+      ...contents,
+      {
+        role: "user",
+        parts: [{ text: CHEF_IMAGE_RETRY_NUDGE }],
+      },
+    ];
+    const second = await callGeminiChefMultimodal(apiKey, retryContents);
+    if (second.images.length > 0) {
+      return {
+        text: second.text || first.text,
+        images: second.images,
+        imageRetried: true,
+      };
+    }
+  } catch {
+    /* Return text-only first pass — client uses Pollinations for hero image. */
   }
   return { ...first, imageRetried: true };
 }
