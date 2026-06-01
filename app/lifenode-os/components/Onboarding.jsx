@@ -824,13 +824,19 @@ export default function Onboarding() {
               href="/terms"
               className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
             >
-              Terms of Service
+              Terms of Use
             </Link>
             <Link
               href="/privacy"
               className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
             >
               Privacy Policy
+            </Link>
+            <Link
+              href="/cookie-policy"
+              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
+            >
+              Cookie Policy
             </Link>
             <ConsentPreferencesLink
               className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}

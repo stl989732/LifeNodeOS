@@ -142,8 +142,20 @@ export default function PrivacyPolicy() {
           </section>
         </div>
 
-        <footer className="mt-12 border-t border-slate-800 pt-8 text-center text-sm text-slate-400">
-          <ConsentPreferencesLink className="text-slate-400 underline decoration-slate-600 underline-offset-4 transition-colors hover:text-cyan-400" />
+        <footer className="mt-12 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-slate-800 pt-8 text-center text-sm text-slate-400">
+          <Link
+            href="/terms"
+            className="underline decoration-slate-600 underline-offset-4 transition-colors hover:text-cyan-400"
+          >
+            Terms of Use
+          </Link>
+          <Link
+            href="/cookie-policy"
+            className="underline decoration-slate-600 underline-offset-4 transition-colors hover:text-cyan-400"
+          >
+            Cookie Policy
+          </Link>
+          <ConsentPreferencesLink className="underline decoration-slate-600 underline-offset-4 transition-colors hover:text-cyan-400" />
         </footer>
       </div>
     </div>

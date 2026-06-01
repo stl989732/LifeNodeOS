@@ -10,14 +10,21 @@ export default function AuthLegalFooter() {
           href="/terms"
           className="text-slate-400 underline decoration-slate-600 underline-offset-4 transition-colors hover:text-cyan-400"
         >
-          Terms of Service
-        </Link>{" "}
-        and{" "}
+          Terms of Use
+        </Link>
+        ,{" "}
         <Link
           href="/privacy"
           className="text-slate-400 underline decoration-slate-600 underline-offset-4 transition-colors hover:text-cyan-400"
         >
           Privacy Policy
+        </Link>
+        , and{" "}
+        <Link
+          href="/cookie-policy"
+          className="text-slate-400 underline decoration-slate-600 underline-offset-4 transition-colors hover:text-cyan-400"
+        >
+          Cookie Policy
         </Link>
         .
       </p>
