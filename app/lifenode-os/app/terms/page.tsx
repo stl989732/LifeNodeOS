@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
 
 export const metadata = {
   title: "Terms and Conditions | LifeNode OS",
@@ -145,6 +146,10 @@ export default function TermsAndConditions() {
             </p>
           </section>
         </div>
+
+        <footer className="mt-12 border-t border-slate-800 pt-8 text-center text-sm text-slate-400">
+          <ConsentPreferencesLink className="text-slate-400 underline decoration-slate-600 underline-offset-4 transition-colors hover:text-cyan-400" />
+        </footer>
       </div>
     </div>
   );

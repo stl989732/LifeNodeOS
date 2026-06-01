@@ -7,6 +7,8 @@ import NodeNavChrome from "@/src/components/NodeNavChrome";
 import { LifeNodeProvider } from "@/src/context/LifeNodeContext";
 import { WhiteboardVaultBridgeProvider } from "@/src/context/WhiteboardVaultBridgeContext";
 import { LoadingOverlayProvider } from "@/src/context/LoadingOverlayContext";
+import TermlyCMP from "@/src/components/legal/TermlyCMP";
+import { Suspense } from "react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -66,6 +68,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} ${playfair.variable} ${dmSans.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
+        <Suspense fallback={null}>
+          <TermlyCMP />
+        </Suspense>
         <AuthProviders>
           <LifeNodeProvider>
             <LoadingOverlayProvider>

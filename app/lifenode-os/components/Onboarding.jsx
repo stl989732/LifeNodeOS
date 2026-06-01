@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
+import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
 import {
   savePendingShellHats,
   persistConfiguredHatsToApi,
@@ -831,6 +832,9 @@ export default function Onboarding() {
             >
               Privacy Policy
             </Link>
+            <ConsentPreferencesLink
+              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
+            />
           </div>
         </div>
       </footer>
