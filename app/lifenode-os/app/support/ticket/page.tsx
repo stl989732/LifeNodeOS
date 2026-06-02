@@ -29,11 +29,11 @@ export default function SupportTicketPage() {
             follow up by email.
           </p>
         </header>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <ScaleSurveyEmbed
             surveyId={SUPPORT_TICKET_SURVEY_ID}
             title="LifeNode OS support ticket"
-            minHeight={520}
+            minHeight={960}
           />
         </div>
       </div>

@@ -29,11 +29,11 @@ export default function SupportFeedbackPage() {
             responses help us prioritize what we build next.
           </p>
         </header>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <ScaleSurveyEmbed
             surveyId={SUPPORT_FEEDBACK_SURVEY_ID}
             title="LifeNode OS feedback survey"
-            minHeight={520}
+            minHeight={960}
           />
         </div>
       </div>

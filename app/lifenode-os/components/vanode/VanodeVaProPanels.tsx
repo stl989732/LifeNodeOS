@@ -561,8 +561,10 @@ export function LiveMeetingCaptureCard({
     "meeting",
   );
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [lines, setLines] = useState<string[]>([]);
+  /** Single rolling transcript (avoids duplicate lines from interim STT). */
+  const [transcriptText, setTranscriptText] = useState("");
   const [summary, setSummary] = useState<string | null>(null);
+  const [vaultNotice, setVaultNotice] = useState<string | null>(null);
   const [cloud, setCloud] = useState(false);
   const [meetingUrl, setMeetingUrl] = useState("");
   const [isCapturing, setIsCapturing] = useState(false);
@@ -614,16 +616,17 @@ export function LiveMeetingCaptureCard({
       meetingUrl: meetingUrl.trim() || null,
     });
     setActiveId(id);
-    setLines([]);
+    setTranscriptText("");
     setSummary(null);
+    setVaultNotice(null);
     setIsCapturing(true);
 
     if (!SR) {
       mockTimerRef.current = window.setInterval(() => {
-        setLines((prev) => [
-          ...prev,
-          `[${new Date().toLocaleTimeString()}] (demo) …meeting note ${prev.length + 1}`,
-        ]);
+        setTranscriptText((prev) => {
+          const note = `[${new Date().toLocaleTimeString()}] (demo) meeting note`;
+          return prev ? `${prev}\n${note}` : note;
+        });
       }, 2200);
       return;
     }
@@ -633,16 +636,16 @@ export function LiveMeetingCaptureCard({
     r.lang = "en-US";
     r.onresult = (ev: Event) => {
       const speechEv = ev as unknown as {
-        resultIndex: number;
-        results: ArrayLike<{ 0?: { transcript?: string } }>;
+        results: ArrayLike<{
+          isFinal?: boolean;
+          0?: { transcript?: string };
+        }>;
       };
-      let chunk = "";
-      for (let i = speechEv.resultIndex; i < speechEv.results.length; i++) {
-        chunk += speechEv.results[i]?.[0]?.transcript ?? "";
+      let composed = "";
+      for (let i = 0; i < speechEv.results.length; i++) {
+        composed += speechEv.results[i]?.[0]?.transcript ?? "";
       }
-      if (chunk.trim()) {
-        setLines((prev) => [...prev, chunk.trim()]);
-      }
+      setTranscriptText(composed.trim());
     };
     r.start();
     setRec(r);
@@ -661,10 +664,10 @@ export function LiveMeetingCaptureCard({
       clearInterval(mockTimerRef.current);
       mockTimerRef.current = null;
     }
-    const transcript = lines.join("\n");
+    const transcript = transcriptText.trim();
     const ai =
       transcript.length > 0
-        ? `Key decisions:\n• ${transcript.slice(0, 200)}${transcript.length > 200 ? "…" : ""}\n\nAction items:\n• Confirm follow-ups in CRM\n• Archive recording under ${title}.`
+        ? `Key decisions:\n• ${transcript.slice(0, 280)}${transcript.length > 280 ? "…" : ""}\n\nAction items:\n• Confirm follow-ups in CRM\n• Archive recording under ${title}.`
         : "No transcript captured — try again with mic permission or use demo mode (no browser STT).";
     setSummary(ai);
     if (sessionId) {
@@ -679,7 +682,7 @@ export function LiveMeetingCaptureCard({
   };
 
   const downloadTxt = () => {
-    const body = `${title}\n\n--- Transcript ---\n${lines.join("\n")}\n\n--- AI recap ---\n${summary ?? ""}`;
+    const body = `${title}\n\n--- Transcript ---\n${transcriptText}\n\n--- AI recap ---\n${summary ?? ""}`;
     const blob = new Blob([body], { type: "text/plain" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -689,12 +692,16 @@ export function LiveMeetingCaptureCard({
   };
 
   const saveVault = () => {
+    const transcript = transcriptText.trim();
+    if (!transcript && !summary) return;
     onAddVaultNote({
       title: `Live capture · ${title}`,
-      body: `## Transcript\n${lines.join("\n")}\n\n## AI recap\n${summary ?? ""}`,
+      body: `## Transcript\n${transcript || "_(empty)_"}\n\n## AI recap\n${summary ?? "_(none yet — stop capture to generate)_"}`,
       clientId: activeClientId,
       labels: ["live-transcript", kind],
     });
+    setVaultNotice("Saved to Smart Vault");
+    window.setTimeout(() => setVaultNotice(null), 4000);
   };
 
   const clearCapture = () => {
@@ -712,8 +719,9 @@ export function LiveMeetingCaptureCard({
       setIsCapturing(false);
       setActiveId(null);
     }
-    setLines([]);
+    setTranscriptText("");
     setSummary(null);
+    setVaultNotice(null);
   };
 
   const transcribeExternalMock = () => {
@@ -847,7 +855,7 @@ export function LiveMeetingCaptureCard({
         <button
           type="button"
           onClick={saveVault}
-          disabled={!summary}
+          disabled={!transcriptText.trim() && !summary}
           className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
         >
           Save to Smart Vault
@@ -855,7 +863,7 @@ export function LiveMeetingCaptureCard({
         <button
           type="button"
           onClick={clearCapture}
-          disabled={lines.length === 0 && !summary && !isCapturing}
+          disabled={!transcriptText.trim() && !summary && !isCapturing}
           className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Trash2 className="h-4 w-4" />
@@ -863,13 +871,17 @@ export function LiveMeetingCaptureCard({
         </button>
       </div>
 
-      <div className="mt-4 max-h-40 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/60 p-3 font-mono text-xs text-slate-800">
-        {lines.length === 0 ? (
-          <span className="text-slate-500">Transcript lines appear here…</span>
+      {vaultNotice ? (
+        <p className="mt-3 text-center text-xs font-semibold text-emerald-700">
+          {vaultNotice}
+        </p>
+      ) : null}
+
+      <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/60 p-3 text-sm leading-relaxed text-slate-800">
+        {transcriptText.trim() ? (
+          <p className="whitespace-pre-wrap">{transcriptText}</p>
         ) : (
-          lines.map((l, i) => (
-            <div key={i}>{l}</div>
-          ))
+          <span className="text-slate-500">Transcript appears here as you speak…</span>
         )}
       </div>
 

@@ -321,7 +321,18 @@ const DEFAULT_CHEF_TIP =
 
 const RECIPE_TAGS = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"] as const;
 
-const IMAGE_GENERATION_MODES = new Set<KitchenMode>(["recipe", "chef_execute"]);
+/** Multimodal image generation is opt-in — default is fast text-only recipes + Pollinations. */
+const IMAGE_GENERATION_MODES = new Set<KitchenMode>(
+  process.env.CHEF_MULTIMODAL_IMAGES === "1" ? ["recipe", "chef_execute"] : [],
+);
+
+const CHEF_TEXT_JSON_RULES = `Return ONLY valid JSON (no markdown fences, no commentary).
+Each recipe object MUST include:
+- "imagePrompt" (string, min 40 chars: photorealistic plating, lighting, surface)
+- "title", "prepTime", "servings"
+- "ingredients" (array of 6-14 objects with "item" and "amount")
+- "steps" (array of 5-10 instruction strings)
+- "caloriesPerServing" (integer)`;
 
 export async function POST(request: Request) {
   const apiKey = process.env.GOOGLE_API_KEY?.trim();
@@ -566,6 +577,70 @@ Exactly 3 options in discovery. No markdown, no code fences, JSON only.`,
       }
       const pantry = (body.pantryHints ?? body.ingredients ?? "").trim();
       const extra = (body.extraContext ?? "").trim();
+
+      if (!IMAGE_GENERATION_MODES.has("chef_execute")) {
+        const text = await callGeminiText(apiKey, [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `You are ChefNode for LifeNodeOS. The user chose: "${selectedMeal}".
+${pantry ? `Pantry / hints: ${pantry}.` : ""}${extra ? ` Notes: ${extra}` : ""}
+
+${CHEF_TEXT_JSON_RULES}
+
+Return ONE dish as:
+{ "recipe": { "title", "prepTime", "servings", "imagePrompt", "ingredients", "steps", "caloriesPerServing" } }`,
+              },
+            ],
+          },
+        ]);
+        const parsed = parseJsonLoose(text);
+        const rootRecipe =
+          parsed?.recipe && typeof parsed.recipe === "object"
+            ? (parsed.recipe as Record<string, unknown>)
+            : parsed;
+        const title =
+          typeof rootRecipe?.title === "string" ? rootRecipe.title.trim() : null;
+        const steps = Array.isArray(rootRecipe?.steps)
+          ? (rootRecipe.steps as unknown[]).filter((s) => typeof s === "string")
+          : [];
+        if (!title || steps.length === 0) {
+          return NextResponse.json(
+            { error: "Could not parse recipe JSON.", raw: text },
+            { status: 422 },
+          );
+        }
+        const rawImagePrompt =
+          typeof rootRecipe?.imagePrompt === "string"
+            ? rootRecipe.imagePrompt.trim()
+            : "";
+        const imgExtras = buildImageApiExtras(title, rawImagePrompt, [], false);
+        return NextResponse.json({
+          recipe: {
+            title,
+            prepTime:
+              typeof rootRecipe?.prepTime === "string"
+                ? rootRecipe.prepTime
+                : "30 min",
+            servings:
+              typeof rootRecipe?.servings === "string"
+                ? rootRecipe.servings
+                : "4",
+            steps,
+            ingredients: normalizeChefIngredients(rootRecipe?.ingredients),
+            caloriesPerServing: normalizeCalories(
+              rootRecipe?.caloriesPerServing,
+            ),
+            imagePrompt: imgExtras.imagePrompt,
+            pollinationsQuery: imgExtras.pollinationsQuery,
+          },
+          imageDataUrl: null,
+          pollinationsQuery: imgExtras.pollinationsQuery,
+          imageGenerationSkipped: true,
+        });
+      }
+
       const mmResult = await callGeminiChefMultimodalWithImageRetry(apiKey, [
         {
           role: "user",
@@ -708,6 +783,58 @@ Each recipe: ingredients = array of 6-14 objects { "item", "amount" }; steps = a
         );
       }
       const extra = (body.extraContext ?? "").trim();
+
+      if (!IMAGE_GENERATION_MODES.has("recipe")) {
+        const text = await callGeminiText(apiKey, [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `You are ChefNode. Ingredients on hand: "${ingredientsText}".${extra ? ` Context: ${extra}` : ""}
+
+${CHEF_TEXT_JSON_RULES}
+
+Return ONE recipe object at the root (not wrapped in "recipe"):
+{ "title", "prepTime", "servings", "imagePrompt", "ingredients", "steps", "caloriesPerServing" }`,
+              },
+            ],
+          },
+        ]);
+        const parsed = parseJsonLoose(text);
+        const title = typeof parsed?.title === "string" ? parsed.title : null;
+        const steps = Array.isArray(parsed?.steps)
+          ? (parsed.steps as unknown[]).filter((s) => typeof s === "string")
+          : [];
+        if (!title || steps.length === 0) {
+          return NextResponse.json(
+            { error: "Could not parse recipe JSON.", raw: text },
+            { status: 422 },
+          );
+        }
+        const rawImagePrompt =
+          typeof parsed?.imagePrompt === "string"
+            ? parsed.imagePrompt.trim()
+            : "";
+        const imgExtras = buildImageApiExtras(title, rawImagePrompt, [], false);
+        return NextResponse.json({
+          recipe: {
+            title,
+            prepTime:
+              typeof parsed?.prepTime === "string" ? parsed.prepTime : "25 min",
+            servings:
+              typeof parsed?.servings === "string" ? parsed.servings : "4",
+            steps,
+            ingredients: normalizeChefIngredients(parsed?.ingredients),
+            caloriesPerServing: normalizeCalories(parsed?.caloriesPerServing),
+            imagePrompt: imgExtras.imagePrompt,
+            pollinationsQuery: imgExtras.pollinationsQuery,
+          },
+          imageDataUrl: null,
+          pollinationsQuery: imgExtras.pollinationsQuery,
+          imageGenerationSkipped: true,
+        });
+      }
+
       const mmResult = await callGeminiChefMultimodalWithImageRetry(apiKey, [
         {
           role: "user",

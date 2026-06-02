@@ -1244,13 +1244,13 @@ export default function HomeNode() {
     try {
       if (isLikelySpecificDish(q)) {
         setChefIntro("");
-        await runChefExecute(q, { strictModelImage: true });
+        await runChefExecute(q);
         return;
       }
       const data = await fetchKitchenAi({ mode: "chef_discover", userRequest: q });
       if (data?.phase === "direct" && data?.mealTitle) {
         setChefIntro(typeof data.message === "string" ? data.message : "");
-        await runChefExecute(String(data.mealTitle), { strictModelImage: true });
+        await runChefExecute(String(data.mealTitle));
         return;
       }
       if (data?.phase === "discovery" && Array.isArray(data.options) && data.options.length >= 3) {
@@ -1298,7 +1298,6 @@ export default function HomeNode() {
       let tabCount = kitchenRecipeTabs.length;
       for (let i = 0; i < picks.length; i++) {
         await runChefExecute(picks[i].title, {
-          strictModelImage: true,
           accumulate: tabCount > 0 || i > 0,
           keepDiscovery: true,
           manageLoading: false,
@@ -1409,8 +1408,13 @@ export default function HomeNode() {
         await commitChefRecipes([local], null);
       }
     } finally {
+      const tabId = pendingChefTabIdRef.current;
       pendingChefTabIdRef.current = null;
-      patchActiveKitchenTab({ loading: false });
+      if (tabId) {
+        setKitchenRecipeTabs((tabs) =>
+          tabs.map((t) => (t.id === tabId ? { ...t, loading: false } : t)),
+        );
+      }
       if (manageLoading) setMealLoading(false);
     }
   }
@@ -2811,7 +2815,6 @@ export default function HomeNode() {
                                 if (title) {
                                   void runChefExecute(title, {
                                     accumulate: true,
-                                    strictModelImage: true,
                                   });
                                 }
                               }}

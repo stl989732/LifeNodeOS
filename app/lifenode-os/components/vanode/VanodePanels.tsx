@@ -1121,29 +1121,7 @@ export function UnifiedFeedCard({
 }: {
   onSaveDraftToVault?: (n: Omit<Note, "id" | "updatedAt">) => void;
 } = {}) {
-  const items = useMemo<UnifiedFeedItem[]>(
-    () => [
-      {
-        id: "1",
-        from: "ops@client.com",
-        subj: "Re: Q3 deck",
-        snippet: "Can we slot 20m tomorrow…",
-      },
-      {
-        id: "2",
-        from: "Slack #vip",
-        subj: "Asset approved",
-        snippet: "Final PDF attached for…",
-      },
-      {
-        id: "3",
-        from: "calendar",
-        subj: "Hold moved",
-        snippet: "Standup shifted +30m.",
-      },
-    ],
-    [],
-  );
+  const items = useMemo<UnifiedFeedItem[]>(() => [], []);
 
   const [active, setActive] = useState<UnifiedFeedItem | null>(null);
   const [draft, setDraft] = useState("");
@@ -1178,6 +1156,12 @@ export function UnifiedFeedCard({
         {toTitleCase("Unified feed")}
       </h2>
       <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+        {items.length === 0 ? (
+          <li className="rounded-xl border border-dashed border-white/15 bg-white/10 px-4 py-8 text-center text-sm text-slate-600">
+            No messages in your feed yet. Connect email or calendar tools in VANode
+            settings when integrations are available.
+          </li>
+        ) : null}
         {items.map((it) => (
           <li
             key={it.id}
