@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useActiveClient } from "./ActiveClientContext";
 import { ScreenRecorder } from "./ScreenRecorder";
+import { SavedScreenCaptures } from "./SavedScreenCaptures";
 import { COMMON_TIMEZONES } from "@/lib/vanode/constants";
 import { computeOutsourceInsight, userTimezone } from "@/lib/vanode/outsource";
 import { openInvoicePrint } from "@/lib/vanode/invoice-print";
@@ -103,6 +104,7 @@ export function EodReporterCard({
   const [attach, setAttach] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [recordingName, setRecordingName] = useState<string | null>(null);
+  const [capturesRefresh, setCapturesRefresh] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [lastShareUrl, setLastShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -165,8 +167,8 @@ export function EodReporterCard({
             {toTitleCase("EOD proof of work")}
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Local-first logs. Recordings download to this device; cloud sync is
-            optional.
+            Local-first logs. Screen captures save as video on this device (MP4 or
+            WebM) with optional mic narration; cloud sync is optional.
           </p>
         </div>
       </div>
@@ -187,23 +189,37 @@ export function EodReporterCard({
             Cloud sync (opt-in)
           </label>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <ScreenRecorder
-            onComplete={({ url, filename }) => {
-              setRecordingUrl(url);
-              setRecordingName(filename);
-              if (cloudSyncRecording) {
-                setToast("Saved locally. Cloud sync queued for a later step.");
-                setTimeout(() => setToast(null), 3000);
-              }
+        <ScreenRecorder
+          onComplete={({ url, filename }) => {
+            setRecordingUrl(url);
+            setRecordingName(filename);
+            setCapturesRefresh((k) => k + 1);
+            setToast(
+              cloudSyncRecording
+                ? "Video saved on this device. Download or share below; cloud sync queued."
+                : "Video saved on this device — ready to download or share.",
+            );
+            setTimeout(() => setToast(null), 4000);
+          }}
+          onSaved={() => setCapturesRefresh((k) => k + 1)}
+          onError={(m) => setToast(m)}
+        />
+        {recordingName && (
+          <p className="text-xs text-slate-600">
+            Latest capture: <strong>{recordingName}</strong>
+          </p>
+        )}
+        <div className="mt-3 border-t border-white/50 pt-3">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+            Saved on this device
+          </p>
+          <SavedScreenCaptures
+            refreshKey={capturesRefresh}
+            onToast={(m) => {
+              setToast(m);
+              setTimeout(() => setToast(null), 3200);
             }}
-            onError={(m) => setToast(m)}
           />
-          {recordingName && (
-            <span className="text-xs text-slate-600">
-              Last file: <strong>{recordingName}</strong>
-            </span>
-          )}
         </div>
       </div>
 
