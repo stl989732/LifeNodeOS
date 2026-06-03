@@ -2,7 +2,8 @@
  * Central Gemini model IDs for LifeNodeOS.
  *
  * Text: GOOGLE_GEMINI_TEXT_MODEL (default gemini-3.1-flash-lite — low latency)
- * Multimodal image+recipe: GOOGLE_GEMINI_MODEL (default gemini-3.1-flash-image-preview)
+ * Chef image (Nano Banana 2): GOOGLE_GEMINI_CHEF_IMAGE_MODEL (default gemini-3.1-flash-image-preview)
+ * Legacy GOOGLE_GEMINI_MODEL is only used when it is an *image* model id.
  * Audio: GOOGLE_GEMINI_AUDIO_MODEL → falls back to text model
  */
 
@@ -14,9 +15,13 @@ export function getGeminiTextModel(): string {
   return process.env.GOOGLE_GEMINI_TEXT_MODEL?.trim() || DEFAULT_GEMINI_TEXT_MODEL;
 }
 
+/** @deprecated Prefer getChefImageModelId() from chefKitchenConfig for ChefNode. */
 export function getGeminiMultimodalModel(): string {
+  const generic = process.env.GOOGLE_GEMINI_MODEL?.trim();
+  if (generic && /image|imagen/i.test(generic)) return generic;
   return (
-    process.env.GOOGLE_GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MULTIMODAL_MODEL
+    process.env.GOOGLE_GEMINI_CHEF_IMAGE_MODEL?.trim() ||
+    DEFAULT_GEMINI_MULTIMODAL_MODEL
   );
 }
 

@@ -4,10 +4,12 @@ import { compressAudioPayload } from "@/lib/audioCompression";
 import { sanitizeAndTruncate } from "@/lib/truncation";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
 import {
-  getGeminiMultimodalModel,
-  getGeminiTextModel,
-  geminiGenerateContentUrl,
-} from "@/src/lib/geminiModels";
+  getChefImageModelId,
+  getChefKitchenPublicConfig,
+  isChefMultimodalImagesEnabled,
+  NANO_BANANA_2_MODEL_ID,
+} from "@/src/lib/chefKitchenConfig";
+import { getGeminiTextModel, geminiGenerateContentUrl } from "@/src/lib/geminiModels";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -18,11 +20,33 @@ type KitchenMode =
   | "chef_execute"
   | "categorize"
   | "chef_tip"
+  | "chef_diagnostics"
   | "vision_ingredients"
   | "transcribe_audio";
 
 const DEFAULT_GEMINI_TEXT_MODEL = getGeminiTextModel();
-const DEFAULT_GEMINI_CHEF_MODEL = getGeminiMultimodalModel();
+
+function imageGenerationModes(): Set<KitchenMode> {
+  if (!isChefMultimodalImagesEnabled()) return new Set();
+  return new Set(["recipe", "chef_execute"]);
+}
+
+function kitchenMeta(
+  pathway: string,
+  extra?: Record<string, string | number | boolean | null>,
+) {
+  return {
+    _meta: {
+      pathway,
+      textModel: DEFAULT_GEMINI_TEXT_MODEL,
+      imageModel: getChefImageModelId(),
+      nanoBanana2: NANO_BANANA_2_MODEL_ID,
+      multimodalEnabled: isChefMultimodalImagesEnabled(),
+      multimodalEnv: (process.env.CHEF_MULTIMODAL_IMAGES ?? "").trim() || "(unset)",
+      ...extra,
+    },
+  };
+}
 
 const CHEF_MULTIMODAL_SYSTEM = `You are ChefNode for LifeNodeOS multimodal kitchen output.
 
@@ -196,6 +220,10 @@ function normalizeCalories(rawCal: unknown): number {
 }
 
 const GEMINI_FETCH_TIMEOUT_MS = Number(process.env.KITCHEN_GEMINI_TIMEOUT_MS ?? 55_000);
+const GEMINI_TEXT_TIMEOUT_MS = Number(process.env.KITCHEN_GEMINI_TEXT_TIMEOUT_MS ?? 42_000);
+const GEMINI_MULTIMODAL_TIMEOUT_MS = Number(
+  process.env.KITCHEN_GEMINI_MULTIMODAL_TIMEOUT_MS ?? 90_000,
+);
 
 async function fetchWithTimeout(
   input: string,
@@ -216,13 +244,21 @@ async function fetchWithTimeout(
   }
 }
 
-async function callGeminiText(apiKey: string, contents: unknown[]) {
+async function callGeminiText(
+  apiKey: string,
+  contents: unknown[],
+  timeoutMs = GEMINI_TEXT_TIMEOUT_MS,
+) {
   const url = geminiGenerateUrl(DEFAULT_GEMINI_TEXT_MODEL);
-  const res = await fetchWithTimeout(`${url}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents }),
-  });
+  const res = await fetchWithTimeout(
+    `${url}?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents }),
+    },
+    timeoutMs,
+  );
   if (!res.ok) {
     const errText = await res.text();
     throw new Error(errText || `Gemini HTTP ${res.status}`);
@@ -234,8 +270,9 @@ async function callGeminiText(apiKey: string, contents: unknown[]) {
 async function callGeminiChefMultimodal(
   apiKey: string,
   contents: unknown[],
-): Promise<{ text: string; images: GeminiImagePart[] }> {
-  const url = geminiGenerateUrl(DEFAULT_GEMINI_CHEF_MODEL);
+): Promise<{ text: string; images: GeminiImagePart[]; modelId: string }> {
+  const modelId = getChefImageModelId();
+  const url = geminiGenerateUrl(modelId);
   const body = {
     systemInstruction: { parts: [{ text: CHEF_MULTIMODAL_SYSTEM }] },
     contents,
@@ -246,17 +283,22 @@ async function callGeminiChefMultimodal(
       },
     },
   };
-  const res = await fetchWithTimeout(`${url}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await fetchWithTimeout(
+    `${url}?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    GEMINI_MULTIMODAL_TIMEOUT_MS,
+  );
   if (!res.ok) {
     const errText = await res.text();
     throw new Error(errText || `Gemini HTTP ${res.status}`);
   }
   const data = await res.json();
-  return extractGeminiMultimodal(data);
+  const parsed = extractGeminiMultimodal(data);
+  return { ...parsed, modelId };
 }
 
 /** One reinforcement call when Gemini returns JSON but skips IMAGE. */
@@ -321,10 +363,6 @@ const DEFAULT_CHEF_TIP =
 
 const RECIPE_TAGS = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"] as const;
 
-/** Multimodal image generation is opt-in — default is fast text-only recipes + Pollinations. */
-const IMAGE_GENERATION_MODES = new Set<KitchenMode>(
-  process.env.CHEF_MULTIMODAL_IMAGES === "1" ? ["recipe", "chef_execute"] : [],
-);
 
 const CHEF_TEXT_JSON_RULES = `Return ONLY valid JSON (no markdown fences, no commentary).
 Each recipe object MUST include:
@@ -348,6 +386,8 @@ export async function POST(request: Request) {
     imageBase64?: string;
     mimeType?: string;
     audioBase64?: string;
+    probeMultimodal?: boolean;
+    probeRecipe?: boolean;
   };
 
   const sanitizeTextField = (value?: string) => {
@@ -381,7 +421,9 @@ export async function POST(request: Request) {
     );
   }
 
-  if (IMAGE_GENERATION_MODES.has(mode)) {
+  const imageModes = imageGenerationModes();
+
+  if (imageModes.has(mode)) {
     const session = await auth();
     const userId = session?.user?.id;
     if (!userId) {
@@ -419,6 +461,136 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (mode === "chef_diagnostics") {
+      const started = Date.now();
+      const checks: Array<{
+        name: string;
+        ok: boolean;
+        ms: number;
+        skipped?: boolean;
+        reason?: string;
+        error?: string;
+        detail?: string;
+      }> = [];
+
+      const textStart = Date.now();
+      try {
+        const ping = await callGeminiText(
+          apiKey,
+          [
+            {
+              role: "user",
+              parts: [{ text: "Reply with exactly: CHEF_OK" }],
+            },
+          ],
+          15_000,
+        );
+        checks.push({
+          name: "text_gemini",
+          ok: ping.length > 0,
+          ms: Date.now() - textStart,
+          detail: ping.slice(0, 120),
+        });
+      } catch (e) {
+        checks.push({
+          name: "text_gemini",
+          ok: false,
+          ms: Date.now() - textStart,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+
+      if (body.probeMultimodal) {
+        const mmStart = Date.now();
+        if (!isChefMultimodalImagesEnabled()) {
+          checks.push({
+            name: "nano_banana_2_multimodal",
+            ok: true,
+            skipped: true,
+            ms: 0,
+            reason:
+              "CHEF_MULTIMODAL_IMAGES is off (expected for fast ChefNode). Set to 1 only to test Nano Banana 2.",
+          });
+        } else {
+          const imageModel = getChefImageModelId();
+          try {
+            const mm = await callGeminiChefMultimodal(apiKey, [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: `${CHEF_IMAGE_JSON_RULES}\n\nMinimal test: one recipe for buttered toast. JSON only with imagePrompt first; include IMAGE of plated toast.`,
+                  },
+                ],
+              },
+            ]);
+            checks.push({
+              name: "nano_banana_2_multimodal",
+              ok: mm.images.length > 0 || mm.text.includes("{"),
+              ms: Date.now() - mmStart,
+              detail: `model=${mm.modelId} images=${mm.images.length} textLen=${mm.text.length}`,
+            });
+          } catch (e) {
+            checks.push({
+              name: "nano_banana_2_multimodal",
+              ok: false,
+              ms: Date.now() - mmStart,
+              error: e instanceof Error ? e.message : String(e),
+              detail: `model=${imageModel}`,
+            });
+          }
+        }
+      }
+
+      let probeRecipe: Record<string, unknown> | undefined;
+      if (body.probeRecipe) {
+        const probeStart = Date.now();
+        try {
+          const text = await callGeminiText(apiKey, [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `Quick test recipe for "Buttered toast". ${CHEF_TEXT_JSON_RULES}\nReturn: { "recipe": { "title", "prepTime", "servings", "imagePrompt", "ingredients", "steps", "caloriesPerServing" } }`,
+                },
+              ],
+            },
+          ]);
+          const parsed = parseJsonLoose(text);
+          const root =
+            parsed?.recipe && typeof parsed.recipe === "object"
+              ? (parsed.recipe as Record<string, unknown>)
+              : parsed;
+          const title =
+            typeof root?.title === "string" ? root.title.trim() : "";
+          probeRecipe = {
+            ok: Boolean(title),
+            ms: Date.now() - probeStart,
+            title: title || null,
+          };
+        } catch (e) {
+          probeRecipe = {
+            ok: false,
+            ms: Date.now() - probeStart,
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }
+
+      const actionableFailed = checks.some((c) => !c.ok && !c.skipped);
+      const probeOk =
+        !probeRecipe || probeRecipe.ok === true;
+      return NextResponse.json({
+        diagnostics: true,
+        ok: !actionableFailed && probeOk,
+        config: getChefKitchenPublicConfig(),
+        checks,
+        probeRecipe,
+        elapsedMs: Date.now() - started,
+        ...kitchenMeta("chef_diagnostics"),
+      });
+    }
+
     if (mode === "chef_tip") {
       const text = await callGeminiText(apiKey, [
         {
@@ -578,7 +750,8 @@ Exactly 3 options in discovery. No markdown, no code fences, JSON only.`,
       const pantry = (body.pantryHints ?? body.ingredients ?? "").trim();
       const extra = (body.extraContext ?? "").trim();
 
-      if (!IMAGE_GENERATION_MODES.has("chef_execute")) {
+      if (!imageModes.has("chef_execute")) {
+        const execStarted = Date.now();
         const text = await callGeminiText(apiKey, [
           {
             role: "user",
@@ -638,9 +811,13 @@ Return ONE dish as:
           imageDataUrl: null,
           pollinationsQuery: imgExtras.pollinationsQuery,
           imageGenerationSkipped: true,
+          ...kitchenMeta("text-fast-pollinations", {
+            geminiMs: Date.now() - execStarted,
+          }),
         });
       }
 
+      const mmStarted = Date.now();
       const mmResult = await callGeminiChefMultimodalWithImageRetry(apiKey, [
         {
           role: "user",
@@ -717,6 +894,10 @@ Each recipe: ingredients = array of 6-14 objects { "item", "amount" }; steps = a
               mm.images,
               mmResult.imageRetried,
             ),
+            ...kitchenMeta("multimodal-nano-banana-2", {
+              geminiMs: Date.now() - mmStarted,
+              imageModel: getChefImageModelId(),
+            }),
           });
         }
       }
@@ -771,6 +952,10 @@ Each recipe: ingredients = array of 6-14 objects { "item", "amount" }; steps = a
         ...(imgExtras.imageGenerationRetried
           ? { imageGenerationRetried: true }
           : {}),
+        ...kitchenMeta("multimodal-nano-banana-2", {
+          geminiMs: Date.now() - mmStarted,
+          imageModel: getChefImageModelId(),
+        }),
       });
     }
 
@@ -784,7 +969,8 @@ Each recipe: ingredients = array of 6-14 objects { "item", "amount" }; steps = a
       }
       const extra = (body.extraContext ?? "").trim();
 
-      if (!IMAGE_GENERATION_MODES.has("recipe")) {
+      if (!imageModes.has("recipe")) {
+        const recipeStarted = Date.now();
         const text = await callGeminiText(apiKey, [
           {
             role: "user",
@@ -832,9 +1018,13 @@ Return ONE recipe object at the root (not wrapped in "recipe"):
           imageDataUrl: null,
           pollinationsQuery: imgExtras.pollinationsQuery,
           imageGenerationSkipped: true,
+          ...kitchenMeta("text-fast-pollinations", {
+            geminiMs: Date.now() - recipeStarted,
+          }),
         });
       }
 
+      const pantryMmStarted = Date.now();
       const mmResult = await callGeminiChefMultimodalWithImageRetry(apiKey, [
         {
           role: "user",
@@ -915,6 +1105,10 @@ Return ONLY valid JSON with keys (imagePrompt first):
         ...(imgExtras.imageGenerationRetried
           ? { imageGenerationRetried: true }
           : {}),
+        ...kitchenMeta("multimodal-nano-banana-2", {
+          geminiMs: Date.now() - pantryMmStarted,
+          imageModel: getChefImageModelId(),
+        }),
       });
     }
 

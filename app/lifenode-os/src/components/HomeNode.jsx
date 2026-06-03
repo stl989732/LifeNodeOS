@@ -296,6 +296,8 @@ export default function HomeNode() {
   const [vaultFilter, setVaultFilter] = useState("All");
   const [chefTip, setChefTip] = useState("");
   const [chefTipLoading, setChefTipLoading] = useState(false);
+  const [chefDiagLoading, setChefDiagLoading] = useState(false);
+  const [chefDiagResult, setChefDiagResult] = useState(null);
   const [activityPrepItems, setActivityPrepItems] = useState([]);
   const [focusedActivityId, setFocusedActivityId] = useState(null);
   const [upcomingEngagement, setUpcomingEngagement] = useState(null);
@@ -1374,6 +1376,17 @@ export default function HomeNode() {
       if (!recipe) {
         recipe = fallbackChefExecuteRecipe(meal);
       }
+      if (data?._meta?.pathway) {
+        setChefDiagResult((prev) =>
+          prev?.diagnostics
+            ? prev
+            : {
+                ok: true,
+                lastRecipePathway: data._meta.pathway,
+                lastRecipeMeta: data._meta,
+              },
+        );
+      }
       await commitChefRecipes([recipe], apiImage);
     } catch (e) {
       const timedOut =
@@ -1381,7 +1394,7 @@ export default function HomeNode() {
         (typeof e?.message === "string" && e.message.includes("timed out"));
       if (timedOut) {
         setChefIntro(
-          "The kitchen model took too long — here is a starter recipe. Try again for full AI details.",
+          "The kitchen AI took too long (check Test kitchen AI below). Here is a starter recipe — try again after diagnostics pass.",
         );
         await commitChefRecipes([fallbackChefExecuteRecipe(meal)], null);
       } else if (strictModelImage) {
@@ -1455,13 +1468,44 @@ export default function HomeNode() {
     return chores.filter((c) => c.status === "Due Today").length;
   }
 
+  async function runChefKitchenDiagnostics(probeMultimodal = false) {
+    setChefDiagLoading(true);
+    setChefDiagResult(null);
+    try {
+      const data = await fetchKitchenAi(
+        {
+          mode: "chef_diagnostics",
+          probeRecipe: true,
+          probeMultimodal: Boolean(probeMultimodal),
+        },
+        { timeoutMs: probeMultimodal ? 120_000 : 65_000 },
+      );
+      setChefDiagResult(data);
+    } catch (e) {
+      setChefDiagResult({
+        ok: false,
+        error:
+          typeof e?.message === "string"
+            ? e.message
+            : "Kitchen diagnostics failed.",
+        details: e?.details ?? null,
+      });
+    } finally {
+      setChefDiagLoading(false);
+    }
+  }
+
   async function fetchKitchenAi(payload, options = {}) {
     const timeoutMs =
       typeof options.timeoutMs === "number"
         ? options.timeoutMs
-        : payload?.mode === "chef_execute" || payload?.mode === "recipe"
-          ? 110_000
-          : 45_000;
+        : payload?.mode === "chef_diagnostics"
+          ? payload?.probeMultimodal
+            ? 120_000
+            : 65_000
+          : payload?.mode === "chef_execute" || payload?.mode === "recipe"
+            ? 75_000
+            : 45_000;
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -2624,6 +2668,41 @@ export default function HomeNode() {
                       {preset}
                     </button>
                   ))}
+                </div>
+                <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+                    Kitchen AI diagnostics
+                  </p>
+                  <p className="text-[11px] text-[#475569] leading-relaxed">
+                    Verifies Gemini text (fast path) and whether Nano Banana 2 multimodal is enabled via{" "}
+                    <code className="text-[10px] bg-white px-1 rounded">CHEF_MULTIMODAL_IMAGES</code>. With{" "}
+                    <code className="text-[10px] bg-white px-1 rounded">0</code> on Vercel, recipes should use the
+                    text-fast path (not multimodal).
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={chefDiagLoading || mealLoading}
+                      onClick={() => runChefKitchenDiagnostics(false)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[#1E293B] disabled:opacity-50 hover:bg-slate-50"
+                    >
+                      {chefDiagLoading ? "Testing…" : "Test kitchen AI (fast path)"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={chefDiagLoading || mealLoading}
+                      onClick={() => runChefKitchenDiagnostics(true)}
+                      className="px-3 py-1.5 rounded-lg border border-amber-300/80 bg-amber-50 text-xs font-semibold text-amber-950 disabled:opacity-50 hover:bg-amber-100/80"
+                      title="Only succeeds when CHEF_MULTIMODAL_IMAGES=1"
+                    >
+                      Test Nano Banana 2
+                    </button>
+                  </div>
+                  {chefDiagResult ? (
+                    <pre className="text-[10px] text-[#334155] whitespace-pre-wrap break-words max-h-40 overflow-y-auto rounded-lg bg-white/90 border border-slate-100 p-2 font-mono">
+                      {JSON.stringify(chefDiagResult, null, 2)}
+                    </pre>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
