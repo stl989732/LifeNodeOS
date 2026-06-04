@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { registerSupabaseWithSentry } from "@/src/lib/sentry/registerSupabase";
 
 let browserSingleton: SupabaseClient | undefined;
 
@@ -35,5 +36,7 @@ export function getSupabaseBrowserClient(): SupabaseClient {
  */
 export function createSupabaseServerAnonClient(): SupabaseClient {
   const { url, anonKey } = getEnv();
-  return createClient(url, anonKey);
+  const client = createClient(url, anonKey);
+  registerSupabaseWithSentry(client);
+  return client;
 }

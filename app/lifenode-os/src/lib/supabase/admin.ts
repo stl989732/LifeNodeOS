@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { registerSupabaseWithSentry } from "@/src/lib/sentry/registerSupabase";
 
 let adminSingleton: SupabaseClient | undefined;
 
@@ -23,5 +24,6 @@ export function createSupabaseAdminClient(): SupabaseClient {
   adminSingleton = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  registerSupabaseWithSentry(adminSingleton);
   return adminSingleton;
 }

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { compressAudioPayload } from "@/lib/audioCompression";
@@ -1114,6 +1115,10 @@ Return ONLY valid JSON with keys (imagePrompt first):
 
     return NextResponse.json({ error: "Invalid mode." }, { status: 400 });
   } catch (e) {
+    Sentry.captureException(e, {
+      tags: { feature: "chefnode-kitchen-ai" },
+      extra: { mode: body.mode ?? "unknown" },
+    });
     return NextResponse.json(
       {
         error: "Kitchen AI request failed.",

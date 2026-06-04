@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
+    "@sentry/nextjs": "^10.56.0",
     "@supabase/supabase-js": "^2.105.4",
     "@tiptap/extension-color": "^3.23.4",
     "@tiptap/extension-font-family": "^3.23.4",
