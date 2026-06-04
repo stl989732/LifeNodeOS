@@ -10,6 +10,9 @@ export type ClientProfile = {
   name: string;
   industry: string;
   timezone: string;
+  /** Local work window for overlap (HH:MM). */
+  workStart?: string;
+  workEnd?: string;
   /** Optional per-client secrets (2FA / vault demo). */
   credentials?: ClientCredential[];
 };
@@ -81,6 +84,7 @@ export type Invoice = {
   signatureMode?: "type" | "upload";
   signatureTypedName?: string;
   signatureImageDataUrl?: string | null;
+  signatureDesignation?: string;
 };
 
 export type NativeToolKey = "aiTask" | "eod" | "chaosCalc" | "smartNotes";

@@ -28,6 +28,13 @@ import { SavedScreenCaptures } from "./SavedScreenCaptures";
 import { COMMON_TIMEZONES } from "@/lib/vanode/constants";
 import { computeOutsourceInsight, userTimezone } from "@/lib/vanode/outsource";
 import { openInvoicePrint } from "@/lib/vanode/invoice-print";
+import {
+  DEFAULT_WORK_END,
+  DEFAULT_WORK_START,
+  overlapFlagsWithSchedule,
+} from "@/lib/vanode/clientWorkHours";
+import { isTranscribableMeetingUrl } from "@/lib/vanode/meetingUrls";
+import { VaultNoteBody } from "./VaultNoteBody";
 import { toTitleCase } from "@/lib/vanode/title-case";
 import type {
   ClientProfile,
@@ -66,6 +73,32 @@ function buildSopMarkdownFromVideoUrl(url: string) {
       : "Video";
   return `## SOP (auto-draft) · ${label}\n\n### Objective\nExecute the workflow described in the linked recording.\n\n### Steps\n1. Watch the clip and list acceptance criteria in your own words.\n2. Confirm dependencies + deadline with the client in writing.\n3. Complete the checklist in your PM tool.\n4. Ship recap with screenshots or Loom back to the client.\n\n### Source\n${u}\n\n_(Generated locally — replace with your final SOP.)_`;
 }
+
+async function fetchVanodeAi(payload: Record<string, unknown>) {
+  const res = await fetch("/api/vanode/ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  let data: Record<string, unknown> = {};
+  try {
+    data = (await res.json()) as Record<string, unknown>;
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    throw new Error(
+      typeof data.error === "string" ? data.error : "VANode AI request failed.",
+    );
+  }
+  return data;
+}
+
+const DEFAULT_MANUAL_INVOICE_LINES = [
+  { description: "Professional services", amount: "500" },
+  { description: "Hours Billed", amount: "" },
+  { description: "Days Worked", amount: "" },
+];
 
 function mockAiFromThread(thread: string) {
   const lines = thread
@@ -674,9 +707,7 @@ export function SmartVaultCard({
                 ))}
               </div>
             )}
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-              {n.body}
-            </p>
+            <VaultNoteBody body={n.body} />
           </li>
         ))}
         {filtered.length === 0 && (
@@ -903,23 +934,65 @@ export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
   const [draft, setDraft] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [sopPreview, setSopPreview] = useState("");
+  const [sopTitle, setSopTitle] = useState("");
+  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [loadingSop, setLoadingSop] = useState(false);
 
-  const run = () => {
-    const out = mockAiFromThread(thread);
-    setSummary(out.summary);
-    setDraft(out.draft);
+  const clearThread = () => {
+    setThread("");
+    setSummary("");
+    setDraft("");
   };
 
-  const runVideoSop = () => {
-    if (!videoUrl.trim()) return;
-    const md = buildSopMarkdownFromVideoUrl(videoUrl);
-    setSopPreview(md);
+  const clearVideo = () => {
+    setVideoUrl("");
+    setSopPreview("");
+    setSopTitle("");
+  };
+
+  const run = async () => {
+    const t = thread.trim();
+    if (!t) return;
+    setLoadingEmail(true);
+    try {
+      const data = await fetchVanodeAi({ mode: "email_assist", thread: t });
+      setSummary(String(data.summary ?? ""));
+      setDraft(String(data.draft ?? ""));
+    } catch {
+      const out = mockAiFromThread(t);
+      setSummary(out.summary);
+      setDraft(out.draft);
+      setToastLocal("Used offline draft — add GOOGLE_API_KEY for full AI.");
+    } finally {
+      setLoadingEmail(false);
+    }
+  };
+
+  const runVideoSop = async () => {
+    const url = videoUrl.trim();
+    if (!url) return;
+    setLoadingSop(true);
+    try {
+      const data = await fetchVanodeAi({ mode: "video_sop", videoUrl: url });
+      const md =
+        typeof data.markdown === "string"
+          ? data.markdown
+          : buildSopMarkdownFromVideoUrl(url);
+      setSopPreview(md);
+      setSopTitle(typeof data.title === "string" ? data.title : "");
+    } catch {
+      setSopPreview(buildSopMarkdownFromVideoUrl(url));
+      setSopTitle("");
+      setToastLocal("Used template SOP — add GOOGLE_API_KEY for AI outline.");
+    } finally {
+      setLoadingSop(false);
+    }
   };
 
   const saveSopToVault = () => {
     if (!sopPreview.trim()) return;
     onAddVaultNote({
-      title: `SOP · ${videoUrl.includes("loom") ? "Loom" : "Video"}`,
+      title: sopTitle.trim() ? `SOP · ${sopTitle.trim()}` : `SOP · ${videoUrl.includes("loom") ? "Loom" : "Video"}`,
       body: sopPreview,
       clientId: activeClientId,
       labels: ["sop", "ai-loom"],
@@ -941,12 +1014,23 @@ export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
         {toTitleCase("AI task assistant")}
       </h2>
       <p className="mb-4 text-sm text-slate-600">
-        Email threads, Loom / YouTube links (mock “transcribe” → markdown SOP),
-        and drafts you can ship to clients.
+        Paste an email thread for a real summary and draft reply. Video links
+        get an AI-generated SOP outline (title, objective, steps).
       </p>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="text-sm font-medium text-slate-700">
-          Thread
+          <span className="flex items-center justify-between gap-2">
+            Thread
+            <span className="flex gap-1">
+              <button
+                type="button"
+                onClick={clearThread}
+                className="rounded-lg border border-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600 hover:bg-slate-50"
+              >
+                New thread
+              </button>
+            </span>
+          </span>
           <textarea
             className="mt-1.5 min-h-[200px] w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm"
             value={thread}
@@ -969,10 +1053,11 @@ export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
           </div>
           <button
             type="button"
-            onClick={run}
-            className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-violet-500"
+            onClick={() => void run()}
+            disabled={loadingEmail || !thread.trim()}
+            className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-md hover:bg-violet-500 disabled:opacity-50"
           >
-            Generate
+            {loadingEmail ? "Generating…" : "Generate"}
           </button>
         </div>
       </div>
@@ -982,10 +1067,11 @@ export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
           {toTitleCase("AI Loom · video → SOP")}
         </h3>
         <p className="mt-1 text-xs text-slate-600">
-          Paste a client Loom or YouTube URL. Local mock “transcription” builds a
-          markdown SOP you can refine and save to the Smart Vault.
+          Paste a Loom, YouTube, Zoom, or Kommodo link — LifeNode builds a
+          markdown SOP with title, objective, and steps (uses video metadata when
+          available).
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
             className="min-w-[200px] flex-1 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm"
             placeholder="https://www.loom.com/share/…"
@@ -995,9 +1081,17 @@ export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
           <button
             type="button"
             onClick={runVideoSop}
-            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500"
+            disabled={loadingSop || !videoUrl.trim()}
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
           >
-            Transcribe &amp; outline SOP
+            {loadingSop ? "Outlining…" : "Transcribe & outline SOP"}
+          </button>
+          <button
+            type="button"
+            onClick={clearVideo}
+            className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs font-bold text-slate-700"
+          >
+            New link
           </button>
           <button
             type="button"
@@ -1543,6 +1637,8 @@ export function ClientCommandCard({
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("");
   const [timezone, setTimezone] = useState(COMMON_TIMEZONES[0] ?? "UTC");
+  const [newWorkStart, setNewWorkStart] = useState(DEFAULT_WORK_START);
+  const [newWorkEnd, setNewWorkEnd] = useState(DEFAULT_WORK_END);
 
   const utz = userTimezone();
   const insight = useMemo(
@@ -1610,11 +1706,35 @@ export function ClientCommandCard({
             </option>
           ))}
         </select>
+        <label className="text-xs font-medium text-slate-600">
+          Client work hours (their timezone)
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="time"
+              className="flex-1 rounded-xl border border-slate-200/80 bg-white/70 px-2 py-2 text-sm"
+              value={newWorkStart}
+              onChange={(e) => setNewWorkStart(e.target.value)}
+            />
+            <span className="text-slate-400">to</span>
+            <input
+              type="time"
+              className="flex-1 rounded-xl border border-slate-200/80 bg-white/70 px-2 py-2 text-sm"
+              value={newWorkEnd}
+              onChange={(e) => setNewWorkEnd(e.target.value)}
+            />
+          </div>
+        </label>
         <button
           type="button"
           onClick={() => {
             if (!name.trim()) return;
-            onAdd({ name: name.trim(), industry: industry.trim(), timezone });
+            onAdd({
+              name: name.trim(),
+              industry: industry.trim(),
+              timezone,
+              workStart: newWorkStart || DEFAULT_WORK_START,
+              workEnd: newWorkEnd || DEFAULT_WORK_END,
+            });
             setName("");
             setIndustry("");
           }}
@@ -1654,6 +1774,9 @@ export function ClientCommandCard({
                   <div className="text-sm font-semibold tabular-nums text-slate-900">
                     {formatClock(utz)}
                   </div>
+                  <div className="text-[10px] text-slate-500">
+                    Your schedule: {DEFAULT_WORK_START} – {DEFAULT_WORK_END}
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-2 rounded-xl bg-teal-900/[0.04] px-3 py-2">
@@ -1667,6 +1790,45 @@ export function ClientCommandCard({
                   </div>
                 </div>
               </div>
+            </div>
+            <div className="mt-3 rounded-xl border border-teal-200/50 bg-teal-50/40 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-teal-900/80">
+                Client work schedule
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  type="time"
+                  className="rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5 text-sm"
+                  value={c.workStart ?? DEFAULT_WORK_START}
+                  onChange={(e) =>
+                    onUpdateClient(c.id, { workStart: e.target.value })
+                  }
+                />
+                <span className="text-xs text-slate-500">to</span>
+                <input
+                  type="time"
+                  className="rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5 text-sm"
+                  value={c.workEnd ?? DEFAULT_WORK_END}
+                  onChange={(e) =>
+                    onUpdateClient(c.id, { workEnd: e.target.value })
+                  }
+                />
+              </div>
+              <p className="mt-2 text-[11px] text-slate-600">
+                Overlap with you (next 24h):{" "}
+                <strong>
+                  {overlapFlagsWithSchedule(
+                    utz,
+                    c.timezone,
+                    DEFAULT_WORK_START,
+                    DEFAULT_WORK_END,
+                    c.workStart ?? DEFAULT_WORK_START,
+                    c.workEnd ?? DEFAULT_WORK_END,
+                  ).filter(Boolean).length}
+                  h
+                </strong>{" "}
+                in both work windows
+              </p>
             </div>
             <div className="mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">
               Stored credentials ({(c.credentials ?? []).length})
@@ -1732,7 +1894,7 @@ export function InvoicingSuiteCard({
   const [due, setDue] = useState("");
   const [lineRows, setLineRows] = useState<
     { description: string; amount: string }[]
-  >([{ description: "Professional services", amount: "500" }]);
+  >(() => [...DEFAULT_MANUAL_INVOICE_LINES]);
   const [amount, setAmount] = useState("500");
   const [pickedEod, setPickedEod] = useState<string[]>([]);
   const [status, setStatus] = useState<InvoiceStatus>("draft");
@@ -1740,6 +1902,7 @@ export function InvoicingSuiteCard({
   const [ownerFullName, setOwnerFullName] = useState("");
   const [sigMode, setSigMode] = useState<"type" | "upload">("type");
   const [sigTypedName, setSigTypedName] = useState("");
+  const [sigDesignation, setSigDesignation] = useState("");
   const [sigImageDataUrl, setSigImageDataUrl] = useState<string | null>(null);
   const [confirmPrintOpen, setConfirmPrintOpen] = useState(false);
 
@@ -1816,13 +1979,10 @@ export function InvoicingSuiteCard({
       if (!lineItems.length) {
         lineItems = [{ description: "Line item", amount: 0 }];
       }
-      if (clientId) {
-        cName = clients.find((x) => x.id === clientId)?.name ?? cName;
-      }
     }
 
     if (!cName.trim()) {
-      cName = "Client";
+      cName = businessAgencyName.trim() || "Client";
     }
 
     onAdd({
@@ -1839,10 +1999,11 @@ export function InvoicingSuiteCard({
         sigMode === "type" ? sigTypedName.trim() || undefined : undefined,
       signatureImageDataUrl:
         sigMode === "upload" && sigImageDataUrl ? sigImageDataUrl : undefined,
+      signatureDesignation: sigDesignation.trim() || undefined,
     });
     setOpen(false);
     setPickedEod([]);
-    setLineRows([{ description: "Professional services", amount: "500" }]);
+    setLineRows([...DEFAULT_MANUAL_INVOICE_LINES]);
   };
 
   const previewLines = useMemo(() => {
@@ -1874,9 +2035,8 @@ export function InvoicingSuiteCard({
 
   const previewClientLabel = useMemo(() => {
     if (clientName.trim()) return clientName.trim();
-    if (clientId) return clients.find((c) => c.id === clientId)?.name ?? "Client";
     return "Client";
-  }, [clientName, clientId, clients]);
+  }, [clientName]);
 
   const previewTotal = useMemo(
     () => previewLines.reduce((s, l) => s + l.amount, 0),
@@ -1902,6 +2062,7 @@ export function InvoicingSuiteCard({
         sigMode === "type" ? sigTypedName.trim() || undefined : undefined,
       signatureImageDataUrl:
         sigMode === "upload" && sigImageDataUrl ? sigImageDataUrl : undefined,
+      signatureDesignation: sigDesignation.trim() || undefined,
     };
     openInvoicePrint(draftInv);
     setConfirmPrintOpen(false);
@@ -2056,9 +2217,13 @@ export function InvoicingSuiteCard({
                       className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
                       value={clientId}
                       onChange={(e) => {
-                        setClientId(e.target.value);
-                        const c = clients.find((x) => x.id === e.target.value);
-                        if (c) setClientName(c.name);
+                        const id = e.target.value;
+                        setClientId(id);
+                        const c = clients.find((x) => x.id === id);
+                        if (c) {
+                          setBusinessAgencyName(c.name);
+                          setClientName("");
+                        }
                       }}
                     >
                       <option value="">Custom name below</option>
@@ -2071,7 +2236,7 @@ export function InvoicingSuiteCard({
                   </label>
                   <input
                     className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
-                    placeholder="Client name"
+                    placeholder="Bill to (contact or company name)"
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                   />
@@ -2229,12 +2394,14 @@ export function InvoicingSuiteCard({
                   </button>
                 </div>
                 {sigMode === "type" ? (
-                  <input
-                    className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
-                    placeholder="Sign as typed name"
-                    value={sigTypedName}
-                    onChange={(e) => setSigTypedName(e.target.value)}
-                  />
+                  <>
+                    <input
+                      className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                      placeholder="Sign as typed name"
+                      value={sigTypedName}
+                      onChange={(e) => setSigTypedName(e.target.value)}
+                    />
+                  </>
                 ) : (
                   <input
                     type="file"
@@ -2250,6 +2417,12 @@ export function InvoicingSuiteCard({
                     }}
                   />
                 )}
+                <input
+                  className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                  placeholder="Designation (e.g. Automation Specialist, VA, Accountant)"
+                  value={sigDesignation}
+                  onChange={(e) => setSigDesignation(e.target.value)}
+                />
               </div>
 
               <label className="mt-4 block text-xs font-medium text-slate-300">
@@ -2344,6 +2517,11 @@ export function InvoicingSuiteCard({
                       }}
                     >
                       {sigTypedName.trim()}
+                    </p>
+                  ) : null}
+                  {sigDesignation.trim() ? (
+                    <p className="mt-1 text-sm font-semibold text-slate-600">
+                      {sigDesignation.trim()}
                     </p>
                   ) : null}
                   {sigMode === "upload" && sigImageDataUrl ? (

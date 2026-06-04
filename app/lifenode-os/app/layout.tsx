@@ -11,6 +11,7 @@ import TermlyCMP from "@/src/components/legal/TermlyCMP";
 import TermlyPreferencesTrigger from "@/src/components/legal/TermlyPreferencesTrigger";
 import { TERMLY_RESOURCE_BLOCKER_SRC } from "@/src/components/legal/termlyConfig";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import LiveCaptureRoot from "@/components/vanode/LiveCaptureRoot";
 import Script from "next/script";
 import { Suspense } from "react";
 import "./globals.css";
@@ -85,6 +86,7 @@ export default function RootLayout({
         </Suspense>
         <AuthProviders>
           <LifeNodeProvider>
+            <LiveCaptureRoot>
             <LoadingOverlayProvider>
               <WhiteboardVaultBridgeProvider>
                 {children}
@@ -93,6 +95,7 @@ export default function RootLayout({
                 <LinoAssistantDynamic />
               </WhiteboardVaultBridgeProvider>
             </LoadingOverlayProvider>
+            </LiveCaptureRoot>
           </LifeNodeProvider>
         </AuthProviders>
         <SpeedInsights />

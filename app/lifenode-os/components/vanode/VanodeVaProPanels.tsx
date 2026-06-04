@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Copy,
@@ -18,6 +18,8 @@ import {
   Users,
 } from "lucide-react";
 import { useActiveClient } from "./ActiveClientContext";
+import { useLiveCapture } from "./LiveCaptureContext";
+import { isTranscribableMeetingUrl } from "@/lib/vanode/meetingUrls";
 import { countOverlapHours, overlapWorkHourFlags } from "@/lib/vanode/time-bridge";
 import { userTimezone } from "@/lib/vanode/outsource";
 import { toTitleCase } from "@/lib/vanode/title-case";
@@ -516,17 +518,6 @@ export function TimezoneBridgeCard({ client }: { client: ClientProfile | null })
   );
 }
 
-function isTranscribableMeetingUrl(url: string) {
-  const u = url.trim().toLowerCase();
-  if (!u) return false;
-  return (
-    u.includes("loom.") ||
-    u.includes("zoom.") ||
-    u.includes("youtube.com") ||
-    u.includes("youtu.be")
-  );
-}
-
 type LiveProps = {
   onAddVaultNote: (n: {
     title: string;
@@ -556,55 +547,24 @@ export function LiveMeetingCaptureCard({
   onUpdateSession,
 }: LiveProps) {
   const { activeClientId } = useActiveClient();
+  const live = useLiveCapture();
   const [title, setTitle] = useState("Client sync");
   const [kind, setKind] = useState<"meeting" | "webinar" | "interview" | "other">(
     "meeting",
   );
   const [activeId, setActiveId] = useState<string | null>(null);
-  /** Single rolling transcript (avoids duplicate lines from interim STT). */
-  const [transcriptText, setTranscriptText] = useState("");
+  const [savedTranscript, setSavedTranscript] = useState("");
   const [summary, setSummary] = useState<string | null>(null);
   const [vaultNotice, setVaultNotice] = useState<string | null>(null);
   const [cloud, setCloud] = useState(false);
   const [meetingUrl, setMeetingUrl] = useState("");
-  const [isCapturing, setIsCapturing] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [rec, setRec] = useState<any>(null);
-  const mockTimerRef = useRef<number | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      try {
-        rec?.stop();
-      } catch {
-        /* ignore */
-      }
-      if (mockTimerRef.current) {
-        clearInterval(mockTimerRef.current);
-        mockTimerRef.current = null;
-      }
-    };
-  }, [rec]);
+  const displayTranscript = live.isCapturing
+    ? live.transcriptText
+    : savedTranscript;
 
   const startLive = () => {
-    interface WebSpeechRecognition extends EventTarget {
-      continuous: boolean;
-      interimResults: boolean;
-      lang: string;
-      onresult: ((this: WebSpeechRecognition, ev: Event) => void) | null;
-      start: () => void;
-      stop: () => void;
-    }
-
-    type WinWithSpeech = Window & {
-      SpeechRecognition?: new () => WebSpeechRecognition;
-      webkitSpeechRecognition?: new () => WebSpeechRecognition;
-    };
-    const SR =
-      typeof window !== "undefined"
-        ? (window as WinWithSpeech).SpeechRecognition ||
-          (window as WinWithSpeech).webkitSpeechRecognition
-        : undefined;
     const id = onAddSession({
       title,
       kind,
@@ -616,60 +576,44 @@ export function LiveMeetingCaptureCard({
       meetingUrl: meetingUrl.trim() || null,
     });
     setActiveId(id);
-    setTranscriptText("");
+    setSavedTranscript("");
     setSummary(null);
     setVaultNotice(null);
-    setIsCapturing(true);
-
-    if (!SR) {
-      mockTimerRef.current = window.setInterval(() => {
-        setTranscriptText((prev) => {
-          const note = `[${new Date().toLocaleTimeString()}] (demo) meeting note`;
-          return prev ? `${prev}\n${note}` : note;
-        });
-      }, 2200);
-      return;
-    }
-    const r = new SR();
-    r.continuous = true;
-    r.interimResults = true;
-    r.lang = "en-US";
-    r.onresult = (ev: Event) => {
-      const speechEv = ev as unknown as {
-        results: ArrayLike<{
-          isFinal?: boolean;
-          0?: { transcript?: string };
-        }>;
-      };
-      let composed = "";
-      for (let i = 0; i < speechEv.results.length; i++) {
-        composed += speechEv.results[i]?.[0]?.transcript ?? "";
-      }
-      setTranscriptText(composed.trim());
-    };
-    r.start();
-    setRec(r);
+    live.setTitle(title);
+    live.startCapture(title);
   };
 
-  const stopLive = () => {
-    setIsCapturing(false);
+  const stopLive = async () => {
     const sessionId = activeId;
-    try {
-      rec?.stop();
-    } catch {
-      /* ignore */
-    }
-    setRec(null);
-    if (mockTimerRef.current) {
-      clearInterval(mockTimerRef.current);
-      mockTimerRef.current = null;
-    }
-    const transcript = transcriptText.trim();
-    const ai =
+    const transcript = live.transcriptText.trim();
+    live.stopCapture();
+    setSavedTranscript(transcript);
+    setSummarizing(true);
+    let ai =
       transcript.length > 0
         ? `Key decisions:\n• ${transcript.slice(0, 280)}${transcript.length > 280 ? "…" : ""}\n\nAction items:\n• Confirm follow-ups in CRM\n• Archive recording under ${title}.`
         : "No transcript captured — try again with mic permission or use demo mode (no browser STT).";
+    if (transcript.length > 0) {
+      try {
+        const res = await fetch("/api/vanode/ai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "live_summary",
+            transcript,
+            sessionTitle: title,
+          }),
+        });
+        const data = (await res.json()) as { summary?: string };
+        if (res.ok && typeof data.summary === "string" && data.summary.trim()) {
+          ai = data.summary.trim();
+        }
+      } catch {
+        /* keep offline recap */
+      }
+    }
     setSummary(ai);
+    setSummarizing(false);
     if (sessionId) {
       onUpdateSession(sessionId, {
         endedAt: new Date().toISOString(),
@@ -682,7 +626,7 @@ export function LiveMeetingCaptureCard({
   };
 
   const downloadTxt = () => {
-    const body = `${title}\n\n--- Transcript ---\n${transcriptText}\n\n--- AI recap ---\n${summary ?? ""}`;
+    const body = `${title}\n\n--- Transcript ---\n${displayTranscript}\n\n--- AI recap ---\n${summary ?? ""}`;
     const blob = new Blob([body], { type: "text/plain" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -692,7 +636,7 @@ export function LiveMeetingCaptureCard({
   };
 
   const saveVault = () => {
-    const transcript = transcriptText.trim();
+    const transcript = displayTranscript.trim();
     if (!transcript && !summary) return;
     onAddVaultNote({
       title: `Live capture · ${title}`,
@@ -705,48 +649,53 @@ export function LiveMeetingCaptureCard({
   };
 
   const clearCapture = () => {
-    if (isCapturing) {
-      try {
-        rec?.stop();
-      } catch {
-        /* ignore */
-      }
-      setRec(null);
-      if (mockTimerRef.current) {
-        clearInterval(mockTimerRef.current);
-        mockTimerRef.current = null;
-      }
-      setIsCapturing(false);
-      setActiveId(null);
-    }
-    setTranscriptText("");
+    live.clearAll();
+    setActiveId(null);
+    setSavedTranscript("");
     setSummary(null);
     setVaultNotice(null);
   };
 
-  const transcribeExternalMock = () => {
+  const transcribeExternalMock = async () => {
     const url = meetingUrl.trim();
     if (!isTranscribableMeetingUrl(url)) return;
+    let body = [
+      "## Source URL",
+      url,
+      "",
+      "### Purpose",
+      "- Capture decisions and owners from the session.",
+      "",
+      "### Steps",
+      "1. Review recording at the URL above.",
+      "2. Extract action items → assign in CRM.",
+      "3. Archive proof in Smart Vault / EOD.",
+    ].join("\n");
+    let noteTitle = "SOP Draft · External meeting";
+    try {
+      const res = await fetch("/api/vanode/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "video_sop", videoUrl: url }),
+      });
+      const data = (await res.json()) as { markdown?: string; title?: string };
+      if (res.ok && typeof data.markdown === "string") {
+        body = data.markdown;
+        if (typeof data.title === "string" && data.title.trim()) {
+          noteTitle = `SOP · ${data.title.trim()}`;
+        }
+      }
+    } catch {
+      /* keep template */
+    }
     onAddVaultNote({
-      title: `SOP Draft · External meeting`,
-      body: [
-        "## Source URL",
-        url,
-        "",
-        "## Transcription engine (mock)",
-        "Generated procedure outline from the linked recording (demo). Replace with real transcript when available.",
-        "",
-        "### Purpose",
-        "- Capture decisions and owners from the session.",
-        "",
-        "### Steps",
-        "1. Review recording at the URL above.",
-        "2. Extract action items → assign in CRM.",
-        "3. Archive proof in Smart Vault / EOD.",
-      ].join("\n"),
+      title: noteTitle,
+      body,
       clientId: activeClientId,
       labels: ["sop", "transcription-mock"],
     });
+    setVaultNotice("Saved outline to Smart Vault");
+    window.setTimeout(() => setVaultNotice(null), 4000);
   };
 
   return (
@@ -756,8 +705,9 @@ export function LiveMeetingCaptureCard({
         {toTitleCase("Live meeting · webinar · interview")}
       </h2>
       <p className="mb-4 text-sm text-slate-600">
-        Activate when the session starts. Uses browser speech recognition when
-        available; otherwise a demo ticker. AI recap + download + vault save.
+        Activate when the session starts. Capture keeps running while you browse
+        other nodes — watch the floating transcript card. AI recap + download +
+        vault save.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -813,7 +763,7 @@ export function LiveMeetingCaptureCard({
         <button
           type="button"
           disabled={!isTranscribableMeetingUrl(meetingUrl)}
-          onClick={transcribeExternalMock}
+          onClick={() => void transcribeExternalMock()}
           className="inline-flex items-center gap-2 rounded-xl border border-violet-300 bg-violet-50 px-4 py-2 text-xs font-bold text-violet-900 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Sparkles className="h-3.5 w-3.5" />
@@ -830,7 +780,7 @@ export function LiveMeetingCaptureCard({
         <button
           type="button"
           onClick={startLive}
-          disabled={isCapturing}
+          disabled={live.isCapturing}
           className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
         >
           <Radio className="h-4 w-4" />
@@ -838,11 +788,11 @@ export function LiveMeetingCaptureCard({
         </button>
         <button
           type="button"
-          onClick={stopLive}
-          disabled={!isCapturing}
+          onClick={() => void stopLive()}
+          disabled={!live.isCapturing || summarizing}
           className="rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-800"
         >
-          Stop &amp; summarize
+          {summarizing ? "Summarizing…" : "Stop & summarize"}
         </button>
         <button
           type="button"
@@ -855,7 +805,7 @@ export function LiveMeetingCaptureCard({
         <button
           type="button"
           onClick={saveVault}
-          disabled={!transcriptText.trim() && !summary}
+          disabled={!displayTranscript.trim() && !summary}
           className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
         >
           Save to Smart Vault
@@ -863,7 +813,7 @@ export function LiveMeetingCaptureCard({
         <button
           type="button"
           onClick={clearCapture}
-          disabled={!transcriptText.trim() && !summary && !isCapturing}
+          disabled={!displayTranscript.trim() && !summary && !live.isCapturing}
           className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Trash2 className="h-4 w-4" />
@@ -878,8 +828,10 @@ export function LiveMeetingCaptureCard({
       ) : null}
 
       <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/60 p-3 text-sm leading-relaxed text-slate-800">
-        {transcriptText.trim() ? (
-          <p className="whitespace-pre-wrap">{transcriptText}</p>
+        {displayTranscript.trim() ? (
+          <p className="whitespace-pre-wrap">{displayTranscript}</p>
+        ) : live.isCapturing ? (
+          <span className="text-slate-500">Listening… (also shown in the floating card)</span>
         ) : (
           <span className="text-slate-500">Transcript appears here as you speak…</span>
         )}

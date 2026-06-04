@@ -34,12 +34,16 @@ function buildInvoicePrintHtml(inv: Invoice): string {
   const sigMode = inv.signatureMode ?? "type";
   const sigTyped = inv.signatureTypedName?.trim();
   const sigImg = inv.signatureImageDataUrl?.trim();
+  const sigRole = inv.signatureDesignation?.trim();
 
   let signatureBlock = `<p class="sig-empty">No signature provided.</p>`;
   if (sigMode === "upload" && sigImg) {
     signatureBlock = `<img class="sig-img" src="${escapeAttr(sigImg)}" alt="Signature" />`;
   } else if (sigTyped) {
     signatureBlock = `<p class="sig-typed">${escapeHtml(sigTyped)}</p>`;
+  }
+  if (sigRole) {
+    signatureBlock += `<p class="sig-role">${escapeHtml(sigRole)}</p>`;
   }
 
   return `<!DOCTYPE html>
@@ -65,6 +69,7 @@ function buildInvoicePrintHtml(inv: Invoice): string {
   .sig-typed { margin: 8px 0 0; font-size: 28px; color: #0f172a; font-family: ${SIG_FONT}; }
   .sig-img { margin-top: 8px; max-height: 80px; object-fit: contain; display: block; }
   .sig-empty { margin: 8px 0 0; font-size: 12px; color: #94a3b8; }
+  .sig-role { margin: 6px 0 0; font-size: 13px; color: #475569; font-weight: 600; }
   .total { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(45, 212, 191, 0.35); text-align: right; font-size: 20px; font-weight: 800; color: #134e4a; }
   .footer { margin-top: 40px; font-size: 11px; color: #94a3b8; }
   @media print {
