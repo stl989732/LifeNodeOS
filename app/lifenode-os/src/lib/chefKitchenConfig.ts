@@ -5,6 +5,22 @@
 
 export const NANO_BANANA_2_MODEL_ID = "gemini-3.1-flash-image-preview";
 
+/** Fast text/vision model for recipes and pantry photos (override via GOOGLE_GEMINI_TEXT_MODEL). */
+export const DEFAULT_CHEF_TEXT_MODEL = "gemini-2.0-flash";
+
+export function getChefTextModelId(): string {
+  return process.env.GOOGLE_GEMINI_TEXT_MODEL?.trim() || DEFAULT_CHEF_TEXT_MODEL;
+}
+
+/** Fast vision for pantry photos when multimodal image generation is off. */
+export function getChefVisionModelId(): string {
+  return (
+    process.env.GOOGLE_GEMINI_VISION_MODEL?.trim() ||
+    process.env.GOOGLE_GEMINI_TEXT_MODEL?.trim() ||
+    DEFAULT_CHEF_TEXT_MODEL
+  );
+}
+
 const TRUTHY = new Set(["1", "true", "yes", "on"]);
 const FALSY = new Set(["0", "false", "no", "off", ""]);
 

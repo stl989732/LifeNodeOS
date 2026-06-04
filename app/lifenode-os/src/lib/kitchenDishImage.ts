@@ -1,6 +1,6 @@
 const POLLINATIONS_BASE = "https://image.pollinations.ai/prompt";
-const DEFAULT_ATTEMPTS = 3;
-const DEFAULT_PRELOAD_MS = 16000;
+const DEFAULT_ATTEMPTS = 2;
+const DEFAULT_PRELOAD_MS = 8000;
 
 const PROMPT_VARIANTS = [
   (raw: string) =>

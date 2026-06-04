@@ -6,14 +6,17 @@ import { sanitizeAndTruncate } from "@/lib/truncation";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
 import {
   getChefImageModelId,
-  getChefKitchenPublicConfig,
+  getChefTextModelId,
+  getChefVisionModelId,
   isChefMultimodalImagesEnabled,
   NANO_BANANA_2_MODEL_ID,
 } from "@/src/lib/chefKitchenConfig";
-import { getGeminiTextModel, geminiGenerateContentUrl } from "@/src/lib/geminiModels";
+import { geminiGenerateContentUrl } from "@/src/lib/geminiModels";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const dynamic = "force-dynamic";
+/** Vercel Hobby: 60s max. Increase in dashboard on Pro if needed. */
+export const maxDuration = 60;
 
 type KitchenMode =
   | "recipe"
@@ -21,11 +24,11 @@ type KitchenMode =
   | "chef_execute"
   | "categorize"
   | "chef_tip"
-  | "chef_diagnostics"
   | "vision_ingredients"
   | "transcribe_audio";
 
-const DEFAULT_GEMINI_TEXT_MODEL = getGeminiTextModel();
+const DEFAULT_GEMINI_TEXT_MODEL = getChefTextModelId();
+const CHEF_VISION_MODEL = getChefVisionModelId();
 
 function imageGenerationModes(): Set<KitchenMode> {
   if (!isChefMultimodalImagesEnabled()) return new Set();
@@ -220,11 +223,19 @@ function normalizeCalories(rawCal: unknown): number {
   return 450;
 }
 
-const GEMINI_FETCH_TIMEOUT_MS = Number(process.env.KITCHEN_GEMINI_TIMEOUT_MS ?? 55_000);
-const GEMINI_TEXT_TIMEOUT_MS = Number(process.env.KITCHEN_GEMINI_TEXT_TIMEOUT_MS ?? 42_000);
-const GEMINI_MULTIMODAL_TIMEOUT_MS = Number(
-  process.env.KITCHEN_GEMINI_MULTIMODAL_TIMEOUT_MS ?? 90_000,
+const GEMINI_FETCH_TIMEOUT_MS = Number(process.env.KITCHEN_GEMINI_TIMEOUT_MS ?? 50_000);
+const GEMINI_TEXT_TIMEOUT_MS = Number(process.env.KITCHEN_GEMINI_TEXT_TIMEOUT_MS ?? 28_000);
+const GEMINI_DISCOVER_TIMEOUT_MS = Number(
+  process.env.KITCHEN_GEMINI_DISCOVER_TIMEOUT_MS ?? 20_000,
 );
+const GEMINI_MULTIMODAL_TIMEOUT_MS = Number(
+  process.env.KITCHEN_GEMINI_MULTIMODAL_TIMEOUT_MS ?? 45_000,
+);
+
+const CHEF_GENERATION_CONFIG = {
+  maxOutputTokens: 1536,
+  temperature: 0.65,
+};
 
 async function fetchWithTimeout(
   input: string,
@@ -249,14 +260,18 @@ async function callGeminiText(
   apiKey: string,
   contents: unknown[],
   timeoutMs = GEMINI_TEXT_TIMEOUT_MS,
+  modelId = DEFAULT_GEMINI_TEXT_MODEL,
 ) {
-  const url = geminiGenerateUrl(DEFAULT_GEMINI_TEXT_MODEL);
+  const url = geminiGenerateUrl(modelId);
   const res = await fetchWithTimeout(
     `${url}?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents }),
+      body: JSON.stringify({
+        contents,
+        generationConfig: CHEF_GENERATION_CONFIG,
+      }),
     },
     timeoutMs,
   );
@@ -316,26 +331,28 @@ async function callGeminiChefMultimodalWithImageRetry(
   if (first.images.length > 0) {
     return { ...first, imageRetried: false };
   }
-  try {
-    const retryContents = [
-      ...contents,
-      {
-        role: "user",
-        parts: [{ text: CHEF_IMAGE_RETRY_NUDGE }],
-      },
-    ];
-    const second = await callGeminiChefMultimodal(apiKey, retryContents);
-    if (second.images.length > 0) {
-      return {
-        text: second.text || first.text,
-        images: second.images,
-        imageRetried: true,
-      };
+  if (process.env.CHEF_MULTIMODAL_IMAGE_RETRY === "1") {
+    try {
+      const retryContents = [
+        ...contents,
+        {
+          role: "user",
+          parts: [{ text: CHEF_IMAGE_RETRY_NUDGE }],
+        },
+      ];
+      const second = await callGeminiChefMultimodal(apiKey, retryContents);
+      if (second.images.length > 0) {
+        return {
+          text: second.text || first.text,
+          images: second.images,
+          imageRetried: true,
+        };
+      }
+    } catch {
+      /* Pollinations fallback on client */
     }
-  } catch {
-    /* Return text-only first pass — client uses Pollinations for hero image. */
   }
-  return { ...first, imageRetried: true };
+  return { ...first, imageRetried: false };
 }
 
 function recipeImageFields(title: string, imagePrompt: string) {
@@ -365,12 +382,12 @@ const DEFAULT_CHEF_TIP =
 const RECIPE_TAGS = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"] as const;
 
 
-const CHEF_TEXT_JSON_RULES = `Return ONLY valid JSON (no markdown fences, no commentary).
-Each recipe object MUST include:
-- "imagePrompt" (string, min 40 chars: photorealistic plating, lighting, surface)
+const CHEF_TEXT_JSON_RULES = `Return ONLY valid JSON (no markdown, no commentary).
+Keep it concise for speed:
+- "imagePrompt" (string, 40-80 chars, photorealistic plating)
 - "title", "prepTime", "servings"
-- "ingredients" (array of 6-14 objects with "item" and "amount")
-- "steps" (array of 5-10 instruction strings)
+- "ingredients" (array of 5-8 objects with "item" and "amount")
+- "steps" (array of 4-6 short instruction strings)
 - "caloriesPerServing" (integer)`;
 
 export async function POST(request: Request) {
@@ -462,136 +479,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    if (mode === "chef_diagnostics") {
-      const started = Date.now();
-      const checks: Array<{
-        name: string;
-        ok: boolean;
-        ms: number;
-        skipped?: boolean;
-        reason?: string;
-        error?: string;
-        detail?: string;
-      }> = [];
-
-      const textStart = Date.now();
-      try {
-        const ping = await callGeminiText(
-          apiKey,
-          [
-            {
-              role: "user",
-              parts: [{ text: "Reply with exactly: CHEF_OK" }],
-            },
-          ],
-          15_000,
-        );
-        checks.push({
-          name: "text_gemini",
-          ok: ping.length > 0,
-          ms: Date.now() - textStart,
-          detail: ping.slice(0, 120),
-        });
-      } catch (e) {
-        checks.push({
-          name: "text_gemini",
-          ok: false,
-          ms: Date.now() - textStart,
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
-
-      if (body.probeMultimodal) {
-        const mmStart = Date.now();
-        if (!isChefMultimodalImagesEnabled()) {
-          checks.push({
-            name: "nano_banana_2_multimodal",
-            ok: true,
-            skipped: true,
-            ms: 0,
-            reason:
-              "CHEF_MULTIMODAL_IMAGES is off (expected for fast ChefNode). Set to 1 only to test Nano Banana 2.",
-          });
-        } else {
-          const imageModel = getChefImageModelId();
-          try {
-            const mm = await callGeminiChefMultimodal(apiKey, [
-              {
-                role: "user",
-                parts: [
-                  {
-                    text: `${CHEF_IMAGE_JSON_RULES}\n\nMinimal test: one recipe for buttered toast. JSON only with imagePrompt first; include IMAGE of plated toast.`,
-                  },
-                ],
-              },
-            ]);
-            checks.push({
-              name: "nano_banana_2_multimodal",
-              ok: mm.images.length > 0 || mm.text.includes("{"),
-              ms: Date.now() - mmStart,
-              detail: `model=${mm.modelId} images=${mm.images.length} textLen=${mm.text.length}`,
-            });
-          } catch (e) {
-            checks.push({
-              name: "nano_banana_2_multimodal",
-              ok: false,
-              ms: Date.now() - mmStart,
-              error: e instanceof Error ? e.message : String(e),
-              detail: `model=${imageModel}`,
-            });
-          }
-        }
-      }
-
-      let probeRecipe: Record<string, unknown> | undefined;
-      if (body.probeRecipe) {
-        const probeStart = Date.now();
-        try {
-          const text = await callGeminiText(apiKey, [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: `Quick test recipe for "Buttered toast". ${CHEF_TEXT_JSON_RULES}\nReturn: { "recipe": { "title", "prepTime", "servings", "imagePrompt", "ingredients", "steps", "caloriesPerServing" } }`,
-                },
-              ],
-            },
-          ]);
-          const parsed = parseJsonLoose(text);
-          const root =
-            parsed?.recipe && typeof parsed.recipe === "object"
-              ? (parsed.recipe as Record<string, unknown>)
-              : parsed;
-          const title =
-            typeof root?.title === "string" ? root.title.trim() : "";
-          probeRecipe = {
-            ok: Boolean(title),
-            ms: Date.now() - probeStart,
-            title: title || null,
-          };
-        } catch (e) {
-          probeRecipe = {
-            ok: false,
-            ms: Date.now() - probeStart,
-            error: e instanceof Error ? e.message : String(e),
-          };
-        }
-      }
-
-      const actionableFailed = checks.some((c) => !c.ok && !c.skipped);
-      const probeOk =
-        !probeRecipe || probeRecipe.ok === true;
-      return NextResponse.json({
-        diagnostics: true,
-        ok: !actionableFailed && probeOk,
-        config: getChefKitchenPublicConfig(),
-        checks,
-        probeRecipe,
-        elapsedMs: Date.now() - started,
-        ...kitchenMeta("chef_diagnostics"),
-      });
-    }
-
     if (mode === "chef_tip") {
       const text = await callGeminiText(apiKey, [
         {
@@ -637,20 +524,34 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
+      if (data.length > 1_400_000) {
+        return NextResponse.json(
+          {
+            error:
+              "Image too large. Use a smaller photo (the app compresses on upload).",
+          },
+          { status: 413 },
+        );
+      }
       const mime = body.mimeType?.trim() || "image/jpeg";
-      const text = await callGeminiText(apiKey, [
-        {
-          role: "user",
-          parts: [
-            {
-              inline_data: { mime_type: mime, data },
-            },
-            {
-              text: "List recognizable food ingredients visible in this meal photo. Output ONLY a comma-separated list of ingredient names, no other text.",
-            },
-          ],
-        },
-      ]);
+      const text = await callGeminiText(
+        apiKey,
+        [
+          {
+            role: "user",
+            parts: [
+              {
+                inline_data: { mime_type: mime, data },
+              },
+              {
+                text: "List recognizable food ingredients visible in this meal photo. Output ONLY a comma-separated list of ingredient names, no other text.",
+              },
+            ],
+          },
+        ],
+        GEMINI_TEXT_TIMEOUT_MS,
+        CHEF_VISION_MODEL,
+      );
       return NextResponse.json({ ingredients: text });
     }
 
@@ -675,24 +576,24 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-      const text = await callGeminiText(apiKey, [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `You are ChefNode for LifeNodeOS. The user said: "${userRequest}"
+      const text = await callGeminiText(
+        apiKey,
+        [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `ChefNode. User: "${userRequest}"
 
-If they already named ONE very specific dish (e.g. "Turkey Lasagna recipe", exact restaurant dish name), return JSON:
-{ "phase": "direct", "message": "one short minimalist sentence", "mealTitle": "the exact dish name to cook" }
-
-Otherwise Phase 1 only — do NOT give a recipe. Return JSON:
-{ "phase": "discovery", "message": "one short warm minimalist line", "options": [ {"title": "Short meal name", "tagline": "6 words max vibe"}, x3 ] }
-
-Exactly 3 options in discovery. No markdown, no code fences, JSON only.`,
-            },
-          ],
-        },
-      ]);
+If ONE specific dish is named, JSON: { "phase": "direct", "message": "short line", "mealTitle": "dish name" }
+Else discovery only (no recipe): { "phase": "discovery", "message": "short line", "options": [{"title","tagline"}, x3] }
+JSON only.`,
+              },
+            ],
+          },
+        ],
+        GEMINI_DISCOVER_TIMEOUT_MS,
+      );
       const parsed = parseJsonLoose(text);
       const phase =
         parsed?.phase === "direct" ? "direct" : "discovery";

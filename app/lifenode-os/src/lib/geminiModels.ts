@@ -7,7 +7,7 @@
  * Audio: GOOGLE_GEMINI_AUDIO_MODEL → falls back to text model
  */
 
-export const DEFAULT_GEMINI_TEXT_MODEL = "gemini-3.1-flash-lite";
+export const DEFAULT_GEMINI_TEXT_MODEL = "gemini-2.0-flash";
 
 export const DEFAULT_GEMINI_MULTIMODAL_MODEL = "gemini-3.1-flash-image-preview";
 
