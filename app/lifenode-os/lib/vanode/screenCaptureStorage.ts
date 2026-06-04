@@ -11,17 +11,32 @@ export type ScreenCaptureRecord = {
   durationSec: number;
   includeMic: boolean;
   sizeBytes: number;
+  clientId?: string | null;
 };
 
-const MANIFEST_KEY = "lifenode.vanode.screen-captures.v1";
-const DB_NAME = "lifenode-vanode-screen-captures";
+let captureUserScope: string | undefined;
+
+export function setScreenCaptureUserScope(userId: string | undefined) {
+  captureUserScope = userId?.trim() || undefined;
+}
+
+function manifestKey() {
+  const base = "lifenode.vanode.screen-captures.v1";
+  return captureUserScope ? `${base}::${captureUserScope}` : base;
+}
+
+function dbName() {
+  const base = "lifenode-vanode-screen-captures";
+  return captureUserScope ? `${base}::${captureUserScope}` : base;
+}
+
 const DB_VERSION = 1;
 const STORE = "videos";
 
 function readManifest(): ScreenCaptureRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(MANIFEST_KEY);
+    const raw = window.localStorage.getItem(manifestKey());
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? (parsed as ScreenCaptureRecord[]) : [];
@@ -32,12 +47,12 @@ function readManifest(): ScreenCaptureRecord[] {
 
 function writeManifest(rows: ScreenCaptureRecord[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(MANIFEST_KEY, JSON.stringify(rows.slice(0, 24)));
+  window.localStorage.setItem(manifestKey(), JSON.stringify(rows.slice(0, 24)));
 }
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(dbName(), DB_VERSION);
     req.onerror = () => reject(req.error);
     req.onsuccess = () => resolve(req.result);
     req.onupgradeneeded = () => {
@@ -71,6 +86,7 @@ export async function saveScreenCapture(
     mimeType: string;
     durationSec: number;
     includeMic: boolean;
+    clientId?: string | null;
   },
 ): Promise<ScreenCaptureRecord> {
   const id = crypto.randomUUID();
@@ -82,6 +98,7 @@ export async function saveScreenCapture(
     durationSec: meta.durationSec,
     includeMic: meta.includeMic,
     sizeBytes: blob.size,
+    clientId: meta.clientId ?? null,
   };
 
   const db = await openDb();

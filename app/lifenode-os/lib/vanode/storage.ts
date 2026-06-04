@@ -6,10 +6,10 @@ import type {
 } from "./types";
 import { VANODE_STORAGE_KEY, defaultVanodePersisted } from "./constants";
 
-export function loadVanode(): VanodePersisted {
+export function loadVanode(storageKey: string = VANODE_STORAGE_KEY): VanodePersisted {
   if (typeof window === "undefined") return defaultVanodePersisted();
   try {
-    const raw = localStorage.getItem(VANODE_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return defaultVanodePersisted();
     const parsed = JSON.parse(raw) as Partial<VanodePersisted>;
     const d = defaultVanodePersisted();
@@ -97,7 +97,10 @@ export function loadVanode(): VanodePersisted {
   }
 }
 
-export function saveVanode(data: VanodePersisted) {
+export function saveVanode(
+  data: VanodePersisted,
+  storageKey: string = VANODE_STORAGE_KEY,
+) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(VANODE_STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(storageKey, JSON.stringify(data));
 }

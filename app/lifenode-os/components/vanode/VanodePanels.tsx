@@ -110,13 +110,25 @@ type InvoiceLineRow = {
 };
 
 const DEFAULT_MANUAL_INVOICE_LINES: InvoiceLineRow[] = [
-  { description: "Professional services", amount: "500", unit: "currency" },
   { description: "Hours Billed", amount: "", unit: "hours" },
   { description: "Days Worked", amount: "", unit: "days" },
+  { description: "Professional services", amount: "500", unit: "currency" },
 ];
 
 function unitForRow(row: InvoiceLineRow): InvoiceLineUnit {
   return row.unit ?? lineUnitForDescription(row.description);
+}
+
+function sortInvoiceLineRows<T extends { unit?: InvoiceLineUnit; description: string }>(
+  rows: T[],
+): T[] {
+  const rank = (u: InvoiceLineUnit) =>
+    u === "hours" ? 0 : u === "days" ? 1 : 2;
+  return [...rows].sort(
+    (a, b) =>
+      rank(a.unit ?? lineUnitForDescription(a.description)) -
+      rank(b.unit ?? lineUnitForDescription(b.description)),
+  );
 }
 
 function mockAiFromThread(thread: string) {
@@ -1649,6 +1661,7 @@ function ClientCredentialMiniForm({
 }) {
   const [label, setLabel] = useState("");
   const [secret, setSecret] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-xl border border-dashed border-teal-200/60 bg-white/40 p-3">
       <div className="text-[10px] font-bold uppercase tracking-wide text-teal-900/80">
@@ -1661,13 +1674,27 @@ function ClientCredentialMiniForm({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
-        <input
-          type="password"
-          className={`min-w-[8rem] flex-1 text-xs ${clientCommandInputClass}`}
-          placeholder="Secret / code"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-        />
+        <div className="relative min-w-[8rem] flex-1">
+          <input
+            type={showSecret ? "text" : "password"}
+            className={`w-full pr-8 text-xs ${clientCommandInputClass}`}
+            placeholder="Secret / code"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+          />
+          <button
+            type="button"
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-100"
+            aria-label={showSecret ? "Hide password" : "Show password"}
+            onClick={() => setShowSecret((v) => !v)}
+          >
+            {showSecret ? (
+              <EyeOff className="h-3.5 w-3.5" />
+            ) : (
+              <Eye className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
         <button
           type="button"
           className="rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-bold text-white"
@@ -2111,15 +2138,17 @@ export function InvoicingSuiteCard({
           unit: unitForRow(r),
         });
       }
-      return rows;
+      return sortInvoiceLineRows(rows);
     }
-    return lineRows
-      .filter((r) => r.description.trim())
-      .map((r) => ({
-        description: r.description.trim(),
-        amount: parseFloat(r.amount) || 0,
-        unit: unitForRow(r),
-      }));
+    return sortInvoiceLineRows(
+      lineRows
+        .filter((r) => r.description.trim())
+        .map((r) => ({
+          description: r.description.trim(),
+          amount: parseFloat(r.amount) || 0,
+          unit: unitForRow(r),
+        })),
+    );
   }, [mode, eodLogs, pickedEod, amount, lineRows]);
 
   const previewClientLabel = useMemo(() => {
@@ -2621,11 +2650,6 @@ export function InvoicingSuiteCard({
                 {ownerFullName.trim() ? (
                   <p className="text-sm text-slate-600">{ownerFullName.trim()}</p>
                 ) : null}
-                {sigDesignation.trim() ? (
-                  <p className="text-sm font-semibold text-slate-600">
-                    {sigDesignation.trim()}
-                  </p>
-                ) : null}
                 <p className="mt-1 text-sm text-slate-600">
                   <strong>Bill to:</strong> {previewClientLabel}
                 </p>
@@ -2727,11 +2751,6 @@ export function InvoicingSuiteCard({
               ) : null}
               {ownerFullName.trim() ? (
                 <p className="text-sm text-slate-600">{ownerFullName.trim()}</p>
-              ) : null}
-              {sigDesignation.trim() ? (
-                <p className="text-sm font-semibold text-slate-600">
-                  {sigDesignation.trim()}
-                </p>
               ) : null}
               <p className="mt-1 text-sm text-slate-600">
                 <strong>Bill to:</strong> {previewClientLabel}

@@ -743,9 +743,9 @@ export function LiveMeetingCaptureCard({
         {toTitleCase("Live meeting · webinar · interview")}
       </h2>
       <p className="mb-4 text-sm text-slate-600">
-        Activate when the session starts. Capture keeps running while you browse
-        other nodes — watch the floating transcript card. AI recap + download +
-        vault save.
+        Activate when the session starts. The floating Live capture card stays on
+        top while you switch VANode tabs, LifeNode nodes, or use Zoom / Google Meet
+        (allow mic + tab audio when sharing). AI recap + download + vault save.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

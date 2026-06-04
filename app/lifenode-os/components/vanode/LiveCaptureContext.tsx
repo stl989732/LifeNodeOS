@@ -51,7 +51,7 @@ function LiveCaptureFloatingCard({
 
   return createPortal(
     <div
-      className="pointer-events-auto fixed bottom-5 right-5 z-[5000] w-[min(420px,calc(100vw-2rem))] rounded-2xl border border-white/30 bg-slate-900/72 px-4 py-3 text-white shadow-2xl backdrop-blur-xl"
+      className="pointer-events-auto fixed bottom-5 right-5 z-[99990] w-[min(440px,calc(100vw-2rem))] rounded-2xl border border-teal-400/40 bg-slate-900/88 px-4 py-3 text-white shadow-[0_12px_48px_rgba(0,0,0,0.45)] backdrop-blur-md"
       role="status"
       aria-live="polite"
     >
@@ -74,7 +74,10 @@ function LiveCaptureFloatingCard({
         </button>
       </div>
       <p className="mt-1 truncate text-[11px] text-white/70">{title || "Session"}</p>
-      <div className="mt-2 max-h-32 overflow-y-auto text-sm leading-relaxed text-white/95">
+      <p className="mt-0.5 text-[10px] text-teal-200/90">
+        Stays on top while you switch tabs, nodes, or use Zoom / Meet (mic + tab audio when shared).
+      </p>
+      <div className="mt-2 max-h-40 overflow-y-auto text-sm leading-relaxed text-white/95">
         {transcriptText.trim() ? (
           <p className="whitespace-pre-wrap">{transcriptText}</p>
         ) : (

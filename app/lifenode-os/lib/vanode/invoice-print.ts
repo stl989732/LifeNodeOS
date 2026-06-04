@@ -91,7 +91,6 @@ function buildInvoicePrintHtml(inv: Invoice): string {
     <h1>Invoice</h1>
     ${biz ? `<p class="biz">${escapeHtml(biz)}</p>` : ""}
     ${owner ? `<p class="owner">${escapeHtml(owner)}</p>` : ""}
-    ${sigRole && owner ? `<p class="sig-role">${escapeHtml(sigRole)}</p>` : ""}
     <div class="meta">
       <div><strong>Bill to:</strong> ${escapeHtml(inv.clientName)}</div>
       <div><strong>Due:</strong> ${escapeHtml(inv.dueDate)}</div>

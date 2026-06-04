@@ -1,8 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { defaultVanodePersisted } from "@/lib/vanode/constants";
+import { VANODE_STORAGE_KEY } from "@/lib/vanode/constants";
+import { syncActiveClientSession } from "@/lib/vanode/activeClientSession";
+import { resolveClientIdForWrite } from "@/lib/vanode/clientScope";
 import { loadVanode, saveVanode } from "@/lib/vanode/storage";
+import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
+import { setScreenCaptureUserScope } from "@/lib/vanode/screenCaptureStorage";
 import {
   NODE_WIDGET_KEYS,
   fetchNodeWidgets,
@@ -32,6 +38,10 @@ function uid() {
 }
 
 export function useVanodeStore() {
+  const { data: session, status: sessionStatus } = useSession();
+  const userId = session?.user?.id;
+  const storageKey = userScopedStorageKey(VANODE_STORAGE_KEY, userId);
+
   const [data, setData] = useState<VanodePersisted>(() =>
     defaultVanodePersisted()
   );
@@ -39,8 +49,16 @@ export function useVanodeStore() {
   const [bootstrapped, setBootstrapped] = useState(false);
 
   useEffect(() => {
+    setScreenCaptureUserScope(userId);
+  }, [userId]);
+
+  useEffect(() => {
+    if (sessionStatus === "loading") return;
+    persistReady.current = false;
+    setBootstrapped(false);
+
     const id = requestAnimationFrame(() => {
-      const loaded = loadVanode();
+      const loaded = loadVanode(storageKey);
       const pending = readPendingWhiteboardVault();
       const applyLoaded = (base: VanodePersisted) => {
         if (pending.length) {
@@ -67,23 +85,24 @@ export function useVanodeStore() {
         }
         const merged = applyLoaded(base);
         if (serverPayload && typeof serverPayload === "object") {
-          saveVanode(merged);
+          saveVanode(merged, storageKey);
         } else {
           scheduleNodeWidgetSave(NODE_WIDGET_KEYS.vanode.dashboard, merged, 200);
         }
         setData(merged);
+        syncActiveClientSession(merged.activeClientId);
         persistReady.current = true;
         setBootstrapped(true);
       })();
     });
     return () => cancelAnimationFrame(id);
-  }, []);
+  }, [storageKey, sessionStatus]);
 
   useEffect(() => {
     if (!persistReady.current) return;
-    saveVanode(data);
+    saveVanode(data, storageKey);
     scheduleNodeWidgetSave(NODE_WIDGET_KEYS.vanode.dashboard, data);
-  }, [data]);
+  }, [data, storageKey]);
 
   const setDiscoveryComplete = useCallback((v: boolean) => {
     setData((d) => ({ ...d, discoveryComplete: v }));
@@ -228,13 +247,17 @@ export function useVanodeStore() {
   }, []);
 
   const addNote = useCallback((n: Omit<Note, "id" | "updatedAt">) => {
-    const row: Note = {
-      ...n,
-      id: uid(),
-      updatedAt: new Date().toISOString(),
-    };
-    setData((d) => ({ ...d, notes: [row, ...d.notes] }));
-    return row.id;
+    const id = uid();
+    setData((d) => {
+      const row: Note = {
+        ...n,
+        clientId: resolveClientIdForWrite(d.activeClientId, n.clientId),
+        id,
+        updatedAt: new Date().toISOString(),
+      };
+      return { ...d, notes: [row, ...d.notes] };
+    });
+    return id;
   }, []);
 
   const updateNote = useCallback((id: string, patch: Partial<Note>) => {
@@ -253,12 +276,23 @@ export function useVanodeStore() {
   }, []);
 
   const addEodLog = useCallback((log: Omit<EodLog, "id" | "createdAt">) => {
-    const row: EodLog = {
+    const id = uid();
+    const createdAt = new Date().toISOString();
+    let row: EodLog = {
       ...log,
-      id: uid(),
-      createdAt: new Date().toISOString(),
+      clientId: log.clientId,
+      id,
+      createdAt,
     };
-    setData((d) => ({ ...d, eodLogs: [row, ...d.eodLogs] }));
+    setData((d) => {
+      row = {
+        ...log,
+        clientId: resolveClientIdForWrite(d.activeClientId, log.clientId),
+        id,
+        createdAt,
+      };
+      return { ...d, eodLogs: [row, ...d.eodLogs] };
+    });
     return row;
   }, []);
 
@@ -283,13 +317,18 @@ export function useVanodeStore() {
   }, []);
 
   const addInvoice = useCallback((inv: Omit<Invoice, "id" | "createdAt">) => {
-    const row: Invoice = {
-      ...inv,
-      id: uid(),
-      createdAt: new Date().toISOString(),
-    };
-    setData((d) => ({ ...d, invoices: [row, ...d.invoices] }));
-    return row;
+    const id = uid();
+    const createdAt = new Date().toISOString();
+    setData((d) => {
+      const row: Invoice = {
+        ...inv,
+        clientId: resolveClientIdForWrite(d.activeClientId, inv.clientId),
+        id,
+        createdAt,
+      };
+      return { ...d, invoices: [row, ...d.invoices] };
+    });
+    return { id, createdAt, ...inv };
   }, []);
 
   const updateInvoice = useCallback((id: string, patch: Partial<Invoice>) => {

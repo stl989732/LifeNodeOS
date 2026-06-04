@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Circle, Mic, MicOff, Square } from "lucide-react";
+import { readActiveClientSession } from "@/lib/vanode/activeClientSession";
 import {
   pickScreenRecorderMime,
   saveScreenCapture,
@@ -252,6 +253,7 @@ export function ScreenRecordingProvider({
             mimeType: mimeRef.current.mimeType,
             durationSec,
             includeMic: usedMic,
+            clientId: readActiveClientSession(),
           });
           setLastSavedId(record.id);
           onSaved?.(record);

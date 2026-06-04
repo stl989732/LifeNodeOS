@@ -39,3 +39,7 @@ export function useActiveClient(): ActiveClientContextValue {
   }
   return v;
 }
+
+export function useActiveClientOptional(): ActiveClientContextValue | null {
+  return useContext(ActiveClientContext);
+}

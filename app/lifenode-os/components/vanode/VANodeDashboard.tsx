@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -24,7 +24,6 @@ import DualRailCommandCenter, {
 import {
   LIFENODE_CHROME_BACK,
 } from "@/src/components/NodeNavChrome";
-import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { useWhiteboardVaultBridge } from "@/src/context/WhiteboardVaultBridgeContext";
 import { toTitleCase } from "@/lib/vanode/title-case";
 import { ActiveClientProvider } from "./ActiveClientContext";
@@ -162,9 +161,7 @@ function VaSyncedStatusBar({
 }
 
 export function VANodeDashboard() {
-  const router = useRouter();
   const store = useVanodeStore();
-  const { openHatGallery } = useLifeNodeContext();
 
   useServerOnboardingComplete(
     "VANode",
@@ -345,17 +342,6 @@ export function VANodeDashboard() {
               Re-run discovery
             </button>
             <VanodeExportBackupMenu data={store.data} />
-            <button
-              type="button"
-              onClick={() => {
-                if (!openHatGallery()) {
-                  router.push("/shell");
-                }
-              }}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-slate-800"
-            >
-              LifeNode Dashboard
-            </button>
           </div>
         </div>
       </header>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Share2, Trash2 } from "lucide-react";
+import { useActiveClientOptional } from "./ActiveClientContext";
 import {
   deleteScreenCapture,
   downloadScreenCapture,
@@ -22,8 +23,15 @@ function downloadAs(blob: Blob, filename: string) {
 }
 
 export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
+  const active = useActiveClientOptional();
+  const activeClientId = active?.activeClientId ?? null;
   const [rows, setRows] = useState<ScreenCaptureRecord[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const visibleRows = useMemo(() => {
+    if (!activeClientId) return rows;
+    return rows.filter((r) => r.clientId === activeClientId);
+  }, [rows, activeClientId]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -97,7 +105,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
     );
   }
 
-  if (rows.length === 0) {
+  if (visibleRows.length === 0 && !loading) {
     return (
       <p className="text-xs text-slate-500">
         Finished recordings appear here as video files — download WebM or MP4
@@ -108,7 +116,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
 
   return (
     <ul className="space-y-2">
-      {rows.map((row) => {
+      {visibleRows.map((row) => {
         const isMp4 =
           row.mimeType.includes("mp4") ||
           row.filename.toLowerCase().endsWith(".mp4");
