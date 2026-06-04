@@ -1,4 +1,9 @@
 import type { Invoice } from "./types";
+import {
+  countsTowardInvoiceTotal,
+  formatInvoiceLineAmount,
+  lineUnitForDescription,
+} from "./invoice-lines";
 
 const SIG_FONT =
   '"Brush Script MT", "Segoe Script", "Apple Chancery", "Snell Roundhand", cursive';
@@ -21,12 +26,16 @@ function escapeAttr(s: string) {
 }
 
 function buildInvoicePrintHtml(inv: Invoice): string {
-  const total = inv.lineItems.reduce((s, l) => s + l.amount, 0);
+  const total = inv.lineItems.reduce((s, l) => {
+    const u = l.unit ?? lineUnitForDescription(l.description);
+    return countsTowardInvoiceTotal(u) ? s + l.amount : s;
+  }, 0);
   const rows = inv.lineItems
-    .map(
-      (l) =>
-        `<tr><td class="desc">${escapeMultiline(l.description)}</td><td class="amt">$${l.amount.toFixed(2)}</td></tr>`,
-    )
+    .map((l) => {
+      const u = l.unit ?? lineUnitForDescription(l.description);
+      const amt = formatInvoiceLineAmount(l.description, l.amount, u);
+      return `<tr><td class="desc">${escapeMultiline(l.description)}</td><td class="amt">${escapeHtml(amt)}</td></tr>`;
+    })
     .join("");
 
   const biz = inv.businessAgencyName?.trim();
@@ -82,6 +91,7 @@ function buildInvoicePrintHtml(inv: Invoice): string {
     <h1>Invoice</h1>
     ${biz ? `<p class="biz">${escapeHtml(biz)}</p>` : ""}
     ${owner ? `<p class="owner">${escapeHtml(owner)}</p>` : ""}
+    ${sigRole && owner ? `<p class="sig-role">${escapeHtml(sigRole)}</p>` : ""}
     <div class="meta">
       <div><strong>Bill to:</strong> ${escapeHtml(inv.clientName)}</div>
       <div><strong>Due:</strong> ${escapeHtml(inv.dueDate)}</div>

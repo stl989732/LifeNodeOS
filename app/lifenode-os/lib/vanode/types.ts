@@ -73,7 +73,11 @@ export type Invoice = {
   id: string;
   clientId: string | null;
   clientName: string;
-  lineItems: { description: string; amount: number }[];
+  lineItems: {
+    description: string;
+    amount: number;
+    unit?: "currency" | "hours" | "days";
+  }[];
   dueDate: string;
   status: InvoiceStatus;
   createdAt: string;

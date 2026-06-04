@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Bot,
@@ -21,6 +21,8 @@ import {
   Copy,
   Check,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useActiveClient } from "./ActiveClientContext";
 import { ScreenRecorder } from "./ScreenRecorder";
@@ -35,6 +37,13 @@ import {
 } from "@/lib/vanode/clientWorkHours";
 import { isTranscribableMeetingUrl } from "@/lib/vanode/meetingUrls";
 import { VaultNoteBody } from "./VaultNoteBody";
+import { ScreenRecordingRefreshContext } from "./ScreenRecordingRoot";
+import {
+  countsTowardInvoiceTotal,
+  formatInvoiceLineAmount,
+  lineUnitForDescription,
+  type InvoiceLineUnit,
+} from "@/lib/vanode/invoice-lines";
 import { toTitleCase } from "@/lib/vanode/title-case";
 import type {
   ClientProfile,
@@ -94,11 +103,21 @@ async function fetchVanodeAi(payload: Record<string, unknown>) {
   return data;
 }
 
-const DEFAULT_MANUAL_INVOICE_LINES = [
-  { description: "Professional services", amount: "500" },
-  { description: "Hours Billed", amount: "" },
-  { description: "Days Worked", amount: "" },
+type InvoiceLineRow = {
+  description: string;
+  amount: string;
+  unit: InvoiceLineUnit;
+};
+
+const DEFAULT_MANUAL_INVOICE_LINES: InvoiceLineRow[] = [
+  { description: "Professional services", amount: "500", unit: "currency" },
+  { description: "Hours Billed", amount: "", unit: "hours" },
+  { description: "Days Worked", amount: "", unit: "days" },
 ];
+
+function unitForRow(row: InvoiceLineRow): InvoiceLineUnit {
+  return row.unit ?? lineUnitForDescription(row.description);
+}
 
 function mockAiFromThread(thread: string) {
   const lines = thread
@@ -130,6 +149,7 @@ export function EodReporterCard({
   onAddEod,
 }: EodProps) {
   const { activeClientId } = useActiveClient();
+  const globalCaptureRefresh = useContext(ScreenRecordingRefreshContext);
   const [clientId, setClientId] = useState<string>("");
   const [accomplishments, setAccomplishments] = useState("");
   const [timeSpent, setTimeSpent] = useState("");
@@ -223,31 +243,17 @@ export function EodReporterCard({
           </label>
         </div>
         <ScreenRecorder
-          onComplete={({ url, filename }) => {
-            setRecordingUrl(url);
-            setRecordingName(filename);
-            setCapturesRefresh((k) => k + 1);
-            setToast(
-              cloudSyncRecording
-                ? "Video saved on this device. Download or share below; cloud sync queued."
-                : "Video saved on this device — ready to download or share.",
-            );
-            setTimeout(() => setToast(null), 4000);
+          onError={(m) => {
+            setToast(m);
+            setTimeout(() => setToast(null), 5000);
           }}
-          onSaved={() => setCapturesRefresh((k) => k + 1)}
-          onError={(m) => setToast(m)}
         />
-        {recordingName && (
-          <p className="text-xs text-slate-600">
-            Latest capture: <strong>{recordingName}</strong>
-          </p>
-        )}
         <div className="mt-3 border-t border-white/50 pt-3">
           <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
             Saved on this device
           </p>
           <SavedScreenCaptures
-            refreshKey={capturesRefresh}
+            refreshKey={capturesRefresh + globalCaptureRefresh}
             onToast={(m) => {
               setToast(m);
               setTimeout(() => setToast(null), 3200);
@@ -484,6 +490,8 @@ export function SmartVaultCard({
   const [labelsRaw, setLabelsRaw] = useState("");
   const [filterLabel, setFilterLabel] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const formRef = useRef<HTMLDivElement>(null);
 
   const allLabels = useMemo(() => {
     const s = new Set<string>();
@@ -505,10 +513,14 @@ export function SmartVaultCard({
 
   const startEdit = (n: Note) => {
     setEditingId(n.id);
+    setEditingTitle(n.title);
     setTitle(n.title);
     setBody(n.body);
     setClientId(n.clientId ?? "");
     setLabelsRaw(n.labels.join(", "));
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   const saveEdit = () => {
@@ -524,6 +536,7 @@ export function SmartVaultCard({
       labels,
     });
     setEditingId(null);
+    setEditingTitle("");
     setTitle("");
     setBody("");
     setClientId("");
@@ -578,11 +591,22 @@ export function SmartVaultCard({
         </select>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      {editingId ? (
+        <div className="mb-4 rounded-xl border border-teal-300/80 bg-teal-50/80 px-4 py-3 text-sm text-teal-950">
+          <strong>Editing:</strong> {editingTitle || "Note"} — update fields below,
+          then click <strong>Update note</strong>.
+        </div>
+      ) : null}
+
+      <div
+        ref={formRef}
+        id="smart-vault-edit-form"
+        className="grid gap-4 md:grid-cols-2"
+      >
         <label className="text-sm font-medium text-slate-700">
           Title
           <input
-            className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm"
+            className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
@@ -590,7 +614,7 @@ export function SmartVaultCard({
         <label className="text-sm font-medium text-slate-700">
           Client
           <select
-            className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm disabled:opacity-60"
+            className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm text-slate-900 disabled:opacity-60"
             value={editingId ? clientId : (activeClientId ?? clientId)}
             disabled={Boolean(activeClientId) && !editingId}
             onChange={(e) => setClientId(e.target.value)}
@@ -606,7 +630,7 @@ export function SmartVaultCard({
         <label className="md:col-span-2 text-sm font-medium text-slate-700">
           Labels (comma-separated)
           <input
-            className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm"
+            className="mt-1.5 w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
             placeholder="Client A, Standard Operating Procedures"
             value={labelsRaw}
             onChange={(e) => setLabelsRaw(e.target.value)}
@@ -615,7 +639,7 @@ export function SmartVaultCard({
         <label className="md:col-span-2 text-sm font-medium text-slate-700">
           Body
           <textarea
-            className="mt-1.5 min-h-[100px] w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm"
+            className="mt-1.5 min-h-[100px] w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
@@ -635,6 +659,7 @@ export function SmartVaultCard({
               type="button"
               onClick={() => {
                 setEditingId(null);
+                setEditingTitle("");
                 setTitle("");
                 setBody("");
                 setClientId("");
@@ -1582,6 +1607,41 @@ function newCredentialId() {
     : `cred_${Math.random().toString(36).slice(2, 11)}`;
 }
 
+const clientCommandInputClass =
+  "rounded-xl border border-slate-300/90 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/25";
+
+function ClientCredentialRow({
+  label,
+  secret,
+}: {
+  label: string;
+  secret: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <li className="flex items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5">
+      <span className="font-medium text-slate-800">{label}</span>
+      <div className="flex min-w-0 items-center gap-1">
+        <span className="truncate font-mono text-slate-700">
+          {visible ? secret : "••••••••"}
+        </span>
+        <button
+          type="button"
+          className="shrink-0 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          aria-label={visible ? "Hide password" : "Show password"}
+          onClick={() => setVisible((v) => !v)}
+        >
+          {visible ? (
+            <EyeOff className="h-3.5 w-3.5" />
+          ) : (
+            <Eye className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+    </li>
+  );
+}
+
 function ClientCredentialMiniForm({
   onAdd,
 }: {
@@ -1596,13 +1656,14 @@ function ClientCredentialMiniForm({
       </div>
       <div className="flex flex-wrap gap-2">
         <input
-          className="min-w-[8rem] flex-1 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5 text-xs"
+          className={`min-w-[8rem] flex-1 text-xs ${clientCommandInputClass}`}
           placeholder="Label (e.g. Portal 2FA)"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
         <input
-          className="min-w-[8rem] flex-1 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5 text-xs"
+          type="password"
+          className={`min-w-[8rem] flex-1 text-xs ${clientCommandInputClass}`}
           placeholder="Secret / code"
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
@@ -1684,19 +1745,19 @@ export function ClientCommandCard({
 
       <div className="mb-6 grid gap-3 md:grid-cols-3">
         <input
-          className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm"
+          className={clientCommandInputClass}
           placeholder="Client name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
-          className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm"
+          className={clientCommandInputClass}
           placeholder="Industry"
           value={industry}
           onChange={(e) => setIndustry(e.target.value)}
         />
         <select
-          className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm"
+          className={clientCommandInputClass}
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
         >
@@ -1711,14 +1772,14 @@ export function ClientCommandCard({
           <div className="mt-1 flex items-center gap-2">
             <input
               type="time"
-              className="flex-1 rounded-xl border border-slate-200/80 bg-white/70 px-2 py-2 text-sm"
+              className={`flex-1 ${clientCommandInputClass}`}
               value={newWorkStart}
               onChange={(e) => setNewWorkStart(e.target.value)}
             />
             <span className="text-slate-400">to</span>
             <input
               type="time"
-              className="flex-1 rounded-xl border border-slate-200/80 bg-white/70 px-2 py-2 text-sm"
+              className={`flex-1 ${clientCommandInputClass}`}
               value={newWorkEnd}
               onChange={(e) => setNewWorkEnd(e.target.value)}
             />
@@ -1798,7 +1859,7 @@ export function ClientCommandCard({
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input
                   type="time"
-                  className="rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5 text-sm"
+                  className={clientCommandInputClass}
                   value={c.workStart ?? DEFAULT_WORK_START}
                   onChange={(e) =>
                     onUpdateClient(c.id, { workStart: e.target.value })
@@ -1807,7 +1868,7 @@ export function ClientCommandCard({
                 <span className="text-xs text-slate-500">to</span>
                 <input
                   type="time"
-                  className="rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5 text-sm"
+                  className={clientCommandInputClass}
                   value={c.workEnd ?? DEFAULT_WORK_END}
                   onChange={(e) =>
                     onUpdateClient(c.id, { workEnd: e.target.value })
@@ -1835,13 +1896,11 @@ export function ClientCommandCard({
             </div>
             <ul className="mt-1 space-y-1 text-xs text-slate-600">
               {(c.credentials ?? []).map((cr) => (
-                <li
+                <ClientCredentialRow
                   key={cr.id}
-                  className="flex justify-between gap-2 rounded-lg bg-white/50 px-2 py-1"
-                >
-                  <span className="font-medium text-slate-800">{cr.label}</span>
-                  <span className="truncate font-mono text-slate-500">{cr.secret}</span>
-                </li>
+                  label={cr.label}
+                  secret={cr.secret}
+                />
               ))}
               {(c.credentials ?? []).length === 0 ? (
                 <li className="text-slate-500">None yet — add below.</li>
@@ -1892,9 +1951,9 @@ export function InvoicingSuiteCard({
   const [clientName, setClientName] = useState("");
   const [clientId, setClientId] = useState("");
   const [due, setDue] = useState("");
-  const [lineRows, setLineRows] = useState<
-    { description: string; amount: string }[]
-  >(() => [...DEFAULT_MANUAL_INVOICE_LINES]);
+  const [lineRows, setLineRows] = useState<InvoiceLineRow[]>(() => [
+    ...DEFAULT_MANUAL_INVOICE_LINES,
+  ]);
   const [amount, setAmount] = useState("500");
   const [pickedEod, setPickedEod] = useState<string[]>([]);
   const [status, setStatus] = useState<InvoiceStatus>("draft");
@@ -1944,7 +2003,11 @@ export function InvoicingSuiteCard({
   }, [visibleInvoices]);
 
   const submitInvoice = () => {
-    let lineItems: { description: string; amount: number }[];
+    let lineItems: {
+      description: string;
+      amount: number;
+      unit?: InvoiceLineUnit;
+    }[];
     let cName = clientName;
     let cid = clientId || null;
     let eodIds: string[] = [];
@@ -1962,8 +2025,21 @@ export function InvoicingSuiteCard({
         {
           description: `EOD bundle (${logs.length} logs)\n${text}`,
           amount: parseFloat(amount) || logs.length * 150,
+          unit: "currency",
         },
       ];
+      const extra = lineRows
+        .filter((r) => r.description.trim())
+        .filter((r) => unitForRow(r) !== "currency");
+      for (const r of extra) {
+        const amt = parseFloat(r.amount);
+        if (!Number.isFinite(amt) || amt <= 0) continue;
+        lineItems.push({
+          description: r.description.trim(),
+          amount: amt,
+          unit: unitForRow(r),
+        });
+      }
       const first = logs[0];
       if (first?.clientId) {
         cid = first.clientId;
@@ -1975,6 +2051,7 @@ export function InvoicingSuiteCard({
         .map((r) => ({
           description: r.description.trim(),
           amount: parseFloat(r.amount) || 0,
+          unit: unitForRow(r),
         }));
       if (!lineItems.length) {
         lineItems = [{ description: "Line item", amount: 0 }];
@@ -2009,27 +2086,39 @@ export function InvoicingSuiteCard({
   const previewLines = useMemo(() => {
     if (mode === "eod") {
       const logs = eodLogs.filter((l) => pickedEod.includes(l.id));
+      const rows: { description: string; amount: number; unit?: InvoiceLineUnit }[] =
+        [];
       if (!logs.length) {
-        return [{ description: "Select EOD logs…", amount: 0 }];
-      }
-      const text = logs
-        .map(
-          (l) =>
-            `${l.accomplishments.slice(0, 120)}${l.accomplishments.length > 120 ? "…" : ""}`
-        )
-        .join(" · ");
-      return [
-        {
+        rows.push({ description: "Select EOD logs…", amount: 0, unit: "currency" });
+      } else {
+        const text = logs
+          .map(
+            (l) =>
+              `${l.accomplishments.slice(0, 120)}${l.accomplishments.length > 120 ? "…" : ""}`
+          )
+          .join(" · ");
+        rows.push({
           description: `EOD bundle (${logs.length})\n${text}`,
           amount: parseFloat(amount) || logs.length * 150,
-        },
-      ];
+          unit: "currency",
+        });
+      }
+      for (const r of lineRows) {
+        if (!r.description.trim() || unitForRow(r) === "currency") continue;
+        rows.push({
+          description: r.description.trim(),
+          amount: parseFloat(r.amount) || 0,
+          unit: unitForRow(r),
+        });
+      }
+      return rows;
     }
     return lineRows
       .filter((r) => r.description.trim())
       .map((r) => ({
         description: r.description.trim(),
         amount: parseFloat(r.amount) || 0,
+        unit: unitForRow(r),
       }));
   }, [mode, eodLogs, pickedEod, amount, lineRows]);
 
@@ -2039,7 +2128,11 @@ export function InvoicingSuiteCard({
   }, [clientName]);
 
   const previewTotal = useMemo(
-    () => previewLines.reduce((s, l) => s + l.amount, 0),
+    () =>
+      previewLines.reduce((s, l) => {
+        const u = l.unit ?? lineUnitForDescription(l.description);
+        return countsTowardInvoiceTotal(u) ? s + l.amount : s;
+      }, 0),
     [previewLines],
   );
 
@@ -2266,7 +2359,7 @@ export function InvoicingSuiteCard({
                         onClick={() =>
                           setLineRows((rows) => [
                             ...rows,
-                            { description: "", amount: "" },
+                            { description: "", amount: "", unit: "currency" },
                           ])
                         }
                         className="rounded-lg border border-[#00ffc8]/40 px-2 py-1 text-[10px] text-[#00ffc8] hover:bg-[#00ffc8]/10"
@@ -2274,25 +2367,36 @@ export function InvoicingSuiteCard({
                         + Row
                       </button>
                     </div>
-                    {lineRows.map((row, idx) => (
+                    {lineRows.map((row, idx) => {
+                      const unit = unitForRow(row);
+                      const qty = unit !== "currency";
+                      return (
                       <div key={idx} className="flex gap-2">
                         <input
                           className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-slate-100"
                           placeholder="Description"
                           value={row.description}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const description = e.target.value;
                             setLineRows((rows) =>
                               rows.map((r, i) =>
                                 i === idx
-                                  ? { ...r, description: e.target.value }
+                                  ? {
+                                      ...r,
+                                      description,
+                                      unit: lineUnitForDescription(description),
+                                    }
                                   : r
                               )
-                            )
-                          }
+                            );
+                          }}
                         />
                         <input
+                          type="number"
+                          min={0}
+                          step={qty ? 1 : 0.01}
                           className="w-24 shrink-0 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-right text-slate-100"
-                          placeholder="$"
+                          placeholder={qty ? "#" : "$"}
                           value={row.amount}
                           onChange={(e) =>
                             setLineRows((rows) =>
@@ -2317,13 +2421,15 @@ export function InvoicingSuiteCard({
                           </button>
                         ) : null}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-1 flex-col gap-3 text-sm text-slate-200">
                   <p className="text-slate-400">
                     Pull accomplishments from saved EOD logs into one invoice line.
+                    Add hours and days below (same as manual).
                   </p>
                   <ul className="max-h-52 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-slate-900/30 p-2">
                     {eodPickerLogs.map((l) => (
@@ -2362,6 +2468,44 @@ export function InvoicingSuiteCard({
                     value={due}
                     onChange={(e) => setDue(e.target.value)}
                   />
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Hours &amp; days
+                    </div>
+                    {lineRows
+                      .filter((r) => unitForRow(r) !== "currency")
+                      .map((row) => {
+                        const idx = lineRows.indexOf(row);
+                        const unit = unitForRow(row);
+                        return (
+                          <div key={idx} className="flex gap-2">
+                            <span className="flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-slate-900/30 px-2 py-2 text-xs text-slate-300">
+                              {row.description}
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              className="w-24 shrink-0 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-right text-slate-100"
+                              placeholder="#"
+                              value={row.amount}
+                              onChange={(e) =>
+                                setLineRows((rows) =>
+                                  rows.map((r, i) =>
+                                    i === idx
+                                      ? { ...r, amount: e.target.value }
+                                      : r
+                                  )
+                                )
+                              }
+                            />
+                            <span className="self-center text-[10px] uppercase text-slate-500">
+                              {unit === "hours" ? "hrs" : "days"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
                 </div>
               )}
 
@@ -2477,6 +2621,11 @@ export function InvoicingSuiteCard({
                 {ownerFullName.trim() ? (
                   <p className="text-sm text-slate-600">{ownerFullName.trim()}</p>
                 ) : null}
+                {sigDesignation.trim() ? (
+                  <p className="text-sm font-semibold text-slate-600">
+                    {sigDesignation.trim()}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-sm text-slate-600">
                   <strong>Bill to:</strong> {previewClientLabel}
                 </p>
@@ -2498,7 +2647,11 @@ export function InvoicingSuiteCard({
                           {l.description}
                         </td>
                         <td className="py-2 text-right font-mono tabular-nums text-slate-900">
-                          ${l.amount.toFixed(2)}
+                          {formatInvoiceLineAmount(
+                            l.description,
+                            l.amount,
+                            l.unit,
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -2575,6 +2728,11 @@ export function InvoicingSuiteCard({
               {ownerFullName.trim() ? (
                 <p className="text-sm text-slate-600">{ownerFullName.trim()}</p>
               ) : null}
+              {sigDesignation.trim() ? (
+                <p className="text-sm font-semibold text-slate-600">
+                  {sigDesignation.trim()}
+                </p>
+              ) : null}
               <p className="mt-1 text-sm text-slate-600">
                 <strong>Bill to:</strong> {previewClientLabel}
               </p>
@@ -2596,7 +2754,11 @@ export function InvoicingSuiteCard({
                         {l.description}
                       </td>
                       <td className="py-2 text-right font-mono tabular-nums text-slate-900">
-                        ${l.amount.toFixed(2)}
+                        {formatInvoiceLineAmount(
+                          l.description,
+                          l.amount,
+                          l.unit,
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -2615,6 +2777,11 @@ export function InvoicingSuiteCard({
                     }}
                   >
                     {sigTypedName.trim()}
+                  </p>
+                ) : null}
+                {sigDesignation.trim() ? (
+                  <p className="mt-1 text-sm font-semibold text-slate-600">
+                    {sigDesignation.trim()}
                   </p>
                 ) : null}
                 {sigMode === "upload" && sigImageDataUrl ? (

@@ -280,6 +280,40 @@ type RoiProps = {
   onPatchMetrics: (p: Partial<ValueMetrics>) => void;
 };
 
+function RoiMetricInput({
+  value,
+  onChange,
+  step = 1,
+  className = "",
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  step?: number;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+  return (
+    <input
+      type="number"
+      min={0}
+      step={step}
+      className={`w-16 rounded-lg border border-slate-300 bg-white px-2 py-1 text-center text-2xl font-bold tabular-nums text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/25 ${className}`}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const n = parseInt(draft, 10);
+        onChange(Number.isFinite(n) && n >= 0 ? n : 0);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
+
 export function ClientRoiCard({ metrics, onPatchMetrics }: RoiProps) {
   const [copied, setCopied] = useState(false);
   const { activeClientId, clients } = useActiveClient();
@@ -331,20 +365,21 @@ export function ClientRoiCard({ metrics, onPatchMetrics }: RoiProps) {
               className="rounded-lg border px-2 py-1 text-xs"
               onClick={() =>
                 onPatchMetrics({
-                  inboxTriaged: Math.max(0, metrics.inboxTriaged - 5),
+                  inboxTriaged: Math.max(0, metrics.inboxTriaged - 1),
                 })
               }
             >
               −
             </button>
-            <span className="text-2xl font-bold tabular-nums">
-              {metrics.inboxTriaged}
-            </span>
+            <RoiMetricInput
+              value={metrics.inboxTriaged}
+              onChange={(n) => onPatchMetrics({ inboxTriaged: n })}
+            />
             <button
               type="button"
               className="rounded-lg border px-2 py-1 text-xs"
               onClick={() =>
-                onPatchMetrics({ inboxTriaged: metrics.inboxTriaged + 5 })
+                onPatchMetrics({ inboxTriaged: metrics.inboxTriaged + 1 })
               }
             >
               +
@@ -362,20 +397,21 @@ export function ClientRoiCard({ metrics, onPatchMetrics }: RoiProps) {
               className="rounded-lg border px-2 py-1 text-xs"
               onClick={() =>
                 onPatchMetrics({
-                  inboxReplied: Math.max(0, metrics.inboxReplied - 5),
+                  inboxReplied: Math.max(0, metrics.inboxReplied - 1),
                 })
               }
             >
               −
             </button>
-            <span className="text-2xl font-bold tabular-nums">
-              {metrics.inboxReplied}
-            </span>
+            <RoiMetricInput
+              value={metrics.inboxReplied}
+              onChange={(n) => onPatchMetrics({ inboxReplied: n })}
+            />
             <button
               type="button"
               className="rounded-lg border px-2 py-1 text-xs"
               onClick={() =>
-                onPatchMetrics({ inboxReplied: metrics.inboxReplied + 5 })
+                onPatchMetrics({ inboxReplied: metrics.inboxReplied + 1 })
               }
             >
               +
@@ -402,9 +438,11 @@ export function ClientRoiCard({ metrics, onPatchMetrics }: RoiProps) {
             >
               −
             </button>
-            <span className="text-2xl font-bold tabular-nums text-emerald-950">
-              {metrics.hoursSavedThisMonth}
-            </span>
+            <RoiMetricInput
+              value={metrics.hoursSavedThisMonth}
+              onChange={(n) => onPatchMetrics({ hoursSavedThisMonth: n })}
+              className="text-emerald-950"
+            />
             <button
               type="button"
               className="rounded-lg border border-emerald-200 px-2 py-1 text-xs"
