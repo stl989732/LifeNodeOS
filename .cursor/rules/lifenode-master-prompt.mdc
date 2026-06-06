@@ -1,0 +1,34 @@
+---
+description: LifeNode OS master routing — incident response, UI/API/node workflows, commit+push after verified changes
+alwaysApply: true
+---
+
+# LifeNode OS — Master Rule
+
+**Routing:** UI reviews → `web-design-guidelines`; API questions → Context7; node changes → Playwright on auth + OAuth flows.
+
+## Task routing
+
+| Task | Use |
+|------|-----|
+| UI/UX audit, a11y | `.agents/skills/web-design-guidelines/SKILL.md` |
+| Next.js / NextAuth / Supabase API syntax | Context7 MCP |
+| Node/integration changes | Playwright MCP after fix — sign-in + affected node + OAuth if touched |
+| Production errors, Sentry | Sentry MCP (`search_issues`, `analyze_issue_with_seer`) + `sentry-workflow` skill |
+| Schema / RLS / migrations | Supabase MCP (`list_tables`, `get_logs`, `get_advisors`) |
+| Deploy/build failures | Vercel MCP runtime + build logs |
+| Premium UI build | `ui-ux-expert` or `app/lifenode-os/.claude/skills/ui-ux-pro-max/` |
+
+App code: `app/lifenode-os/`. Nodes: BizNode, HomeNode, VitalNode, TraderNode, VANode, ProNode. Key tables: `user_connected_apps`, `user_integrations`, `user_shell_state`, `lifenode_trackers`. OAuth: `beginOAuthFlow` → `/api/integrations/[provider]/callback`. Never expose service role client-side.
+
+## Incident response (Sentry / user errors)
+
+Triage order: **Sentry → Supabase get_logs → Vercel runtime logs**. Propose minimal fix; state user-data impact. Context7 only for framework API fixes. Playwright regression on auth + affected node + OAuth when integrations touched. Full prompts: `docs/MASTER-RULE-PROMPT.md`.
+
+## General changes
+
+Read surrounding code; minimal diff. DB change → migration + Supabase check. API → Context7 for Next.js 16 patterns. UI → web-design-guidelines audit or ui-ux-expert for redesign. Verify: `npm run lint && npm run build` in `app/lifenode-os`.
+
+## After verified changes
+
+When the user requests completion or says to commit/push: run verification first, then commit (concise why-focused message) and push. Skip if verification fails, user said plan-only, or secrets would be committed.
