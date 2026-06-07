@@ -1,17 +1,15 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useLnFeatureParam, scrollToLnFeature } from "@/src/hooks/useLnFeatureParam";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   ArrowRight,
-  Brain,
-  Calculator,
   CheckCircle2,
   Clock,
   Layers3,
   Link2,
-  NotebookPen,
   Plus,
   RefreshCw,
   Settings2,
@@ -127,8 +125,6 @@ const FOCUS_MORE = [
   "Fulfillment Delays",
 ];
 
-const ALL_APPS = Object.values(APP_GROUPS).flat();
-
 function isAppOAuthConnected(appLabel, integrations) {
   const provider = appLabelToProvider(appLabel);
   if (!provider) return false;
@@ -138,6 +134,9 @@ function isAppOAuthConnected(appLabel, integrations) {
 export default function WorkNode() {
   const { data: session } = useSession();
   const userId = session?.user?.id ?? "";
+
+  useLnFeatureParam(useCallback((id) => scrollToLnFeature(id), []));
+
   const [syncStep, setSyncStep] = useState(2);
   const [selectedApps, setSelectedApps] = useState([]);
   const [deferredApps, setDeferredApps] = useState([]);
@@ -175,8 +174,23 @@ export default function WorkNode() {
 
   useEffect(() => {
     if (!hasHydrated) return;
-    void refreshIntegrations();
-  }, [hasHydrated, refreshIntegrations]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/integrations", { credentials: "include" });
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data?.integrations)) {
+          setIntegrations(data.integrations);
+        }
+      } catch {
+        // Non-fatal — UI falls back to connect prompts.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated || isSynced) return;
@@ -207,22 +221,24 @@ export default function WorkNode() {
     const integration = params.get("integration");
     if (!status || !integration) return;
 
-    if (status === "connected") {
-      const label = providerToAppLabel(integration);
-      setSelectedApps((prev) => (prev.includes(label) ? prev : [...prev, label]));
-      setDeferredApps((prev) => prev.filter((a) => a !== label));
-      setIntegrationToast(`${label} is now connected.`);
-      void refreshIntegrations();
-    } else if (status === "error") {
-      const reason = params.get("reason") ?? "connection_failed";
-      setIntegrationToast(`Could not connect: ${reason.replace(/_/g, " ")}`);
-    }
-
+    const reason = params.get("reason") ?? "connection_failed";
     const url = new URL(window.location.href);
     url.searchParams.delete("status");
     url.searchParams.delete("integration");
     url.searchParams.delete("reason");
     window.history.replaceState({}, "", url.pathname + url.search);
+
+    void (async () => {
+      if (status === "connected") {
+        const label = providerToAppLabel(integration);
+        setSelectedApps((prev) => (prev.includes(label) ? prev : [...prev, label]));
+        setDeferredApps((prev) => prev.filter((a) => a !== label));
+        setIntegrationToast(`${label} is now connected.`);
+        await refreshIntegrations();
+      } else if (status === "error") {
+        setIntegrationToast(`Could not connect: ${reason.replace(/_/g, " ")}`);
+      }
+    })();
   }, [refreshIntegrations]);
 
   function startOAuthConnect(appLabel) {
@@ -260,7 +276,6 @@ export default function WorkNode() {
     const oauthConnected = isAppOAuthConnected(app, integrations);
     const isDeferred = deferredApps.includes(app);
     const isSelected = selectedApps.includes(app);
-    const isActive = oauthConnected || isDeferred || isSelected;
 
     if (oauthConnected) {
       return {
@@ -328,29 +343,30 @@ export default function WorkNode() {
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    try {
-      const draft = readOnboardingSyncDraft();
-      if (draft) {
-        if (Array.isArray(draft.selectedApps)) setSelectedApps(draft.selectedApps);
-        if (Array.isArray(draft.deferredApps)) setDeferredApps(draft.deferredApps);
-        if (draft.primaryDataTool) setPrimaryDataTool(draft.primaryDataTool);
-        if (Array.isArray(draft.selectedFocusAreas)) {
-          setSelectedFocusAreas(draft.selectedFocusAreas);
-        }
-        if (typeof draft.syncStep === "number") setSyncStep(draft.syncStep);
-        if (draft.selectedFocusAreas?.length && draft.selectedApps?.length) {
-          setIsSynced(true);
-        }
-      }
-      const stored = readPrimaryDataTool();
-      if (stored) setPrimaryDataTool(stored);
-    } catch {
-      // Fallback to sync wizard if data is invalid.
-    } finally {
-      setHasHydrated(true);
-    }
 
     void (async () => {
+      try {
+        const draft = readOnboardingSyncDraft();
+        if (draft) {
+          if (Array.isArray(draft.selectedApps)) setSelectedApps(draft.selectedApps);
+          if (Array.isArray(draft.deferredApps)) setDeferredApps(draft.deferredApps);
+          if (draft.primaryDataTool) setPrimaryDataTool(draft.primaryDataTool);
+          if (Array.isArray(draft.selectedFocusAreas)) {
+            setSelectedFocusAreas(draft.selectedFocusAreas);
+          }
+          if (typeof draft.syncStep === "number") setSyncStep(draft.syncStep);
+          if (draft.selectedFocusAreas?.length && draft.selectedApps?.length) {
+            setIsSynced(true);
+          }
+        }
+        const stored = readPrimaryDataTool();
+        if (stored) setPrimaryDataTool(stored);
+      } catch {
+        // Fallback to sync wizard if data is invalid.
+      }
+
+      if (!cancelled) setHasHydrated(true);
+
       const localDraft = readOnboardingSyncDraft();
       const localHub = readPrimaryDataTool();
       const merged = await hydrateWidgetsFromServer(
@@ -399,12 +415,6 @@ export default function WorkNode() {
     if (!userId || !hasHydrated) return;
     scheduleNodeWidgetSave(NODE_WIDGET_KEYS.biz.founderNotes, founderNotes);
   }, [founderNotes, userId, hasHydrated]);
-
-  useEffect(() => {
-    if (!userId) return;
-    const stored = readPrimaryDataTool();
-    if (stored) setPrimaryDataTool(stored);
-  }, [userId]);
 
   const visibleApps = useMemo(
     () => filterAppsForDataHub(selectedApps, primaryDataTool),
@@ -749,7 +759,9 @@ export default function WorkNode() {
                   Last sync: {syncCount} record{syncCount === 1 ? "" : "s"} from GoHighLevel.
                 </p>
               ) : null}
-              <DealTriageFeed />
+              <div id="ln-feature-deal-triage">
+                <DealTriageFeed />
+              </div>
               <div className="mt-6 border-t border-white/10 pt-4">
                 <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
                   Orchestration insights
@@ -780,7 +792,7 @@ export default function WorkNode() {
                   Resync Discovery Hub
                 </button>
               </div>
-              <div className="mb-4 rounded-2xl border border-white/60 bg-white/80 p-4">
+              <div id="ln-feature-pipeline" className="mb-4 rounded-2xl border border-white/60 bg-white/80 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
                   Pipeline Velocity
                 </p>
@@ -811,13 +823,15 @@ export default function WorkNode() {
                   onSelect={selectPrimaryDataTool}
                   compact
                 />
-                <ConnectedAppsPanel
-                  apps={visibleApps}
-                  integrations={integrations}
-                  onConnect={startOAuthConnect}
-                  onConnectMock={startMockConnect}
-                  onConnectMore={() => setShowMoreApps(true)}
-                />
+                <div id="ln-feature-connected-apps">
+                  <ConnectedAppsPanel
+                    apps={visibleApps}
+                    integrations={integrations}
+                    onConnect={startOAuthConnect}
+                    onConnectMock={startMockConnect}
+                    onConnectMore={() => setShowMoreApps(true)}
+                  />
+                </div>
                 {integrationToast ? (
                   <p className="-mt-2 text-xs font-medium text-indigo-700">{integrationToast}</p>
                 ) : null}
@@ -879,7 +893,10 @@ export default function WorkNode() {
               </div>
             </section>
 
-                        <section className="lg:col-span-6 rounded-3xl bg-white/55 backdrop-blur-xl shadow-[0_12px_30px_rgba(15,23,42,0.06)] p-6">
+            <section
+              id="ln-feature-founder-utils"
+              className="lg:col-span-6 rounded-3xl bg-white/55 backdrop-blur-xl shadow-[0_12px_30px_rgba(15,23,42,0.06)] p-6"
+            >
               <FounderUtilitiesPanel
                 showNotesPanel={showNotesPanel}
                 setShowNotesPanel={setShowNotesPanel}
@@ -894,7 +911,10 @@ export default function WorkNode() {
               />
             </section>
 
-            <section className="lg:col-span-12 rounded-3xl bg-white/55 backdrop-blur-xl shadow-[0_12px_30px_rgba(15,23,42,0.06)] p-6">
+            <section
+              id="ln-feature-unified-brain"
+              className="lg:col-span-12 rounded-3xl bg-white/55 backdrop-blur-xl shadow-[0_12px_30px_rgba(15,23,42,0.06)] p-6"
+            >
               <div className="flex items-center gap-2 mb-4">
                 <Link2 size={18} className="text-indigo-600" />
                 <h2 className="font-semibold text-slate-900">Unified Node Brain</h2>

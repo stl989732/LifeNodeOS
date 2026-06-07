@@ -10,6 +10,7 @@ import {
   scheduleNodeWidgetSave,
 } from "@/src/lib/nodeWidgetSync";
 import DualRailCommandCenter from "@/src/components/shell/DualRailCommandCenter";
+import { useLnFeatureParam } from "@/src/hooks/useLnFeatureParam";
 import AppCategoryRequestFooter from "@/src/components/AppCategoryRequestFooter";
 import ChefUtensilLoader from "@/src/components/ChefUtensilLoader";
 import { useLoadingOverlay } from "@/src/context/LoadingOverlayContext";
@@ -300,6 +301,8 @@ export default function HomeNode() {
   const [chefCookMode, setChefCookMode] = useState(false);
   const [sectionFilter, setSectionFilter] = useState(null);
   const [flareActive, setFlareActive] = useState(false);
+
+  useLnFeatureParam(useCallback((id) => setSectionFilter(id), []));
 
   const [budgetRows, setBudgetRows] = useState([]);
   const [budgetCurrency, setBudgetCurrency] = useState("USD");

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useLnFeatureParam, scrollToLnFeature } from "@/src/hooks/useLnFeatureParam";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
@@ -319,6 +320,9 @@ function buildAutopsyParagraph(trade, thesisSnapshot, sentimentScore) {
 export default function TradeNode() {
   const { data: session } = useSession();
   const userId = session?.user?.id ?? "";
+
+  useLnFeatureParam(useCallback((id) => scrollToLnFeature(id), []));
+
   const traderStorageKey = userScopedStorageKey(STORAGE_KEY, userId);
   const traderJournalKey = userScopedStorageKey(JOURNAL_KEY, userId);
   const firstName = useMemo(() => {
@@ -1114,7 +1118,7 @@ export default function TradeNode() {
             </div>
 
             {/* What-If risk engine — R:R + $ at risk (gates arming trades). */}
-            <div className="border-t border-zinc-900 bg-[#0a0a0d] px-3 py-3">
+            <div id="ln-feature-risk" className="border-t border-zinc-900 bg-[#0a0a0d] px-3 py-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-[#06B6D4]">
                   What-If · Risk engine
@@ -1325,6 +1329,7 @@ export default function TradeNode() {
           </Panel>
 
           {/* Watchlist as compact grid */}
+          <div id="ln-feature-watchlist">
           <Panel
             title="Watchlist"
             icon={<BarChart3 size={12} />}
@@ -1359,6 +1364,7 @@ export default function TradeNode() {
               })}
             </div>
           </Panel>
+          </div>
         </main>
 
         {/* RIGHT — Psychology & Journal */}
@@ -1422,6 +1428,7 @@ export default function TradeNode() {
             </div>
           </Panel>
 
+          <div id="ln-feature-journal">
           <Panel
             title={`Journal · ${journal.length} entries`}
             icon={<NotebookPen size={12} />}
@@ -1525,6 +1532,7 @@ export default function TradeNode() {
               )}
             </div>
           </Panel>
+          </div>
         </aside>
       </div>
 

@@ -62,7 +62,8 @@ const HATS = {
   },
 };
 
-const HAT_KEYS = Object.keys(HATS);
+/** Gallery order: Biz → VA → Home → Vital → Pro → Trader */
+const HAT_KEYS = ["work", "va", "home", "vital", "pro", "trader"];
 
 const HAT_TO_NODE = {
   work: "BizNode",

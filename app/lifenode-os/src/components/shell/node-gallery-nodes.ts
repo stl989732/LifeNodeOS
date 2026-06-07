@@ -15,11 +15,12 @@ export type NodeGalleryEntry = {
   Icon: LucideIcon;
 };
 
+/** Gallery order: BizNode → VANode → HomeNode → VitalNode → ProNode → TraderNode */
 export const NODE_GALLERY_ENTRIES: NodeGalleryEntry[] = [
   { node: "BizNode", label: "BizNode", Icon: Briefcase },
+  { node: "VANode", label: "VANode", Icon: MessageSquare },
   { node: "HomeNode", label: "HomeNode", Icon: Home },
   { node: "VitalNode", label: "VitalNode", Icon: HeartPulse },
-  { node: "VANode", label: "VANode", Icon: MessageSquare },
-  { node: "TraderNode", label: "TraderNode", Icon: TrendingUp },
   { node: "ProNode", label: "ProNode", Icon: Scale },
+  { node: "TraderNode", label: "TraderNode", Icon: TrendingUp },
 ];

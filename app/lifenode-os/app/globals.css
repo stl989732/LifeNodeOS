@@ -7,7 +7,7 @@
   --ln-surface: #ffffff;
   --ln-text: #1e293b;
   /* Clears fixed NodeNavChrome (Back + LifeNode Dashboard) on gated node pages */
-  --ln-node-nav-chrome-block: 3.75rem;
+  --ln-node-nav-chrome-block: 4rem;
 }
 
 /* Deep Onyx — BizNode, ProNode, TraderNode */

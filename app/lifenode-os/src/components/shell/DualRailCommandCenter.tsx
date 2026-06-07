@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { LayoutGrid, LogOut, PenLine, Plus, Settings } from "lucide-react";
+import { ChevronDown, LogOut, PenLine, Settings } from "lucide-react";
 import { signOut } from "next-auth/react";
 import GlobalWhiteboardOverlay from "./GlobalWhiteboardOverlay";
 import LifeNodeSettingsPanel from "@/src/components/settings/LifeNodeSettingsPanel";
@@ -12,48 +12,18 @@ import {
   HAT_SHELL_TO_ACTIVE,
   useLifeNodeContext,
 } from "@/src/context/LifeNodeContext";
-import { HAT_NAV_ITEMS, isHatNavActive, isTraderNodePath } from "./hat-routes";
+import { HAT_NAV_ITEMS, isHatNavActive } from "./hat-routes";
 import NodeGalleryModal from "./NodeGalleryModal";
-
-const RAIL_GLASS =
-  "border border-solid border-white/10 bg-white/[0.08] backdrop-blur-[12px] shadow-lg shadow-slate-900/10 dark:bg-[#0a0a0d]/75 dark:shadow-black/40";
+import { sortBySidebarHatOrder } from "./node-order";
+import { catalogForHat, hatIdFromPath } from "./node-feature-catalog";
 
 const RAIL1_EASE =
   "transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
 
-const RAIL2_WIDTH_EASE =
-  "transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]";
+const RAIL_BG = "bg-[#F8F8FF] border-r border-slate-200/90 text-black";
 
-const ACTIVE_HAT =
-  "shadow-[0_0_22px_rgba(45,212,191,0.35)] ring-2 ring-teal-400/50 bg-teal-500/15 text-teal-100";
-
-const ACTIVE_FEATURE =
-  "shadow-[0_0_18px_rgba(45,212,191,0.28)] ring-2 ring-teal-400/45 bg-teal-500/12 text-teal-950 dark:text-teal-50";
-
-function activeHatSurface(darkRails: boolean): string {
-  if (darkRails) return ACTIVE_HAT;
-  return "shadow-[0_0_22px_rgba(45,212,191,0.35)] ring-2 ring-teal-400/50 bg-teal-500/15 text-teal-950";
-}
-
-/** Per-hat label contrast on the far-left rail (see LifePulse dark vs Biz/Vital/Pro light). */
-function hatLabelTone(hatId: string, active: boolean, darkRails: boolean): string {
-  if (active) {
-    if (!darkRails && (hatId === "home" || hatId === "pulse")) {
-      return "text-teal-900";
-    }
-    return darkRails ? "text-teal-100" : "text-teal-950";
-  }
-  if (hatId === "pulse") return "text-slate-900";
-  if (hatId === "work" || hatId === "vital" || hatId === "pro") {
-    return darkRails ? "text-slate-100" : "text-slate-800";
-  }
-  return darkRails ? "text-slate-200" : "text-slate-700";
-}
-
-function hatLinkSurface(hatId: string, active: boolean): string {
-  if (active || hatId !== "pulse") return "";
-  return "bg-emerald-50/90 ring-1 ring-emerald-200/50 dark:bg-emerald-50/90";
-}
+const ACTIVE_NODE =
+  "bg-slate-200/90 text-black ring-1 ring-slate-300/80";
 
 export type ShellFeatureItem = {
   id: string;
@@ -65,32 +35,25 @@ type StageBackground = "none" | "va";
 
 type Props = {
   children: React.ReactNode;
-  /** Biz / Home / VA / Vital / Pro: true. Trader: false (hard hide). */
-  showFeatureRail: boolean;
+  /** @deprecated Rail 2 removed — features live in sidebar dropdowns. */
+  showFeatureRail?: boolean;
   featureNav?: ShellFeatureItem[];
   activeFeatureId?: string;
   onFeatureSelect?: (id: string) => void;
   workspaceTone?: "light" | "dark";
   stageBackground?: StageBackground;
-  /** Collapsed rail header (defaults to “Modules”). */
   featureRailTitle?: string;
 };
 
-function LinosWatermark({ dark }: { dark: boolean }) {
+function LinosWatermark() {
   return (
     <div
-      className={`pointer-events-none fixed bottom-28 right-5 z-[75] select-none text-right ${
-        dark ? "text-zinc-600" : "text-slate-500/90"
-      }`}
+      className="pointer-events-none fixed bottom-28 right-5 z-[75] select-none text-right text-slate-500"
       aria-hidden
     >
       <p
         className="font-[family-name:var(--font-playfair)] text-lg italic tracking-tight"
-        style={{
-          textShadow: dark
-            ? "0 0 24px rgba(6,182,212,0.15)"
-            : "0 1px 0 rgba(255,255,255,0.5)",
-        }}
+        style={{ textShadow: "0 1px 0 rgba(255,255,255,0.5)" }}
       >
         Linos
       </p>
@@ -103,51 +66,60 @@ function LinosWatermark({ dark }: { dark: boolean }) {
 
 export default function DualRailCommandCenter({
   children,
-  showFeatureRail,
   featureNav = [],
   activeFeatureId,
   onFeatureSelect,
-  workspaceTone = "light",
   stageBackground = "none",
-  featureRailTitle = "Modules",
 }: Props) {
   const pathname = usePathname();
-  const traderPath = isTraderNodePath(pathname);
+  const router = useRouter();
   const { configuredHats, toggleConfiguredHat, registerHatGalleryLauncher } =
     useLifeNodeContext();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [expandedHat, setExpandedHat] = useState<string | null>(null);
 
   useEffect(() => {
     registerHatGalleryLauncher(() => setGalleryOpen(true));
     return () => registerHatGalleryLauncher(null);
   }, [registerHatGalleryLauncher]);
 
-  const darkRails = traderPath || workspaceTone === "dark";
-  const rail1Surface = darkRails
-    ? "border-white/10 bg-[#09090b]/88 text-zinc-200"
-    : "border-white/10 bg-white/40 text-slate-800";
-  const rail2Surface = darkRails
-    ? "border-white/10 bg-[#0c0c0f]/82 text-zinc-200"
-    : "border-white/10 bg-white/35 text-slate-800";
+  useEffect(() => {
+    setExpandedHat(null);
+  }, [pathname]);
 
-  const showR2 = showFeatureRail && featureNav.length > 0 && !traderPath;
-
-  const hubItem = useMemo(
-    () => HAT_NAV_ITEMS.find((i) => i.id === "shell"),
-    []
-  );
-  const HubIcon = hubItem?.Icon;
+  const currentHatId = hatIdFromPath(pathname);
 
   const filteredNodeItems = useMemo(() => {
-    return HAT_NAV_ITEMS.filter((item) => {
+    const items = HAT_NAV_ITEMS.filter((item) => {
       if (item.id === "shell") return false;
       if (item.id === "pulse") return true;
       const node = HAT_SHELL_TO_ACTIVE[item.id];
       return node ? configuredHats.includes(node) : false;
     });
+    return sortBySidebarHatOrder(items);
   }, [configuredHats]);
+
+  const liveFeatures = featureNav.length > 0 ? featureNav : [];
+
+  function featuresForHat(hatId: string): ShellFeatureItem[] {
+    if (hatId === currentHatId && liveFeatures.length > 0) return liveFeatures;
+    return catalogForHat(hatId);
+  }
+
+  function selectFeature(hatId: string, featureId: string, route: string, pathPrefix: string) {
+    setExpandedHat(null);
+    const onCurrent = isHatNavActive(pathname, pathPrefix);
+    if (onCurrent && onFeatureSelect) {
+      onFeatureSelect(featureId);
+      return;
+    }
+    const qs = featureId && featureId !== "overview"
+      ? `?ln-feature=${encodeURIComponent(featureId)}`
+      : "";
+    router.push(`${route}${qs}`);
+  }
 
   return (
     <div
@@ -168,193 +140,134 @@ export default function DualRailCommandCenter({
         onToggleHat={(node) => toggleConfiguredHat(node)}
       />
 
-      {/* Rail 1 — hat switcher (Hub always; nodes filtered by active hats) */}
+      {/* Rail 1 — nodes + feature dropdowns */}
       <nav
-        className={`group/rail1 sticky top-0 z-[60] flex h-[calc(100dvh-env(safe-area-inset-top,0px))] w-[60px] shrink-0 flex-col border-r border-solid border-white/10 py-3 pl-2 pr-1 ${RAIL1_EASE} hover:w-[min(12.5vw,13.5rem)] ${RAIL_GLASS} ${rail1Surface}`}
+        className={`group/rail1 sticky top-0 z-[60] flex h-[calc(100dvh-env(safe-area-inset-top,0px))] w-[60px] shrink-0 flex-col py-3 pl-2 pr-1 shadow-sm ${RAIL1_EASE} hover:w-[min(12.5vw,13.5rem)] ${RAIL_BG}`}
         data-va-rail="1"
-        aria-label="Node hats"
+        aria-label="Node navigation"
       >
-        {hubItem && HubIcon ? (
-          <div className="shrink-0">
-            <Link
-              href={hubItem.route}
-              title={hubItem.label}
-              className={`relative flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-xl py-2 transition-colors duration-200 group-hover/rail1:justify-start ${
-                isHatNavActive(pathname, hubItem.pathPrefix)
-                  ? ACTIVE_HAT
-                  : "text-inherit hover:bg-white/10 dark:hover:bg-white/5"
-              } px-0 group-hover/rail1:px-2.5`}
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10 dark:bg-white/5">
-                <HubIcon className="h-5 w-5" strokeWidth={1.75} />
-              </span>
-              <span className="min-w-0 max-w-0 overflow-hidden text-left text-xs font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[11rem] group-hover/rail1:opacity-100">
-                {hubItem.label}
-              </span>
-            </Link>
-          </div>
-        ) : null}
-
-        <div className="mt-1 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden">
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
           {filteredNodeItems.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center px-1.5 py-4 text-center">
-              <p className="text-[10px] font-semibold uppercase leading-relaxed tracking-wide text-slate-500 dark:text-zinc-500">
+              <p className="text-[10px] font-semibold uppercase leading-relaxed tracking-wide text-slate-500">
                 Choose your first Node to begin orchestrating.
               </p>
             </div>
           ) : (
             filteredNodeItems.map(({ id, label, route, Icon, pathPrefix }) => {
               const active = isHatNavActive(pathname, pathPrefix);
+              const expanded = expandedHat === id;
+              const features = featuresForHat(id);
+              const showFeatures = expanded && features.length > 0;
+
               return (
-                <Link
-                  key={id}
-                  href={route}
-                  title={label}
-                  className={`relative flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-xl py-2 transition-colors duration-200 group-hover/rail1:justify-start ${
-                    active
-                      ? activeHatSurface(darkRails)
-                      : `text-inherit hover:bg-white/10 dark:hover:bg-white/5 ${hatLinkSurface(id, active)}`
-                  } px-0 group-hover/rail1:px-2.5`}
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10 dark:bg-white/5">
-                    <Icon className="h-5 w-5" strokeWidth={1.75} />
-                  </span>
-                  <span
-                    className={`min-w-0 max-w-0 overflow-hidden text-left text-xs font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[11rem] group-hover/rail1:opacity-100 ${hatLabelTone(id, active, darkRails)}`}
+                <div key={id} className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedHat(expanded ? null : id)}
+                    title={label}
+                    aria-expanded={expanded}
+                    aria-haspopup="menu"
+                    className={`relative flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl py-2 transition-colors duration-200 group-hover/rail1:justify-start ${
+                      active ? ACTIVE_NODE : "text-black hover:bg-slate-100"
+                    } px-0 group-hover/rail1:px-2.5`}
                   >
-                    {label}
-                  </span>
-                </Link>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-white/80">
+                      <Icon className="h-5 w-5 text-black" strokeWidth={1.75} />
+                    </span>
+                    <span className="min-w-0 max-w-0 overflow-hidden text-left text-xs font-bold uppercase tracking-wider text-black opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+                      {label}
+                    </span>
+                    <ChevronDown
+                      className={`ml-auto h-3.5 w-3.5 shrink-0 text-slate-500 opacity-0 transition group-hover/rail1:opacity-100 ${
+                        expanded ? "rotate-180" : ""
+                      }`}
+                      aria-hidden
+                    />
+                  </button>
+
+                  {showFeatures ? (
+                    <div
+                      role="menu"
+                      className="mx-0.5 mb-1 rounded-xl border border-slate-200/90 bg-white py-1 shadow-md group-hover/rail1:mx-1"
+                    >
+                      {features.map(({ id: fid, label: flabel, icon: FIcon }) => {
+                        const featureActive =
+                          active && (activeFeatureId === fid || (!activeFeatureId && fid === "overview"));
+                        return (
+                          <button
+                            key={fid}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => selectFeature(id, fid, route, pathPrefix)}
+                            className={`flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] font-semibold transition hover:bg-slate-50 ${
+                              featureActive ? "bg-slate-100 text-black" : "text-slate-700"
+                            }`}
+                          >
+                            <FIcon className="h-3.5 w-3.5 shrink-0 opacity-80" strokeWidth={1.75} />
+                            <span className="min-w-0 truncate opacity-0 transition-opacity group-hover/rail1:opacity-100">
+                              {flabel}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      {!active ? (
+                        <Link
+                          href={route}
+                          role="menuitem"
+                          onClick={() => setExpandedHat(null)}
+                          className="flex w-full items-center gap-2 border-t border-slate-100 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-teal-700 hover:bg-teal-50"
+                        >
+                          Open {label}
+                        </Link>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               );
             })
           )}
         </div>
 
-        <div className="mt-auto shrink-0 space-y-1 border-t border-solid border-white/10 pt-2">
+        <div className="mt-auto shrink-0 space-y-1 border-t border-slate-200/90 pt-2">
           <button
             type="button"
             onClick={() => setWhiteboardOpen(true)}
-            aria-label="Open global whiteboard — sketch and diagram"
-            title="Whiteboard — quick sketches & diagrams"
-            className="group/wb flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-teal-300/50 bg-gradient-to-br from-teal-600 to-cyan-700 py-2 text-white shadow-md shadow-teal-900/30 transition hover:from-teal-500 hover:to-cyan-600 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 group-hover/rail1:justify-start"
+            aria-label="Open global whiteboard"
+            title="Whiteboard"
+            className="group/wb flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-teal-600/40 bg-gradient-to-br from-teal-600 to-cyan-700 py-2 text-white shadow-md transition hover:from-teal-500 hover:to-cyan-600 group-hover/rail1:justify-start"
           >
-            <PenLine
-              className="h-5 w-5 shrink-0 text-white"
-              strokeWidth={2}
-              aria-hidden
-            />
-            <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider text-white opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+            <PenLine className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
               Whiteboard
             </span>
           </button>
           <button
             type="button"
-            onClick={() => setGalleryOpen(true)}
-            aria-label="Add or remove hats — open Node gallery"
-            className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/[0.04] py-2 text-slate-500 transition hover:border-teal-400/40 hover:bg-teal-500/10 hover:text-teal-200 group-hover/rail1:justify-start dark:text-zinc-400 dark:hover:text-teal-100"
-            title="Want to add more hats? Return to LifeNode Dashboard."
+            onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
+            aria-label="Sign out"
+            title="Sign out"
+            className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
           >
-            <Plus className="h-5 w-5 shrink-0" strokeWidth={2} />
+            <LogOut className="h-5 w-5 shrink-0" strokeWidth={1.75} />
             <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
-              Add hat?
+              Sign out
             </span>
           </button>
-          {!showR2 ? (
-            <>
-              <button
-                type="button"
-                onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
-                aria-label="Sign out"
-                title="Sign out"
-                className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] py-2 text-slate-600 transition hover:border-rose-400/35 hover:bg-rose-500/10 hover:text-rose-900 group-hover/rail1:justify-start dark:text-zinc-300 dark:hover:text-rose-100"
-              >
-                <LogOut className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-                <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
-                  Sign out
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(true)}
-                aria-label="Open LifeNode OS settings"
-                title="Settings"
-                className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] py-2 text-slate-600 transition hover:border-teal-400/35 hover:bg-teal-500/10 hover:text-teal-800 group-hover/rail1:justify-start dark:text-zinc-300 dark:hover:text-teal-100"
-              >
-                <Settings className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-                <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
-                  Settings
-                </span>
-              </button>
-            </>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Open LifeNode OS settings"
+            title="Settings"
+            className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
+          >
+            <Settings className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+            <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+              Settings
+            </span>
+          </button>
         </div>
       </nav>
-
-      {/* Rail 2 — collapsed icon strip; spring expand on hover */}
-      {showR2 ? (
-        <aside
-          className={`group/rail2 sticky top-0 z-[55] flex h-[calc(100dvh-env(safe-area-inset-top,0px))] w-[52px] shrink-0 flex-col overflow-hidden border-r border-solid border-white/10 py-3 ${RAIL2_WIDTH_EASE} hover:w-[220px] ${RAIL_GLASS} ${rail2Surface}`}
-          aria-label="Node features"
-          data-va-rail="2"
-        >
-          <div className="flex h-full w-[220px] min-w-[220px] flex-col px-1">
-            <div className="mb-2 flex h-8 shrink-0 items-center gap-2 px-2">
-              <LayoutGrid className="h-4 w-4 shrink-0 opacity-80" strokeWidth={1.75} />
-              <p className="min-w-0 max-w-0 overflow-hidden text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/rail2:max-w-[12rem] group-hover/rail2:opacity-100">
-                {featureRailTitle}
-              </p>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
-              {featureNav.map(({ id, label, icon: Icon }) => {
-                const active = activeFeatureId === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => onFeatureSelect?.(id)}
-                    className={`flex w-full items-center gap-2 rounded-xl py-2.5 pl-2 pr-2 text-left text-xs font-semibold transition-colors duration-200 group-hover/rail2:justify-start ${
-                      active
-                        ? ACTIVE_FEATURE
-                        : "justify-center text-inherit hover:bg-white/15 group-hover/rail2:justify-start dark:hover:bg-white/10"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4 shrink-0 opacity-90" strokeWidth={1.75} />
-                    <span className="min-w-0 max-w-0 overflow-hidden truncate opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/rail2:max-w-[11rem] group-hover/rail2:opacity-100">
-                      {label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-auto shrink-0 space-y-1 border-t border-solid border-white/10 pt-2">
-              <button
-                type="button"
-                onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
-                aria-label="Sign out"
-                title="Sign out"
-                className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] py-2.5 text-slate-600 transition hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-900 group-hover/rail2:justify-start dark:text-zinc-300 dark:hover:text-rose-100"
-              >
-                <LogOut className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/rail2:max-w-[9rem] group-hover/rail2:opacity-100">
-                  Sign out
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(true)}
-                aria-label="Open LifeNode OS settings"
-                title="Settings — account, AI, notifications, appearance"
-                className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] py-2.5 text-slate-600 transition hover:border-teal-400/40 hover:bg-teal-500/12 hover:text-teal-900 group-hover/rail2:justify-start dark:text-zinc-300 dark:hover:text-teal-100"
-              >
-                <Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/rail2:max-w-[9rem] group-hover/rail2:opacity-100">
-                  Settings
-                </span>
-              </button>
-            </div>
-          </div>
-        </aside>
-      ) : null}
 
       <div className="relative z-0 min-w-0 flex-1 overflow-x-hidden">
         {children}
@@ -370,7 +283,7 @@ export default function DualRailCommandCenter({
         onClose={() => setSettingsOpen(false)}
       />
 
-      <LinosWatermark dark={darkRails} />
+      <LinosWatermark />
     </div>
   );
 }

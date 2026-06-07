@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useLnFeatureParam, scrollToLnFeature } from "@/src/hooks/useLnFeatureParam";
 import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -354,6 +355,8 @@ export default function VitalNode() {
   const { data: session } = useSession();
   const userId = session?.user?.id;
   const storageKey = userScopedStorageKey(STORAGE_KEY_V3, userId);
+
+  useLnFeatureParam(useCallback((id) => scrollToLnFeature(id), []));
 
   const [storageHydrated, setStorageHydrated] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
@@ -1010,6 +1013,7 @@ export default function VitalNode() {
 
         {morningWindow ? (
           <section
+            id="ln-feature-momentum"
             className={`${glassCard()} mb-5 border-amber-200/50 bg-gradient-to-r from-amber-50/90 via-white/40 to-white/35 p-5 shadow-[0_12px_40px_rgba(251,191,36,0.12)]`}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1247,7 +1251,7 @@ export default function VitalNode() {
           </VitalFlipCard>
 
           {effectiveSurface === "night" ? (
-            <section className={`${glassNight()} p-5 lg:col-span-6`}>
+            <section id="ln-feature-sleep" className={`${glassNight()} p-5 lg:col-span-6`}>
               <div className="mb-2 flex items-center gap-2 text-indigo-100">
                 <Moon className="h-5 w-5" />
                 <h2 className="text-base font-bold">Sleep hygiene · Chrononutrition</h2>

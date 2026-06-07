@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { useLnFeatureParam } from "@/src/hooks/useLnFeatureParam";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -63,13 +64,21 @@ type VaStageId =
   | "invoice";
 
 function VaHero() {
-  const h = new Date().getHours();
-  const greet =
-    h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  // Hydration-safe greeting:
+  // - Avoid rendering `new Date()`-based text on the server (timezone can differ)
+  // - Compute on the client after mount to prevent React hydration mismatches.
+  const [greet, setGreet] = useState<string | null>(null);
+
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreet(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
+  }, []);
+
+  const greetText = greet ?? "Hello";
   return (
     <div className="mb-6 rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.06)] p-6 shadow-lg backdrop-blur-[12px] dark:bg-white/[0.06]">
       <p className="font-[family-name:var(--font-playfair)] text-xl italic text-slate-800 md:text-2xl dark:text-slate-100">
-        {greet}, let&apos;s clear the queue.
+        {greetText}, let&apos;s clear the queue.
       </p>
       <h2 className="mt-2 font-[family-name:var(--font-outfit)] text-2xl font-bold tracking-tight text-slate-900 md:text-3xl dark:text-white">
         Today&apos;s command surface
@@ -186,6 +195,10 @@ export function VANodeDashboard() {
   const searchParams = useSearchParams();
   const [discStep, setDiscStep] = useState<1 | 2>(1);
   const [stage, setStage] = useState<VaStageId>("overview");
+
+  useLnFeatureParam(
+    useCallback((id) => setStage(id as VaStageId), []),
+  );
 
   useEffect(() => {
     const onChromeBack = (e: Event) => {

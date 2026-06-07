@@ -74,8 +74,8 @@ export default function NodeGalleryModal({
               Orchestrate your hats
             </h2>
             <p className="mt-1 max-w-xl text-sm text-slate-400">
-              Toggle Nodes on to pin them in the left rail and Linos Assistant.
-              TraderNode still hides the feature rail when active.
+              Toggle Nodes on to pin them in the left sidebar and Linos Assistant.
+              Click any node in the rail to open its feature menu.
             </p>
           </div>
           <button

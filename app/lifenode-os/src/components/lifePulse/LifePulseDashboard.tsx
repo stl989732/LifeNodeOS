@@ -34,6 +34,7 @@ import {
   type LifePulseCategoryId,
   type LifePulseTracker,
 } from "@/src/lib/lifePulse/types";
+import { useLnFeatureParam, scrollToLnFeature } from "@/src/hooks/useLnFeatureParam";
 
 const LINOS_GENERATING_PHRASES = [
   "Linos is calculating your milestones…",
@@ -55,6 +56,16 @@ export default function LifePulseDashboard() {
   const [showLinosChat, setShowLinosChat] = useState(false);
   const [pmWorkspaceBooting, setPmWorkspaceBooting] = useState(false);
   const pmBootstrapAttempted = useRef(false);
+
+  useLnFeatureParam(
+    useCallback((id) => {
+      if (id === "linos-chat") {
+        setShowLinosChat(true);
+        return;
+      }
+      scrollToLnFeature(id);
+    }, []),
+  );
 
   const load = useCallback(async () => {
     if (status !== "authenticated" || !session?.user?.id) {
@@ -237,7 +248,9 @@ export default function LifePulseDashboard() {
                 lives in an editable table you can maximize for focused editing.
               </p>
             </div>
-            <CalmWheel percent={calmPercent} />
+            <div id="ln-feature-calm-wheel">
+              <CalmWheel percent={calmPercent} />
+            </div>
           </div>
         </header>
 
@@ -406,7 +419,7 @@ export default function LifePulseDashboard() {
               No trackers in this bucket yet — use Quick Add above.
             </p>
           ) : (
-            <div className="space-y-4">
+            <div id="ln-feature-trackers" className="space-y-4">
               {filtered.map((t) => (
                 <TrackerCategoryCard
                   key={t.id}

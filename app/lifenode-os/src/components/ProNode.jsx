@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLnFeatureParam, scrollToLnFeature } from "@/src/hooks/useLnFeatureParam";
 import {
   Command,
   Database,
@@ -117,6 +118,14 @@ export default function ProNode() {
   );
 
   const [commandOpen, setCommandOpen] = useState(false);
+
+  useLnFeatureParam(
+    useCallback((id) => {
+      if (id === "command") setCommandOpen(true);
+      scrollToLnFeature(id);
+    }, []),
+  );
+
   const [smartChainSuggestions, setSmartChainSuggestions] = useState([]);
   const [focusDiscoveryMinimized, setFocusDiscoveryMinimized] = useState(false);
   const editorSurfaceRef = useRef(null);
@@ -527,16 +536,19 @@ export default function ProNode() {
           </div>
         </header>
 
-        <ProFocusDiscoveryCard
-          role={role}
-          connectedTools={connectedTools}
-          onToggleTool={toggleConnectedTool}
-          minimized={focusDiscoveryMinimized}
-          onToggleMinimize={() => setFocusDiscoveryMinimized((v) => !v)}
-        />
+        <div id="ln-feature-focus">
+          <ProFocusDiscoveryCard
+            role={role}
+            connectedTools={connectedTools}
+            onToggleTool={toggleConnectedTool}
+            minimized={focusDiscoveryMinimized}
+            onToggleMinimize={() => setFocusDiscoveryMinimized((v) => !v)}
+          />
+        </div>
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
           <aside
+            id="ln-feature-cases"
             className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 xl:col-span-2 ${
               isDeepWork ? "opacity-20 blur-[1px]" : ""
             }`}
@@ -576,7 +588,11 @@ export default function ProNode() {
             )}
           </aside>
 
-          <section ref={editorSurfaceRef} className="flex flex-col gap-5 xl:col-span-6">
+          <section
+            id="ln-feature-editor"
+            ref={editorSurfaceRef}
+            className="flex flex-col gap-5 xl:col-span-6"
+          >
             <ProVaultWorkspace proRole={role} />
 
             <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">

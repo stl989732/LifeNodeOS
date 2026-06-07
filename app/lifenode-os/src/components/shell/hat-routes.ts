@@ -19,22 +19,11 @@ export type HatNavItem = {
   pathPrefix: string;
 };
 
-/** Far-left hat rail — order is fixed for muscle memory */
+/**
+ * Hat rail entries — Hub removed from sidebar; order applied via `sortBySidebarHatOrder`.
+ * LifePulse → BizNode → VANode → HomeNode → VitalNode → ProNode → TraderNode.
+ */
 export const HAT_NAV_ITEMS: HatNavItem[] = [
-  {
-    id: "shell",
-    label: "Hub",
-    route: "/shell",
-    Icon: LayoutDashboard,
-    pathPrefix: "/shell",
-  },
-  {
-    id: "home",
-    label: "HomeNode",
-    route: "/home",
-    Icon: Home,
-    pathPrefix: "/home",
-  },
   {
     id: "pulse",
     label: "LifePulse",
@@ -50,6 +39,20 @@ export const HAT_NAV_ITEMS: HatNavItem[] = [
     pathPrefix: "/work",
   },
   {
+    id: "va",
+    label: "VANode",
+    route: "/vanode",
+    Icon: MessageSquare,
+    pathPrefix: "/vanode",
+  },
+  {
+    id: "home",
+    label: "HomeNode",
+    route: "/home",
+    Icon: Home,
+    pathPrefix: "/home",
+  },
+  {
     id: "vital",
     label: "VitalNode",
     route: "/vital",
@@ -57,11 +60,11 @@ export const HAT_NAV_ITEMS: HatNavItem[] = [
     pathPrefix: "/vital",
   },
   {
-    id: "va",
-    label: "VANode",
-    route: "/vanode",
-    Icon: MessageSquare,
-    pathPrefix: "/vanode",
+    id: "pro",
+    label: "ProNode",
+    route: "/pro",
+    Icon: Scale,
+    pathPrefix: "/pro",
   },
   {
     id: "trader",
@@ -71,11 +74,11 @@ export const HAT_NAV_ITEMS: HatNavItem[] = [
     pathPrefix: "/trader",
   },
   {
-    id: "pro",
-    label: "ProNode",
-    route: "/pro",
-    Icon: Scale,
-    pathPrefix: "/pro",
+    id: "shell",
+    label: "Hub",
+    route: "/shell",
+    Icon: LayoutDashboard,
+    pathPrefix: "/shell",
   },
 ];
 
