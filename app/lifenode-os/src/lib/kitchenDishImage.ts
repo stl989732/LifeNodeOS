@@ -1,6 +1,6 @@
 const POLLINATIONS_BASE = "https://image.pollinations.ai/prompt";
 const DEFAULT_ATTEMPTS = 2;
-const DEFAULT_PRELOAD_MS = 8000;
+const DEFAULT_PRELOAD_MS = 12000;
 
 const PROMPT_VARIANTS = [
   (raw: string) =>
@@ -11,23 +11,12 @@ const PROMPT_VARIANTS = [
     `Overhead photograph of ${raw}, plated dish centered, neutral table, natural light, editorial food styling, no watermark`,
 ];
 
-/** ChefNode render fallback — matches Pollinations path suffix format for 1500² output. */
-export function buildPollinationsChefPlatingUrl(title: string): string {
-  const dishTitle = String(title || "gourmet dish").trim();
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(
-    `${dishTitle} photorealistic gourmet culinary plating`,
-  )}_1500_1500_53_true`;
-}
-
-/** Gemini inline image when present; otherwise instant Pollinations plating from title. */
-export function chefRecipeImageSrc(recipeData: {
-  imageDataUrl?: string | null;
-  title?: string;
-}): string {
-  if (recipeData.imageDataUrl) {
-    return recipeData.imageDataUrl;
-  }
-  return buildPollinationsChefPlatingUrl(recipeData.title ?? "");
+/** Same-origin URL — Pollinations fetched server-side (not blocked by ad blockers). */
+export function buildKitchenImageProxyUrl(promptOrTitle: string, attempt = 0): string {
+  const raw = String(promptOrTitle || "").trim();
+  if (!raw) return "";
+  const a = Math.max(0, Math.min(4, attempt));
+  return `/api/homenode/kitchen-image?q=${encodeURIComponent(raw)}&attempt=${a}`;
 }
 
 /** Build a Pollinations.ai URL; `attempt` rotates prompt wording and seed for retries. */
@@ -41,6 +30,39 @@ export function buildPollinationsDishUrl(
   const q = variant(raw);
   const seed = Date.now() + attempt * 7919;
   return `${POLLINATIONS_BASE}/${encodeURIComponent(q)}?width=768&height=768&nologo=true&seed=${seed}`;
+}
+
+/** @deprecated Prefer buildKitchenImageProxyUrl for client img src. */
+export function buildPollinationsChefPlatingUrl(title: string): string {
+  const dishTitle = String(title || "gourmet dish").trim();
+  return buildKitchenImageProxyUrl(
+    `${dishTitle} photorealistic gourmet culinary plating`,
+    0,
+  );
+}
+
+/** Gemini inline image when present; otherwise same-origin proxy from title / prompt. */
+export function chefRecipeImageSrc(recipeData: {
+  imageDataUrl?: string | null;
+  title?: string;
+  pollinationsQuery?: string;
+  imagePrompt?: string;
+  attempt?: number;
+}): string {
+  if (
+    typeof recipeData.imageDataUrl === "string" &&
+    recipeData.imageDataUrl.startsWith("data:image")
+  ) {
+    return recipeData.imageDataUrl;
+  }
+  if (
+    typeof recipeData.imageDataUrl === "string" &&
+    recipeData.imageDataUrl.startsWith("/api/homenode/kitchen-image")
+  ) {
+    return recipeData.imageDataUrl;
+  }
+  const query = pickDishImageQuery(recipeData);
+  return buildKitchenImageProxyUrl(query, recipeData.attempt ?? 0);
 }
 
 export function preloadKitchenImage(
@@ -94,7 +116,7 @@ export function pickDishImageQuery(options: {
 }
 
 /**
- * Prefer Gemini inline image; on skip/failure, Pollinations with preload retries.
+ * Prefer Gemini inline image; on skip/failure, same-origin proxy with preload retries.
  */
 export async function resolveKitchenDishImageUrl(options: {
   apiImageUrl?: string | null;
@@ -125,12 +147,12 @@ export async function resolveKitchenDishImageUrl(options: {
       await preloadKitchenImage(apiImageUrl);
       return apiImageUrl;
     } catch {
-      /* fall through to Pollinations */
+      /* fall through to proxy */
     }
   }
 
   for (let i = 0; i < maxAttempts; i++) {
-    const url = buildPollinationsDishUrl(query, i);
+    const url = buildKitchenImageProxyUrl(query, i);
     if (!url) break;
     try {
       await preloadKitchenImage(url);
@@ -140,10 +162,10 @@ export async function resolveKitchenDishImageUrl(options: {
     }
   }
 
-  return buildPollinationsDishUrl(query, maxAttempts);
+  return buildKitchenImageProxyUrl(query, maxAttempts);
 }
 
-/** After <img> onError — retry Pollinations with alternate seeds/prompts. */
+/** After <img> onError — retry proxy with alternate seeds/prompts. */
 export async function retryPollinationsDishImage(
   promptOrTitle: string,
   fromAttempt = 1,
@@ -151,7 +173,7 @@ export async function retryPollinationsDishImage(
 ): Promise<string> {
   const prompt = String(promptOrTitle || "").trim() || "plated dinner";
   for (let i = 0; i < maxAttempts; i++) {
-    const url = buildPollinationsDishUrl(prompt, fromAttempt + i);
+    const url = buildKitchenImageProxyUrl(prompt, fromAttempt + i);
     try {
       await preloadKitchenImage(url);
       return url;
@@ -159,5 +181,5 @@ export async function retryPollinationsDishImage(
       await new Promise((r) => window.setTimeout(r, 400 * (i + 1)));
     }
   }
-  return buildPollinationsDishUrl(prompt, fromAttempt);
+  return buildKitchenImageProxyUrl(prompt, fromAttempt);
 }

@@ -24,12 +24,17 @@ import {
   writeNativeGroceryList,
 } from "@/src/lib/nativeGroceryBridge";
 import { compressKitchenImageFile } from "@/src/lib/compressKitchenImage";
-import { chefRecipeImageSrc } from "@/src/lib/kitchenDishImage";
+import { chefRecipeImageSrc, resolveKitchenDishImageUrl } from "@/src/lib/kitchenDishImage";
 import {
   getActiveKitchenTab,
   kitchenTabIdFromTitle,
   mergeKitchenRecipeTabs,
   upsertKitchenRecipeTab,
+  CHEF_RECIPE_PLACEHOLDER_STEP,
+  isIncompleteChefRecipe,
+  sanitizeKitchenRecipeTabsForPersistence,
+  dedupeKitchenRecipeTabsByTitle,
+  removeKitchenRecipeTab,
 } from "@/src/lib/kitchenRecipeTabs";
 import KitchenRecipeTabBar from "@/src/components/home-kitchen/KitchenRecipeTabBar";
 import KitchenVaultToast from "@/src/components/home-kitchen/KitchenVaultToast";
@@ -154,14 +159,23 @@ function createEmptyActivityPrepRow() {
 
 function parseKitchenAiPayload(payload) {
   if (!payload || typeof payload !== "object") return null;
+  const rawTabs = Array.isArray(payload.kitchenRecipeTabs)
+    ? payload.kitchenRecipeTabs.map((tab) => ({
+        ...tab,
+        loading: false,
+        error: tab?.error ?? null,
+      }))
+    : [];
   return {
-    kitchenRecipeTabs: Array.isArray(payload.kitchenRecipeTabs)
-      ? payload.kitchenRecipeTabs.map((tab) => ({
+    kitchenRecipeTabs: dedupeKitchenRecipeTabsByTitle(
+      rawTabs
+        .filter((tab) => tab?.recipe?.title?.trim())
+        .map((tab) => ({
           ...tab,
-          loading: false,
+          loading: isIncompleteChefRecipe(tab.recipe),
           error: tab?.error ?? null,
-        }))
-      : [],
+        })),
+    ),
     activeKitchenTabId:
       payload.activeKitchenTabId != null ? payload.activeKitchenTabId : null,
     ingredientsOnHand:
@@ -308,6 +322,7 @@ export default function HomeNode() {
   const audioChunksRef = useRef([]);
   const chefTipFetchedRef = useRef(false);
   const chefDiscoverFlowRef = useRef(false);
+  const kitchenStaleRefetchStarted = useRef(false);
   const pendingChefTabIdRef = useRef(null);
 
   const activeKitchenTab = useMemo(
@@ -624,9 +639,13 @@ export default function HomeNode() {
 
   useEffect(() => {
     if (!userId || !kitchenHydrated) return;
+    const persistedTabs = sanitizeKitchenRecipeTabsForPersistence(kitchenRecipeTabs);
+    const activeStillExists =
+      activeKitchenTabId != null &&
+      persistedTabs.some((t) => t.id === activeKitchenTabId);
     const payload = {
-      kitchenRecipeTabs,
-      activeKitchenTabId,
+      kitchenRecipeTabs: persistedTabs,
+      activeKitchenTabId: activeStillExists ? activeKitchenTabId : (persistedTabs[0]?.id ?? null),
       ingredientsOnHand,
       chefPhase,
       chefIntro,
@@ -1081,6 +1100,8 @@ export default function HomeNode() {
       if (Number.isFinite(n)) caloriesPerServing = Math.max(50, n);
     }
     const imagePrompt = typeof obj.imagePrompt === "string" ? obj.imagePrompt.trim() : "";
+    const pollinationsQuery =
+      typeof obj.pollinationsQuery === "string" ? obj.pollinationsQuery.trim() : "";
     if (!title || steps.length === 0) return null;
     return {
       title,
@@ -1090,7 +1111,46 @@ export default function HomeNode() {
       ingredients,
       caloriesPerServing,
       imagePrompt,
+      pollinationsQuery,
     };
+  }
+
+  async function attachKitchenTabImage(tabId, recipe, apiImage, apiMeta = {}) {
+    if (!tabId || !recipe?.title) return;
+    try {
+      const url = await resolveKitchenDishImageUrl({
+        apiImageUrl: apiImage,
+        pollinationsQuery: recipe.pollinationsQuery || apiMeta.pollinationsQuery,
+        imagePrompt: recipe.imagePrompt,
+        title: recipe.title,
+        imageGenerationSkipped: apiMeta.imageGenerationSkipped !== false,
+      });
+      setKitchenRecipeTabs((tabs) =>
+        tabs.map((t) =>
+          t.id === tabId ? { ...t, imageDataUrl: url, imageFailed: false } : t,
+        ),
+      );
+    } catch {
+      setKitchenRecipeTabs((tabs) =>
+        tabs.map((t) => (t.id === tabId ? { ...t, imageFailed: true } : t)),
+      );
+    }
+  }
+
+  function closeKitchenTab(tabId) {
+    setKitchenRecipeTabs((prev) => {
+      const { tabs, activeId } = removeKitchenRecipeTab(prev, tabId);
+      if (tabs.length === 0) {
+        setChefPhase("idle");
+        setActiveKitchenTabId(null);
+        pendingChefTabIdRef.current = null;
+        return tabs;
+      }
+      setActiveKitchenTabId((cur) =>
+        cur === tabId ? activeId : cur ?? activeId,
+      );
+      return tabs;
+    });
   }
 
   function showKitchenVaultToast(text) {
@@ -1115,7 +1175,7 @@ export default function HomeNode() {
     return "Dinner";
   }
 
-  async function commitChefRecipes(recipes, apiImage) {
+  async function commitChefRecipes(recipes, apiImage, apiMeta = {}) {
     const list = recipes.filter(Boolean);
     if (!list.length) return;
     const pendingId = pendingChefTabIdRef.current;
@@ -1133,7 +1193,7 @@ export default function HomeNode() {
     setKitchenRecipeTabs((prev) => {
       const merged = mergeKitchenRecipeTabs(prev, entries);
       nextActiveId = merged.activeId;
-      return merged.tabs;
+      return dedupeKitchenRecipeTabsByTitle(merged.tabs);
     });
     if (nextActiveId) setActiveKitchenTabId(nextActiveId);
 
@@ -1145,6 +1205,12 @@ export default function HomeNode() {
       setKitchenRecipeTabs((tabs) =>
         tabs.map((t) => (t.id === tabId ? { ...t, category } : t)),
       );
+      void attachKitchenTabImage(
+        tabId,
+        recipe,
+        index === 0 ? apiImage : null,
+        apiMeta,
+      );
     });
   }
 
@@ -1154,7 +1220,7 @@ export default function HomeNode() {
       title,
       prepTime: "—",
       servings: "—",
-      steps: ["ChefNode is writing your recipe…"],
+      steps: [CHEF_RECIPE_PLACEHOLDER_STEP],
       ingredients: [],
     };
     let stagedId = null;
@@ -1359,7 +1425,13 @@ export default function HomeNode() {
       if (!recipe) {
         recipe = fallbackChefExecuteRecipe(meal);
       }
-      await commitChefRecipes([recipe], apiImage);
+      if (typeof data?.pollinationsQuery === "string" && data.pollinationsQuery.trim()) {
+        recipe = { ...recipe, pollinationsQuery: data.pollinationsQuery.trim() };
+      }
+      await commitChefRecipes([recipe], apiImage, {
+        pollinationsQuery: data?.pollinationsQuery,
+        imageGenerationSkipped: data?.imageGenerationSkipped,
+      });
     } catch (e) {
       const timedOut =
         e?.details?.error === "timeout" ||
@@ -1403,6 +1475,27 @@ export default function HomeNode() {
       if (manageLoading) setMealLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!kitchenHydrated || kitchenStaleRefetchStarted.current) return;
+    const stale = kitchenRecipeTabs.filter(
+      (t) => t.loading && isIncompleteChefRecipe(t.recipe) && t.recipe.title?.trim(),
+    );
+    if (!stale.length) return;
+    kitchenStaleRefetchStarted.current = true;
+    setChefPhase("recipe");
+    const seen = new Set();
+    stale.forEach((tab) => {
+      const title = tab.recipe.title.trim();
+      const key = title.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      void runChefExecute(title, {
+        accumulate: true,
+        manageLoading: false,
+      });
+    });
+  }, [kitchenHydrated, kitchenRecipeTabs]);
 
   function resetChefSearch() {
     setKitchenRecipeTabs([]);
@@ -2662,6 +2755,7 @@ export default function HomeNode() {
                     tabs={kitchenRecipeTabs}
                     activeTabId={activeKitchenTabId}
                     onSelect={setActiveKitchenTabId}
+                    onCloseTab={closeKitchenTab}
                   />
                 ) : null}
 
@@ -2763,6 +2857,8 @@ export default function HomeNode() {
                               src={chefRecipeImageSrc({
                                 imageDataUrl: activeKitchenTab?.imageDataUrl,
                                 title: generatedMeal.title,
+                                pollinationsQuery: generatedMeal.pollinationsQuery,
+                                imagePrompt: generatedMeal.imagePrompt,
                               })}
                               alt={generatedMeal.title || "Recipe dish"}
                               referrerPolicy="no-referrer"

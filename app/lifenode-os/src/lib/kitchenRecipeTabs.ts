@@ -1,3 +1,5 @@
+export const CHEF_RECIPE_PLACEHOLDER_STEP = "ChefNode is writing your recipe…";
+
 export type KitchenRecipeTabRecipe = {
   title: string;
   prepTime?: string;
@@ -8,6 +10,25 @@ export type KitchenRecipeTabRecipe = {
   imagePrompt?: string;
   pollinationsQuery?: string;
 };
+
+export function isIncompleteChefRecipe(
+  recipe: KitchenRecipeTabRecipe | null | undefined,
+): boolean {
+  if (!recipe?.title?.trim()) return true;
+  const steps = recipe.steps ?? [];
+  if (steps.length === 0) return true;
+  if (steps.length === 1 && steps[0] === CHEF_RECIPE_PLACEHOLDER_STEP) return true;
+  return false;
+}
+
+/** Drop in-flight / placeholder tabs before localStorage + server sync. */
+export function sanitizeKitchenRecipeTabsForPersistence(
+  tabs: KitchenRecipeTab[],
+): KitchenRecipeTab[] {
+  return tabs
+    .filter((t) => !t.loading && !isIncompleteChefRecipe(t.recipe))
+    .map((t) => ({ ...t, loading: false, error: t.error ?? null }));
+}
 
 /** Multi-recipe workspace list (`recipesList` in product specs). */
 export type KitchenRecipeTab = {
@@ -87,6 +108,34 @@ export function getActiveKitchenTab(
     if (found) return found;
   }
   return tabs[0] ?? null;
+}
+
+function tabCompletenessScore(tab: KitchenRecipeTab): number {
+  const steps = tab.recipe?.steps?.length ?? 0;
+  if (steps === 1 && tab.recipe?.steps?.[0] === CHEF_RECIPE_PLACEHOLDER_STEP) return 0;
+  const ing = tab.recipe?.ingredients?.length ?? 0;
+  return steps * 10 + ing + (tab.imageDataUrl ? 5 : 0) + (tab.loading ? -1 : 0);
+}
+
+/** Collapse duplicate titles — keeps the most complete tab per dish name. */
+export function dedupeKitchenRecipeTabsByTitle(tabs: KitchenRecipeTab[]): KitchenRecipeTab[] {
+  const byTitle = new Map<string, KitchenRecipeTab>();
+  for (const tab of tabs) {
+    const key = tab.recipe?.title?.trim().toLowerCase() || tab.id;
+    const prev = byTitle.get(key);
+    if (!prev || tabCompletenessScore(tab) >= tabCompletenessScore(prev)) {
+      byTitle.set(key, tab);
+    }
+  }
+  return Array.from(byTitle.values());
+}
+
+export function removeKitchenRecipeTab(
+  tabs: KitchenRecipeTab[],
+  tabId: string,
+): { tabs: KitchenRecipeTab[]; activeId: string | null } {
+  const next = tabs.filter((t) => t.id !== tabId);
+  return { tabs: next, activeId: next[0]?.id ?? null };
 }
 
 export function mergeKitchenRecipeTabs(

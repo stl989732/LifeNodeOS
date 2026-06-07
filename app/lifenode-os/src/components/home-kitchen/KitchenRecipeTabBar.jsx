@@ -1,5 +1,7 @@
 "use client";
 
+import { X } from "lucide-react";
+
 /**
  * Glassmorphism tab strip for concurrent Kitchen Node recipes (Linear / Notion style).
  */
@@ -7,6 +9,7 @@ export default function KitchenRecipeTabBar({
   tabs,
   activeTabId,
   onSelect,
+  onCloseTab,
   className = "",
 }) {
   if (!tabs?.length) return null;
@@ -21,23 +24,43 @@ export default function KitchenRecipeTabBar({
           const active = tab.id === activeTabId;
           const label = tab.recipe?.title?.trim() || "Recipe";
           return (
-            <button
+            <div
               key={tab.id}
-              type="button"
-              onClick={() => onSelect(tab.id)}
-              disabled={tab.loading}
-              aria-selected={active}
-              className={`shrink-0 rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition-all duration-200 disabled:opacity-60 ${
+              className={`flex shrink-0 items-stretch overflow-hidden rounded-xl transition-all duration-200 ${
                 active
-                  ? "bg-white/95 text-[#1E293B] shadow-[0_2px_12px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70"
-                  : "text-[#64748B] hover:bg-white/70 hover:text-[#1E293B]"
+                  ? "bg-white/95 shadow-[0_2px_12px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70"
+                  : "bg-white/30 hover:bg-white/70"
               }`}
             >
-              <span className="block max-w-[11rem] truncate">{label}</span>
-              {tab.loading ? (
-                <span className="mt-0.5 block text-[10px] font-medium text-[#84A59D]">Loading…</span>
+              <button
+                type="button"
+                onClick={() => onSelect(tab.id)}
+                disabled={tab.loading}
+                aria-selected={active}
+                className={`min-w-0 px-3 py-2 text-left text-xs font-semibold transition-colors disabled:opacity-60 ${
+                  active ? "text-[#1E293B]" : "text-[#64748B] hover:text-[#1E293B]"
+                }`}
+              >
+                <span className="block max-w-[9rem] truncate">{label}</span>
+                {tab.loading ? (
+                  <span className="mt-0.5 block text-[10px] font-medium text-[#84A59D]">Loading…</span>
+                ) : null}
+              </button>
+              {typeof onCloseTab === "function" ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCloseTab(tab.id);
+                  }}
+                  className="flex shrink-0 items-center border-l border-slate-200/60 px-2 text-[#94A3B8] transition-colors hover:bg-red-50 hover:text-red-600"
+                  aria-label={`Close ${label}`}
+                  title="Close tab"
+                >
+                  <X size={14} aria-hidden />
+                </button>
               ) : null}
-            </button>
+            </div>
           );
         })}
       </div>

@@ -30,6 +30,7 @@ import {
 import {
   buildIntelligence,
   classifyExpiry,
+  DEMO_RECIPES,
   lowStockItems,
   recipeStats,
   STATUS_META,
@@ -37,20 +38,21 @@ import {
   SHELF_PRESETS,
 } from "./data";
 import ChefUtensilLoader from "@/src/components/ChefUtensilLoader";
-
-/** User-saved recipes only — no demo seed data for new accounts. */
-const USER_RECIPES = [];
-import { chefRecipeImageSrc, retryPollinationsDishImage } from "@/src/lib/kitchenDishImage";
+import { chefRecipeImageSrc, resolveKitchenDishImageUrl, retryPollinationsDishImage } from "@/src/lib/kitchenDishImage";
 import {
+  CHEF_RECIPE_PLACEHOLDER_STEP,
+  dedupeKitchenRecipeTabsByTitle,
   getActiveKitchenTab,
+  isIncompleteChefRecipe,
   kitchenTabIdFromTitle,
   mergeKitchenRecipeTabs,
+  removeKitchenRecipeTab,
   upsertKitchenRecipeTab,
 } from "@/src/lib/kitchenRecipeTabs";
 import KitchenRecipeTabBar from "@/src/components/home-kitchen/KitchenRecipeTabBar";
 import KitchenScanModal from "@/src/components/home-kitchen/KitchenScanModal";
 import KitchenVaultToast from "@/src/components/home-kitchen/KitchenVaultToast";
-import { appendRecipeToVault } from "@/src/lib/recipeVaultStorage";
+import { appendRecipeToVault, RECIPE_VAULT_KEY } from "@/src/lib/recipeVaultStorage";
 import { FLARE_MODE_CHANGED, readFlareMode } from "@/src/lib/flareModeBridge";
 import {
   KITCHEN_BTN_GLASS,
@@ -61,6 +63,26 @@ import {
 
 const FLARE_HEALING_RE =
   /salmon|greens|spinach|yogurt|berry|soup|ginger|turmeric|anti.?inflam|healing|light|bowl/i;
+
+function readVaultRecipesForSuggestions() {
+  try {
+    const raw = window.localStorage.getItem("lifenode.homenode.recipe-vault.v1");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((row) => typeof row?.title === "string" && row.title.trim())
+      .map((row) => ({
+        id: String(row.id || row.title).trim(),
+        title: row.title.trim(),
+        timeMinutes: 30,
+        needsIds: [],
+        rationale: "Saved in your recipe vault.",
+      }));
+  } catch {
+    return [];
+  }
+}
 
 const PANTRY_KEY = "lifenode.kitchen.pantry.v1";
 const MEAL_PLAN_KEY = "lifenode.kitchen.mealplan.v1";
@@ -216,8 +238,19 @@ function normalizeChefApiRecipe(raw) {
     if (Number.isFinite(n)) caloriesPerServing = Math.round(n);
   }
   const imagePrompt = typeof raw.imagePrompt === "string" ? raw.imagePrompt.trim() : "";
+  const pollinationsQuery =
+    typeof raw.pollinationsQuery === "string" ? raw.pollinationsQuery.trim() : "";
   if (!title || steps.length === 0) return null;
-  return { title, prepTime, servings, steps, ingredients, caloriesPerServing, imagePrompt };
+  return {
+    title,
+    prepTime,
+    servings,
+    steps,
+    ingredients,
+    caloriesPerServing,
+    imagePrompt,
+    pollinationsQuery,
+  };
 }
 
 function pickKitchenImageDataUrl(data) {
@@ -379,6 +412,7 @@ function KitchenRecipeFocusModal({
   imageUrl,
   imageFailed,
   onClose,
+  onCloseTab,
   onImageError,
   onSaveToVault,
   vaultSaved,
@@ -435,7 +469,12 @@ function KitchenRecipeFocusModal({
         </div>
         {tabs?.length > 0 ? (
           <div className="shrink-0 border-b border-white/50 px-4 py-3">
-            <KitchenRecipeTabBar tabs={tabs} activeTabId={activeTabId} onSelect={onSelectTab} />
+            <KitchenRecipeTabBar
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onSelect={onSelectTab}
+              onCloseTab={onCloseTab}
+            />
           </div>
         ) : null}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -539,6 +578,10 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
   const [flareActive, setFlareActive] = useState(false);
   const [mealPlanMinimized, setMealPlanMinimized] = useState(false);
   const [mealPlanShowAi, setMealPlanShowAi] = useState(false);
+  const [mealPlanAiOptions, setMealPlanAiOptions] = useState([]);
+  const [mealPlanAiLoading, setMealPlanAiLoading] = useState(false);
+  const [mealPlanAiError, setMealPlanAiError] = useState(null);
+  const [vaultRecipeCount, setVaultRecipeCount] = useState(0);
   const [scanOpen, setScanOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     name: "",
@@ -564,8 +607,82 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
   useEffect(() => {
     setPantryRows(readLabelList(PANTRY_KEY));
     setMealPlanRows(readLabelList(MEAL_PLAN_KEY));
+    setVaultRecipeCount(readVaultRecipesForSuggestions().length);
     setLabelListsReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!mealPlanShowAi) {
+      setMealPlanAiOptions([]);
+      setMealPlanAiError(null);
+      setMealPlanAiLoading(false);
+      return;
+    }
+    const labels = mealPlanRows.map((r) => r.label.trim()).filter(Boolean);
+    if (!labels.length) {
+      setMealPlanAiOptions([]);
+      setMealPlanAiError("Add at least one meal line to get AI suggestions.");
+      setMealPlanAiLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setMealPlanAiLoading(true);
+    setMealPlanAiError(null);
+    void (async () => {
+      try {
+        const res = await fetch("/api/homenode/kitchen-ai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "chef_discover",
+            userRequest: `Meal plan: ${labels.join(", ")}. Suggest three distinct dinner ideas that fit these lines or use similar ingredients.`,
+          }),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            typeof data?.error === "string"
+              ? data.error
+              : `Kitchen AI error (${res.status})`,
+          );
+        }
+        if (data?.phase === "direct" && typeof data?.mealTitle === "string" && data.mealTitle.trim()) {
+          setMealPlanAiOptions([
+            {
+              title: data.mealTitle.trim(),
+              tagline: typeof data.message === "string" ? data.message : "",
+            },
+          ]);
+          return;
+        }
+        const options = Array.isArray(data?.options)
+          ? data.options
+              .filter((o) => o && typeof o.title === "string" && o.title.trim())
+              .slice(0, 3)
+              .map((o) => ({
+                title: o.title.trim(),
+                tagline: typeof o.tagline === "string" ? o.tagline : "",
+              }))
+          : [];
+        if (options.length === 0) {
+          throw new Error("No suggestions returned — try again in a moment.");
+        }
+        setMealPlanAiOptions(options);
+      } catch (e) {
+        if (e?.name === "AbortError") return;
+        setMealPlanAiOptions([]);
+        setMealPlanAiError(
+          e instanceof Error ? e.message : "Could not load AI suggestions.",
+        );
+      } finally {
+        setMealPlanAiLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [mealPlanShowAi, mealPlanRows]);
 
   useEffect(() => {
     function syncFlare() {
@@ -635,15 +752,28 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
     return c;
   }, [items]);
 
-  const intelligence = useMemo(() => buildIntelligence(items, USER_RECIPES), [items]);
+  const recipeCatalog = useMemo(() => {
+    const vault = readVaultRecipesForSuggestions();
+    const seen = new Set();
+    const merged = [];
+    for (const recipe of [...vault, ...DEMO_RECIPES]) {
+      const key = recipe.title.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(recipe);
+    }
+    return merged;
+  }, [vaultRecipeCount]);
+
+  const intelligence = useMemo(() => buildIntelligence(items, recipeCatalog), [items, recipeCatalog]);
   const lowStock = useMemo(() => lowStockItems(items), [items]);
 
   const recipeMatches = useMemo(
     () =>
-      USER_RECIPES.map((r) => ({ recipe: r, ...recipeStats(r, items) }))
+      recipeCatalog.map((r) => ({ recipe: r, ...recipeStats(r, items) }))
         .sort((a, b) => b.haveCount / b.totalCount - a.haveCount / a.totalCount)
         .slice(0, 3),
-    [items],
+    [items, recipeCatalog],
   );
 
   const shelfOptions = SHELF_PRESETS[newItem.storage] || SHELF_PRESETS.refrigerator;
@@ -652,16 +782,16 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
     const blob = mealPlanRows.map((r) => r.label).join(" ").toLowerCase();
     const inv = items.map((i) => `${i.name} ${i.id}`).join(" ").toLowerCase();
     const hay = `${blob} ${inv}`;
-    let pool = USER_RECIPES;
+    let pool = recipeCatalog;
     if (flareActive) {
-      pool = USER_RECIPES.filter(
+      pool = recipeCatalog.filter(
         (recipe) =>
           FLARE_HEALING_RE.test(recipe.title) ||
           FLARE_HEALING_RE.test(recipe.rationale) ||
           recipe.id === "salmon-greens",
       );
       if (pool.length === 0) {
-        pool = USER_RECIPES.filter((r) => r.id === "salmon-greens");
+        pool = recipeCatalog.filter((r) => r.id === "salmon-greens");
       }
     }
     return pool
@@ -676,9 +806,44 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
       })
       .sort((a, b) => b.hits - a.hits || b.haveCount / b.totalCount - a.haveCount / a.totalCount)
       .slice(0, 4);
-  }, [mealPlanRows, items, flareActive]);
+  }, [mealPlanRows, items, flareActive, recipeCatalog]);
 
   const skipKitchenFetchRef = useRef(false);
+
+  const closeKitchenTab = useCallback((tabId) => {
+    setKitchenRecipeTabs((prev) => {
+      const { tabs, activeId } = removeKitchenRecipeTab(prev, tabId);
+      if (tabs.length === 0) {
+        setRecipeModalOpen(false);
+        setActiveKitchenTabId(null);
+        return tabs;
+      }
+      setActiveKitchenTabId((cur) => (cur === tabId ? activeId : cur ?? activeId));
+      return tabs;
+    });
+  }, []);
+
+  const attachKitchenTabImage = useCallback(async (tabId, recipe, apiImage, apiMeta = {}) => {
+    if (!tabId || !recipe?.title) return;
+    try {
+      const url = await resolveKitchenDishImageUrl({
+        apiImageUrl: apiImage,
+        pollinationsQuery: recipe.pollinationsQuery || apiMeta.pollinationsQuery,
+        imagePrompt: recipe.imagePrompt,
+        title: recipe.title,
+        imageGenerationSkipped: apiMeta.imageGenerationSkipped !== false,
+      });
+      setKitchenRecipeTabs((tabs) =>
+        tabs.map((t) =>
+          t.id === tabId ? { ...t, imageDataUrl: url, imageFailed: false } : t,
+        ),
+      );
+    } catch {
+      setKitchenRecipeTabs((tabs) =>
+        tabs.map((t) => (t.id === tabId ? { ...t, imageFailed: true } : t)),
+      );
+    }
+  }, []);
 
   const openKitchenRecipe = useCallback(
     async (mealTitle, options = {}) => {
@@ -697,6 +862,7 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
         if (
           cached?.recipe?.steps?.length > 0 &&
           !cached.loading &&
+          !isIncompleteChefRecipe(cached.recipe) &&
           !options.forceRefresh
         ) {
           skipKitchenFetchRef.current = true;
@@ -706,7 +872,7 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
           title: q,
           prepTime: "—",
           servings: "—",
-          steps: ["ChefNode is writing your recipe…"],
+          steps: [CHEF_RECIPE_PLACEHOLDER_STEP],
           ingredients: [],
         };
         const { tabs } = upsertKitchenRecipeTab(base, {
@@ -770,25 +936,35 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
           setKitchenRecipeTabs((prev) => {
             const merged = mergeKitchenRecipeTabs(accumulate ? prev : [], entries);
             mergedActiveId = merged.activeId;
-            return merged.tabs;
+            return dedupeKitchenRecipeTabsByTitle(merged.tabs);
           });
           if (mergedActiveId) setActiveKitchenTabId(mergedActiveId);
+          if (mergedActiveId && multi[0]) {
+            void attachKitchenTabImage(mergedActiveId, multi[0], apiImage, {
+              pollinationsQuery: data?.pollinationsQuery,
+              imageGenerationSkipped: data?.imageGenerationSkipped,
+            });
+          }
           return;
         }
 
-        const { recipe: rawRec, imageDataUrl } = extractRecipePayload(data);
-        const rec = normalizeChefApiRecipe(rawRec);
+        const { recipe: rawRec, imageDataUrl, pollinationsQuery } = extractRecipePayload(data);
+        let rec = normalizeChefApiRecipe(rawRec);
         if (!rec) {
           throw new Error(
             typeof data?.error === "string" ? data.error : "Could not parse recipe from response.",
           );
         }
+        if (pollinationsQuery) {
+          rec = { ...rec, pollinationsQuery };
+        }
         const oversizedGemini =
           typeof imageDataUrl === "string" &&
           imageDataUrl.startsWith("data:") &&
           imageDataUrl.length > 900000;
+        let savedTabId = targetTabId;
         setKitchenRecipeTabs((prev) => {
-          const { tabs } = upsertKitchenRecipeTab(prev, {
+          const { tabs, activeId } = upsertKitchenRecipeTab(prev, {
             id: targetTabId ?? undefined,
             recipe: rec,
             loading: false,
@@ -797,8 +973,15 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
             imageFailed: false,
             category: "Dinner",
           });
-          return tabs;
+          savedTabId = activeId;
+          return dedupeKitchenRecipeTabsByTitle(tabs);
         });
+        if (savedTabId) {
+          void attachKitchenTabImage(savedTabId, rec, oversizedGemini ? null : imageDataUrl, {
+            pollinationsQuery,
+            imageGenerationSkipped: data?.imageGenerationSkipped,
+          });
+        }
       } catch (e) {
         const message =
           e instanceof Error ? e.message : "Something went wrong fetching the recipe.";
@@ -813,7 +996,7 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
         });
       }
     },
-    [items, mealPlanRows],
+    [items, mealPlanRows, attachKitchenTabImage],
   );
 
   const saveKitchenRecipeToVault = useCallback(() => {
@@ -822,6 +1005,7 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
     const entry = buildVaultEntryFromKitchenRecipe(tab.recipe, tab.imageDataUrl);
     if (!entry) return;
     appendRecipeToVault(entry);
+    setVaultRecipeCount(readVaultRecipesForSuggestions().length);
     setKitchenRecipeTabs((tabs) =>
       tabs.map((t) => (t.id === tab.id ? { ...t, vaultSaved: true } : t)),
     );
@@ -1374,6 +1558,42 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#3F5E58]">
                 Assistant suggestions
               </p>
+              {mealPlanAiLoading ? (
+                <div className="py-4">
+                  <ChefUtensilLoader compact message="Finding ideas for your meal plan…" />
+                </div>
+              ) : null}
+              {mealPlanAiError ? (
+                <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950">
+                  {mealPlanAiError}
+                </p>
+              ) : null}
+              {mealPlanAiOptions.length > 0 ? (
+                <ul className="mb-4 space-y-2">
+                  {mealPlanAiOptions.map((opt) => (
+                    <li key={opt.title}>
+                      <button
+                        type="button"
+                        onClick={() => openKitchenRecipe(opt.title)}
+                        className="w-full rounded-xl bg-white/90 px-3 py-3 text-left text-sm text-[#1E293B] ring-1 ring-slate-100 transition-colors hover:bg-[#84A59D]/10 hover:ring-[#84A59D]/30"
+                      >
+                        <span className="block font-semibold">{opt.title}</span>
+                        {opt.tagline ? (
+                          <span className="mt-0.5 block text-xs text-[#475569]">{opt.tagline}</span>
+                        ) : null}
+                        <span className="mt-1 block text-[11px] font-semibold text-[#3F5E58]">
+                          Tap for full ChefNode recipe →
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {assistantRecipes.length > 0 ? (
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[#475569]">
+                  Pantry matches
+                </p>
+              ) : null}
               <ul className="space-y-2">
                 {assistantRecipes.map(({ recipe, haveCount, totalCount, hits }) => (
                   <li key={recipe.id}>
@@ -1427,6 +1647,8 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
             ? chefRecipeImageSrc({
                 imageDataUrl: activeKitchenTab.imageDataUrl,
                 title: activeKitchenTab.recipe.title,
+                pollinationsQuery: activeKitchenTab.recipe.pollinationsQuery,
+                imagePrompt: activeKitchenTab.recipe.imagePrompt,
               })
             : null
         }
@@ -1436,6 +1658,7 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
           setKitchenRecipeTabs([]);
           setActiveKitchenTabId(null);
         }}
+        onCloseTab={closeKitchenTab}
         onImageError={() => {
           const tabId = activeKitchenTab?.id;
           if (!tabId) return;
