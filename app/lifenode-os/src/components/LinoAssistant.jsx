@@ -71,7 +71,7 @@ const NODE_CONFIG = {
     title: "HomeNode Mode",
     tone: "Grounded and supportive",
     tools: "Family logistics · Calendar · Shopping flow",
-    cards: ["Scan Fridge", "Update Family Calendar"],
+    cards: ["Scan Kitchen", "Update Family Calendar"],
   },
 };
 

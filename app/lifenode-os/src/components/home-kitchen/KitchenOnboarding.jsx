@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ArrowRight,
   Camera,
   Check,
   ChevronLeft,
+  Loader2,
   Refrigerator,
   Snowflake,
   Sparkles,
   Wand2,
 } from "lucide-react";
 import { STORAGE_TYPES } from "./data";
+import KitchenCameraCapture from "./KitchenCameraCapture";
+import { detectItemsFromScanPhotos } from "@/src/lib/kitchenScan";
 import { KITCHEN_GLASS_PANEL, KITCHEN_TEXT } from "@/src/lib/homeNode/kitchenMintCream";
 
 const STEPS = [
@@ -36,8 +39,13 @@ export default function KitchenOnboarding({ onComplete }) {
     pantry: false,
     cabinets: false,
   });
-  const [photoTaken, setPhotoTaken] = useState({ outside: false, inside: false });
+  const [photos, setPhotos] = useState({ outside: null, inside: null });
+  const [photoPreviews, setPhotoPreviews] = useState({ outside: null, inside: null });
+  const previewUrlsRef = useRef({ outside: null, inside: null });
+  const [activePhotoSlot, setActivePhotoSlot] = useState(null);
   const [detected, setDetected] = useState([]);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanError, setScanError] = useState(null);
 
   const enabledStorage = Object.entries(storage)
     .filter(([, v]) => v)
@@ -47,8 +55,35 @@ export default function KitchenOnboarding({ onComplete }) {
     setStorage((s) => ({ ...s, [id]: !s[id] }));
   }
 
-  function takePhoto(view) {
-    setPhotoTaken((p) => ({ ...p, [view]: true }));
+  const photoTaken = {
+    outside: Boolean(photos.outside),
+    inside: Boolean(photos.inside),
+  };
+
+  const handlePhotoCapture = useCallback((file) => {
+    if (!activePhotoSlot) return;
+    const slot = activePhotoSlot;
+    setPhotos((prev) => ({ ...prev, [slot]: file }));
+    const url = URL.createObjectURL(file);
+    if (previewUrlsRef.current[slot]) URL.revokeObjectURL(previewUrlsRef.current[slot]);
+    previewUrlsRef.current = { ...previewUrlsRef.current, [slot]: url };
+    setPhotoPreviews((prev) => ({ ...prev, [slot]: url }));
+    setActivePhotoSlot(null);
+  }, [activePhotoSlot]);
+
+  async function advanceFromPhotos() {
+    setScanBusy(true);
+    setScanError(null);
+    try {
+      const primaryStorage = enabledStorage[0] || "refrigerator";
+      const items = await detectItemsFromScanPhotos(photos, primaryStorage);
+      setDetected(items);
+      setStep(3);
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : "Could not detect items from photos.");
+    } finally {
+      setScanBusy(false);
+    }
   }
 
   function toggleDetected(id) {
@@ -171,12 +206,14 @@ export default function KitchenOnboarding({ onComplete }) {
                 <PhotoTile
                   key={p.id}
                   taken={photoTaken[p.id]}
+                  previewUrl={photoPreviews[p.id]}
                   label={p.label}
                   hint={p.hint}
-                  onCapture={() => takePhoto(p.id)}
+                  onCapture={() => setActivePhotoSlot(p.id)}
                 />
               ))}
             </div>
+            {scanError ? <p className="mt-4 text-sm text-red-700">{scanError}</p> : null}
           </div>
         )}
 
@@ -261,11 +298,23 @@ export default function KitchenOnboarding({ onComplete }) {
           {step < 4 ? (
             <button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!canContinue}
+              onClick={() => {
+                if (step === 2) void advanceFromPhotos();
+                else setStep((s) => s + 1);
+              }}
+              disabled={!canContinue || scanBusy}
               className="inline-flex items-center gap-2 rounded-full bg-[#3F5E58] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(63,94,88,0.25)] transition-transform duration-200 hover:scale-[1.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#84A59D] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Continue <ArrowRight size={16} />
+              {scanBusy ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Detecting…
+                </>
+              ) : (
+                <>
+                  Continue <ArrowRight size={16} />
+                </>
+              )}
             </button>
           ) : (
             <button
@@ -278,31 +327,43 @@ export default function KitchenOnboarding({ onComplete }) {
           )}
         </div>
       </section>
+
+      <KitchenCameraCapture
+        open={Boolean(activePhotoSlot)}
+        title={activePhotoSlot === "outside" ? "Front view" : "Inside view"}
+        hint="Flip between front and back camera if needed."
+        onClose={() => setActivePhotoSlot(null)}
+        onCapture={handlePhotoCapture}
+      />
     </div>
   );
 }
 
-function PhotoTile({ taken, label, hint, onCapture }) {
+function PhotoTile({ taken, previewUrl, label, hint, onCapture }) {
   return (
     <button
       type="button"
       onClick={onCapture}
-      className={`relative flex aspect-[4/3] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-6 text-center transition-all duration-200 ${
+      className={`relative flex aspect-[4/3] flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center transition-all duration-200 ${
         taken
           ? "border-[#84A59D] bg-gradient-to-br from-[#84A59D]/15 to-[#84A59D]/5"
           : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-white"
       }`}
       aria-pressed={taken}
     >
+      {previewUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={previewUrl} alt={label} className="absolute inset-0 h-full w-full object-cover" />
+      ) : null}
       <span
-        className={`flex h-14 w-14 items-center justify-center rounded-full transition-colors ${
+        className={`relative z-[1] flex h-14 w-14 items-center justify-center rounded-full transition-colors ${
           taken ? "bg-[#84A59D] text-white" : "bg-white text-slate-400 ring-1 ring-slate-200"
         }`}
       >
         {taken ? <Check size={26} strokeWidth={2} /> : <Camera size={24} strokeWidth={1.75} />}
       </span>
-      <span className="text-base font-semibold text-slate-900">{label}</span>
-      <span className="text-xs text-slate-500">{taken ? "Captured" : hint}</span>
+      <span className="relative z-[1] text-base font-semibold text-slate-900">{label}</span>
+      <span className="relative z-[1] text-xs text-slate-500">{taken ? "Retake" : hint}</span>
     </button>
   );
 }

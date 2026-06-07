@@ -48,6 +48,7 @@ import {
   upsertKitchenRecipeTab,
 } from "@/src/lib/kitchenRecipeTabs";
 import KitchenRecipeTabBar from "@/src/components/home-kitchen/KitchenRecipeTabBar";
+import KitchenScanModal from "@/src/components/home-kitchen/KitchenScanModal";
 import KitchenVaultToast from "@/src/components/home-kitchen/KitchenVaultToast";
 import { appendRecipeToVault } from "@/src/lib/recipeVaultStorage";
 import { FLARE_MODE_CHANGED, readFlareMode } from "@/src/lib/flareModeBridge";
@@ -538,7 +539,7 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
   const [flareActive, setFlareActive] = useState(false);
   const [mealPlanMinimized, setMealPlanMinimized] = useState(false);
   const [mealPlanShowAi, setMealPlanShowAi] = useState(false);
-  const [scanBanner, setScanBanner] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     name: "",
     category: "Produce",
@@ -904,6 +905,13 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
     onItemsChange(items.filter((i) => i.id !== id));
   }
 
+  function handleScanComplete({ items: scanned }) {
+    if (!Array.isArray(scanned) || scanned.length === 0) return;
+    const kept = scanned.filter((row) => row.kept !== false);
+    if (kept.length === 0) return;
+    onItemsChange([...items, ...kept]);
+  }
+
   return (
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -938,11 +946,11 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
         </button>
         <button
           type="button"
-          onClick={() => setScanBanner((v) => !v)}
+          onClick={() => setScanOpen(true)}
           className={`inline-flex min-h-[44px] ${KITCHEN_BTN_GLASS}`}
         >
           <Camera size={16} strokeWidth={1.75} />
-          Scan Fridge
+          Scan
         </button>
         <button
           type="button"
@@ -961,20 +969,6 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
           Grocery List
         </button>
       </nav>
-
-      {scanBanner ? (
-        <div className="rounded-2xl border border-[#84A59D]/30 bg-[#84A59D]/10 px-4 py-3 text-sm text-[#3F5E58]">
-          Scan is simulated here — use <strong>Add Item</strong> to log what you see, or connect a
-          camera flow later. Close this note when you&apos;re done.
-          <button
-            type="button"
-            className="ml-3 text-xs font-bold underline"
-            onClick={() => setScanBanner(false)}
-          >
-            Dismiss
-          </button>
-        </div>
-      ) : null}
 
       <section aria-label="Inventory status" className="grid gap-4 sm:grid-cols-3">
         <StatusTile
@@ -1194,6 +1188,17 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
         <p className="mb-3 text-sm text-[#475569]">
           Add, edit, or remove pantry staples. This list is separate from your Smart Cart grocery run.
         </p>
+        <button
+          type="button"
+          onClick={() => {
+            setFocus(null);
+            setScanOpen(true);
+          }}
+          className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#84A59D]/40 bg-[#84A59D]/10 px-4 py-2.5 text-sm font-semibold text-[#3F5E58] transition hover:bg-[#84A59D]/15"
+        >
+          <Camera size={16} />
+          Scan pantry with camera
+        </button>
         <ListEditorRows rows={pantryRows} onChange={setPantryRows} placeholder="e.g. Basmati rice" />
       </KitchenGlassModal>
 
@@ -1468,6 +1473,13 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
       <KitchenVaultToast
         message={kitchenVaultToast}
         onDismiss={() => setKitchenVaultToast(null)}
+      />
+
+      <KitchenScanModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        enabledStorage={enabledStorage}
+        onComplete={handleScanComplete}
       />
     </div>
   );
