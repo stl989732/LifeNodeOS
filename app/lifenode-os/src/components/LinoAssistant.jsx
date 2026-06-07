@@ -8,7 +8,6 @@ import {
   Camera,
   Download,
   FileText,
-  Maximize2,
   Mic,
   Minimize2,
   Paperclip,
@@ -17,9 +16,10 @@ import {
   Plus,
   SendHorizontal,
   SlidersHorizontal,
-  Sparkles,
   X as XIcon,
 } from "lucide-react";
+import LinosSparkIcon from "@/src/components/linos/LinosSparkIcon";
+import { linosChatStorageKey } from "@/src/lib/linos/linosChatStorage";
 import ReactMarkdown from "react-markdown";
 import { getSupabaseBrowserClient } from "@/src/lib/supabase/client";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
@@ -87,7 +87,8 @@ const HAT_SHORT_LABEL = {
 const ASSISTANT_MIN_KEY = "linos-assistant-minimized";
 const LEGACY_MIN_KEY = "lino-assistant-minimized";
 const ASSISTANT_PREFS_KEY = "linos-assistant-prefs-v1";
-const LINOS_CHAT_ID_KEY = "linos-chat-id-v1";
+const LEGACY_LINOS_CHAT_ID_KEY = "linos-chat-id-v1";
+const PAST_CHATS_LIMIT = 30;
 
 const SILENCE_MS = 1800;
 const MAX_HISTORY_TURNS = 10;
@@ -220,35 +221,81 @@ export default function LinoAssistant() {
    */
   const [chatId, setChatId] = useState("");
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(LINOS_CHAT_ID_KEY);
-    if (!stored) return;
+  const persistChatIdForUser = useCallback((userId, id) => {
+    if (typeof window === "undefined" || !userId || !id) return;
+    try {
+      window.localStorage.setItem(linosChatStorageKey(userId), id);
+      window.localStorage.removeItem(LEGACY_LINOS_CHAT_ID_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
+  const clearChatIdForUser = useCallback((userId) => {
+    if (typeof window === "undefined" || !userId) return;
+    try {
+      window.localStorage.removeItem(linosChatStorageKey(userId));
+      window.localStorage.removeItem(LEGACY_LINOS_CHAT_ID_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  /** Restore the signed-in user's last chat (scoped storage + DB ownership). */
+  useEffect(() => {
+    if (sessionStatus !== "authenticated" || !session?.user?.id) {
+      if (sessionStatus === "unauthenticated") {
+        setChatId("");
+        setThreadMessages([]);
+      }
+      return;
+    }
+
+    const userId = String(session.user.id);
     let cancelled = false;
+
     (async () => {
       try {
         const supabase = getSupabaseBrowserClient();
-        const { data, error } = await supabase
+        const storageKey = linosChatStorageKey(userId);
+        const stored = window.localStorage.getItem(storageKey);
+
+        if (stored) {
+          const { data: owned } = await supabase
+            .from("linos_chats")
+            .select("id")
+            .eq("id", stored)
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (cancelled) return;
+          if (owned?.id) {
+            setChatId(owned.id);
+            return;
+          }
+          clearChatIdForUser(userId);
+        }
+
+        const { data: latest } = await supabase
           .from("linos_chats")
           .select("id")
-          .eq("id", stored)
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .maybeSingle();
         if (cancelled) return;
-        if (!error && data?.id) {
-          setChatId(stored);
-        } else {
-          window.localStorage.removeItem(LINOS_CHAT_ID_KEY);
+        if (latest?.id) {
+          setChatId(latest.id);
+          persistChatIdForUser(userId, latest.id);
         }
       } catch {
-        if (!cancelled) window.localStorage.removeItem(LINOS_CHAT_ID_KEY);
+        if (!cancelled) clearChatIdForUser(userId);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sessionStatus, session?.user?.id, clearChatIdForUser, persistChatIdForUser]);
 
   /** @type {[Array<{ id: string; role: string; content: string; attachments?: unknown[]; created_at?: string }>, Function]} */
   const [threadMessages, setThreadMessages] = useState([]);
@@ -384,7 +431,7 @@ export default function LinoAssistant() {
         .select("id, node_type, created_at")
         .eq("user_id", String(session.user.id))
         .order("created_at", { ascending: false })
-        .limit(12);
+        .limit(PAST_CHATS_LIMIT);
       if (chatsErr) throw chatsErr;
 
       const withPreview = await Promise.all(
@@ -394,7 +441,7 @@ export default function LinoAssistant() {
             .select("content")
             .eq("chat_id", c.id)
             .eq("role", "user")
-            .order("created_at", { ascending: true })
+            .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
           const preview =
@@ -438,14 +485,10 @@ export default function LinoAssistant() {
     }
     setChatId(created.id);
     setThreadMessages([]);
-    try {
-      window.localStorage.setItem(LINOS_CHAT_ID_KEY, created.id);
-    } catch {
-      /* ignore */
-    }
+    persistChatIdForUser(String(session.user.id), created.id);
     setPastChatsOpen(false);
     void loadPastChats();
-  }, [activeNode, loadPastChats, session?.user?.id, sessionStatus]);
+  }, [activeNode, loadPastChats, persistChatIdForUser, session?.user?.id, sessionStatus]);
 
   const switchToChat = useCallback(
     async (id) => {
@@ -453,17 +496,29 @@ export default function LinoAssistant() {
         setPastChatsOpen(false);
         return;
       }
-      setChatId(id);
-      try {
-        window.localStorage.setItem(LINOS_CHAT_ID_KEY, id);
-      } catch {
-        /* ignore */
+      if (sessionStatus !== "authenticated" || !session?.user?.id) {
+        setChatError("Sign in to open previous chats.");
+        return;
       }
+      const userId = String(session.user.id);
+      const supabase = getSupabaseBrowserClient();
+      const { data: owned, error } = await supabase
+        .from("linos_chats")
+        .select("id")
+        .eq("id", id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error || !owned?.id) {
+        setChatError("That chat belongs to another account or no longer exists.");
+        return;
+      }
+      setChatId(id);
+      persistChatIdForUser(userId, id);
       setPastChatsOpen(false);
       setChatError(null);
       await loadThread(id);
     },
-    [chatId, loadThread],
+    [chatId, loadThread, persistChatIdForUser, session?.user?.id, sessionStatus],
   );
 
   useEffect(() => {
@@ -472,10 +527,12 @@ export default function LinoAssistant() {
   }, [chatId, loadThread, pathname]);
 
   useEffect(() => {
-    if (pastChatsOpen && sessionStatus === "authenticated") {
+    if (sessionStatus === "authenticated") {
       void loadPastChats();
+    } else {
+      setPastChats([]);
     }
-  }, [pastChatsOpen, loadPastChats, sessionStatus]);
+  }, [loadPastChats, sessionStatus]);
 
   useEffect(() => {
     transcriptBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -717,13 +774,10 @@ export default function LinoAssistant() {
           .from("linos_chats")
           .select("id")
           .eq("id", activeChatId)
+          .eq("user_id", String(session.user.id))
           .maybeSingle();
         if (!existingChat?.id) {
-          try {
-            window.localStorage.removeItem(LINOS_CHAT_ID_KEY);
-          } catch {
-            /* ignore */
-          }
+          clearChatIdForUser(String(session.user.id));
           activeChatId = "";
           setChatId("");
         }
@@ -753,11 +807,7 @@ export default function LinoAssistant() {
 
         activeChatId = created.id;
         setChatId(activeChatId);
-        try {
-          window.localStorage.setItem(LINOS_CHAT_ID_KEY, activeChatId);
-        } catch {
-          /* ignore */
-        }
+        persistChatIdForUser(String(session.user.id), activeChatId);
       }
 
       const geminiParts = [];
@@ -936,6 +986,7 @@ export default function LinoAssistant() {
       } finally {
         isSendingRef.current = false;
         setIsSending(false);
+        void loadPastChats();
       }
     },
     [
@@ -943,8 +994,11 @@ export default function LinoAssistant() {
       beginAssemblingToNode,
       buildSystemPrompt,
       chatId,
+      loadPastChats,
       loadThread,
       pathname,
+      clearChatIdForUser,
+      persistChatIdForUser,
       session?.user?.id,
       sessionStatus,
       stagedAttachments,
@@ -1096,10 +1150,10 @@ export default function LinoAssistant() {
             type="button"
             onClick={() => setAssistantMinimized(false)}
             className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/20 bg-[#0f172a]/90 px-4 py-3 text-sm font-semibold text-slate-100 shadow-lg backdrop-blur-xl"
-            aria-label="Expand Linos Assistant"
+            aria-label="Expand Linos"
           >
-            <Maximize2 className={`h-4 w-4 ${nodeTheme.iconOnGlass}`} />
-            <span className={nodeTheme.headingFont}>Linos Assistant</span>
+            <LinosSparkIcon size={18} className={nodeTheme.iconOnGlass} title="Linos" />
+            <span className={nodeTheme.headingFont}>Linos</span>
           </button>
         </div>
       </>
@@ -1117,9 +1171,9 @@ export default function LinoAssistant() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1">
-                <Sparkles className={`h-3.5 w-3.5 shrink-0 ${nodeTheme.iconOnGlass}`} />
+                <LinosSparkIcon size={16} className={`shrink-0 ${nodeTheme.iconOnGlass}`} />
                 <span className={`truncate font-semibold ${nodeTheme.titleOnGlass} ${nodeTheme.headingFont}`}>
-                  Linos Assistant
+                  Linos
                 </span>
                 <span className={`hidden sm:inline ${nodeTheme.toneOnGlass}`}>· {nodeMeta.title}</span>
                 <span className={`hidden sm:inline ${nodeTheme.toneOnGlass}`}>· {nodeMeta.tone}</span>
@@ -1208,18 +1262,18 @@ export default function LinoAssistant() {
                 }`}
                 title={
                   isLinoInterrupting
-                    ? "Linos has a global alert ready to surface"
-                    : "Linos is monitoring quietly"
+                    ? "Cross-node alert ready — Linos detected something that needs your attention (expiring food, overdue tasks, bridge triggers)."
+                    : "Calm State — Linos is quietly watching your nodes with no urgent alerts. Related to your LifePulse calm progress ring."
                 }
                 suppressHydrationWarning
               >
-                {isLinoInterrupting ? "Global Alert Ready" : "Calm State"}
+                {isLinoInterrupting ? "Alert Ready" : "Calm State"}
               </div>
               <button
                 type="button"
                 onClick={() => setAssistantMinimized(true)}
                 className="rounded-lg border border-white/15 bg-slate-900/70 p-2 text-slate-100 transition hover:bg-slate-900"
-                aria-label="Minimize Linos Assistant"
+                aria-label="Minimize Linos"
               >
                 <Minimize2 className="h-4 w-4" />
               </button>
@@ -1229,12 +1283,14 @@ export default function LinoAssistant() {
           {pastChatsOpen ? (
             <div className="mb-2 max-h-36 overflow-y-auto rounded-xl border border-white/12 bg-slate-950/50 p-2">
               <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Previous chats
+                Your previous chats
               </p>
               {pastChatsLoading ? (
                 <p className="px-1 text-xs text-slate-500">Loading chats…</p>
               ) : pastChats.length === 0 ? (
-                <p className="px-1 text-xs text-slate-500">No saved chats yet.</p>
+                <p className="px-1 text-xs text-slate-500">
+                  No saved chats yet — conversations you start are stored to your account only.
+                </p>
               ) : (
                 <ul className="space-y-1">
                   {pastChats.map((c) => {
@@ -1511,7 +1567,7 @@ export default function LinoAssistant() {
                   id="linos-settings-title"
                   className={`text-lg font-bold ${nodeTheme.headingFont}`}
                 >
-                  Linos Assistant settings
+                  Linos settings
                 </h3>
                 <p className="mt-1 text-xs text-slate-400">
                   Local preferences only — wire to your workspace later.
