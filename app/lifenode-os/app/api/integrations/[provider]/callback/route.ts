@@ -147,9 +147,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     try {
       await upsertUserConnectedApp({
-        user_id: targetUserId,
+        user_id: statePayload.sessionUserId,
         target_node: statePayload.targetNode,
-        app_id: provider,
+        app_id: statePayload.appId,
         connection_status: "connected",
       });
     } catch (connectedAppErr) {

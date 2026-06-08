@@ -104,6 +104,25 @@ const PROVIDER_BUILDERS: Record<
       },
     };
   },
+  google_drive: () => {
+    const { clientId, clientSecret } = googlePair();
+    if (!clientId || !clientSecret) return null;
+    return {
+      id: "google_drive",
+      authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+      tokenUrl: "https://oauth2.googleapis.com/token",
+      clientId,
+      clientSecret,
+      scopes: [
+        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/userinfo.email",
+      ],
+      authorizeExtras: {
+        access_type: "offline",
+        prompt: "consent",
+      },
+    };
+  },
   salesforce: () => {
     const clientId = env("SALESFORCE_CLIENT_ID");
     const clientSecret = env("SALESFORCE_CLIENT_SECRET");
@@ -142,6 +161,19 @@ const PROVIDER_BUILDERS: Record<
       clientId,
       clientSecret,
       scopes: ["channels:read", "chat:write", "users:read"],
+    };
+  },
+  zoom: () => {
+    const clientId = env("ZOOM_CLIENT_ID");
+    const clientSecret = env("ZOOM_CLIENT_SECRET");
+    if (!clientId || !clientSecret) return null;
+    return {
+      id: "zoom",
+      authorizationUrl: "https://zoom.us/oauth/authorize",
+      tokenUrl: "https://zoom.us/oauth/token",
+      clientId,
+      clientSecret,
+      scopes: ["user:read", "meeting:read"],
     };
   },
   gohighlevel: () => {

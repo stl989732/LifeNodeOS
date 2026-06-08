@@ -34,6 +34,67 @@ async function markAppSyncing(
   }
 }
 
+async function fetchOAuthAuthorizeUrl(
+  providerSegment: string,
+  nodeName: string,
+  appId: string,
+): Promise<string | null> {
+  const node = encodeURIComponent(nodeName.toUpperCase());
+  const app = encodeURIComponent(appId);
+  const res = await fetch(
+    `/api/integrations/${providerSegment}?node=${node}&app=${app}&format=json`,
+    { credentials: "include" },
+  );
+
+  if (res.status === 401) return null;
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const reason =
+      typeof data?.error === "string" ? data.error : res.statusText;
+    throw new Error(reason || "Could not start OAuth flow.");
+  }
+
+  const data = (await res.json()) as { url?: string };
+  return typeof data.url === "string" ? data.url : null;
+}
+
+/**
+ * Start OAuth for a provider-backed app card.
+ * Fetches a signed authorize URL from the server, then redirects the browser.
+ */
+export async function startOAuthConnect(
+  nodeName: string,
+  appId: string,
+): Promise<"redirected" | "unauthorized" | "unsupported"> {
+  const provider = resolveAppConnectProvider(appId);
+  if (!provider) return "unsupported";
+
+  const appKey = toConnectedAppId(appId);
+  const segment = integrationRedirectPathSegment(provider);
+  const node = encodeURIComponent(nodeName.toUpperCase());
+  const app = encodeURIComponent(appKey);
+
+  void markAppSyncing(nodeName, appId);
+
+  let authorizeUrl: string | null = null;
+  try {
+    authorizeUrl = await fetchOAuthAuthorizeUrl(segment, nodeName, appKey);
+  } catch (err) {
+    console.warn("[OAuth] JSON authorize failed, using server redirect:", err);
+  }
+
+  if (!authorizeUrl) return "unauthorized";
+
+  if (authorizeUrl.startsWith("http")) {
+    window.location.href = authorizeUrl;
+    return "redirected";
+  }
+
+  window.location.href = `/api/integrations/${segment}?node=${node}&app=${app}`;
+  return "redirected";
+}
+
 /**
  * Handles updating the database when a user connects an integration app card.
  * Uses real OAuth when a provider is configured; otherwise opens the dev mock popup.
@@ -46,15 +107,13 @@ export async function connectAppToNode(
   const appKey = toConnectedAppId(appId);
   const provider = resolveAppConnectProvider(appId);
 
+  if (provider) {
+    const outcome = await startOAuthConnect(nodeName, appId);
+    return outcome === "redirected";
+  }
+
   const synced = await markAppSyncing(nodeName, appId);
   if (!synced) return false;
-
-  if (provider) {
-    const segment = integrationRedirectPathSegment(provider);
-    const node = encodeURIComponent(nodeName.toUpperCase());
-    window.location.href = `/api/integrations/${segment}?node=${node}`;
-    return true;
-  }
 
   const width = 600;
   const height = 600;
@@ -62,7 +121,7 @@ export async function connectAppToNode(
   const top = window.screen.height / 2 - height / 2;
 
   window.open(
-    `/api/integrations/mock-callback?app=${encodeURIComponent(appKey)}&node=${encodeURIComponent(nodeName)}&userId=${encodeURIComponent(userId)}`,
+    `/api/integrations/mock-callback?app=${encodeURIComponent(appKey)}&node=${encodeURIComponent(nodeName)}`,
     `${appKey}-auth`,
     `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`,
   );

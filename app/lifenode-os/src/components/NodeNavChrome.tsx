@@ -8,6 +8,7 @@ import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 export const LIFENODE_CHROME_BACK = "lifenode:chrome-back";
 
 const NODE_ROUTE_PREFIXES = [
+  "/calendar",
   "/work",
   "/home",
   "/pulse",
@@ -44,7 +45,11 @@ export default function NodeNavChrome() {
   }
 
   const lightChrome =
-    onNodeRoute && (theme === "mint-cream" || theme === "grainy-dawn");
+    onNodeRoute &&
+    (theme === "mint-cream" ||
+      theme === "grainy-dawn" ||
+      pathname.startsWith("/calendar") ||
+      pathname.startsWith("/pulse"));
 
   return (
     <AppContextChrome

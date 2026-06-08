@@ -29,7 +29,12 @@ function stateSecret(): string {
 }
 
 type StatePayload = {
+  /** Supabase auth user id — used for `user_integrations` token storage. */
   userId: string;
+  /** NextAuth session user id — used for `user_connected_apps` card state. */
+  sessionUserId: string;
+  /** VANode / BizNode card slug (e.g. `gdrive`, `slack`). */
+  appId: string;
   provider: IntegrationProviderId;
   /** Node scope for redirects + user_connected_apps (e.g. BIZ, VA). */
   targetNode: string;
@@ -41,15 +46,19 @@ function sign(payload: string): string {
   return createHmac("sha256", stateSecret()).update(payload).digest("base64url");
 }
 
-export function createOAuthState(
-  userId: string,
-  provider: IntegrationProviderId,
-  targetNode = "BIZ",
-): string {
+export function createOAuthState(input: {
+  integrationUserId: string;
+  sessionUserId: string;
+  appId: string;
+  provider: IntegrationProviderId;
+  targetNode?: string;
+}): string {
   const payload: StatePayload = {
-    userId,
-    provider,
-    targetNode: targetNode.toUpperCase(),
+    userId: input.integrationUserId,
+    sessionUserId: input.sessionUserId,
+    appId: input.appId.toLowerCase(),
+    provider: input.provider,
+    targetNode: (input.targetNode ?? "BIZ").toUpperCase(),
     nonce: randomBytes(16).toString("hex"),
     exp: Date.now() + STATE_TTL_MS,
   };
@@ -75,6 +84,8 @@ export function verifyOAuthState(state: string): StatePayload | null {
     if (Date.now() > payload.exp) return null;
     return {
       ...payload,
+      sessionUserId: payload.sessionUserId || payload.userId,
+      appId: payload.appId || payload.provider,
       targetNode: payload.targetNode?.toUpperCase() || "BIZ",
     };
   } catch {

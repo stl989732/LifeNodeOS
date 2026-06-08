@@ -8,6 +8,8 @@ import CalmWheel from "./CalmWheel";
 import LinosChatPanel from "./LinosChatPanel";
 import LinosReminderStrip from "./LinosReminderStrip";
 import TrackerCategoryCard from "./TrackerCategoryCard";
+import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
+import { computeLifePulseCommitmentSignals } from "@/src/lib/linos/commitmentSignals";
 import {
   AURA_BTN_PRIMARY,
   AURA_CATEGORY_ACTIVE,
@@ -44,6 +46,7 @@ const LINOS_GENERATING_PHRASES = [
 
 export default function LifePulseDashboard() {
   const { data: session, status } = useSession();
+  const { patchBridgeSignals } = useLifeNodeContext();
   const [category, setCategory] = useState<LifePulseCategoryId>("travel");
   const [trackers, setTrackers] = useState<LifePulseTracker[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +69,10 @@ export default function LifePulseDashboard() {
       scrollToLnFeature(id);
     }, []),
   );
+
+  useEffect(() => {
+    patchBridgeSignals(computeLifePulseCommitmentSignals(trackers));
+  }, [trackers, patchBridgeSignals]);
 
   const load = useCallback(async () => {
     if (status !== "authenticated" || !session?.user?.id) {

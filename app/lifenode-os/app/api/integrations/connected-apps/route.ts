@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { resolveIntegrationUserId } from "@/src/lib/integrations/resolveIntegrationUserId";
 import { toConnectedAppId } from "@/src/lib/integrations/appProviderMap";
 import {
   upsertUserConnectedApp,
@@ -18,7 +17,7 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) return unauthorized();
 
-  const userId = await resolveIntegrationUserId(session);
+  const userId = session.user.id?.trim();
   if (!userId) return unauthorized();
 
   let body: unknown;

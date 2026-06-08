@@ -32,13 +32,19 @@ create policy "user_connected_apps_select"
 create policy "user_connected_apps_insert"
   on public.user_connected_apps for insert
   to anon, authenticated
-  with check (user_id is not null and length(trim(user_id)) > 0);
+  with check (
+    user_id is not null
+    and length(trim(user_id::text)) > 0
+  );
 
 create policy "user_connected_apps_update"
   on public.user_connected_apps for update
   to anon, authenticated
   using (true)
-  with check (user_id is not null and length(trim(user_id)) > 0);
+  with check (
+    user_id is not null
+    and length(trim(user_id::text)) > 0
+  );
 
 create policy "user_connected_apps_delete"
   on public.user_connected_apps for delete

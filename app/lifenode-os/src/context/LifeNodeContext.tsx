@@ -83,9 +83,21 @@ export type BridgeSignals = {
   proFocusSecondsWhileOnPro: number;
   homeFridgeMilkLow: boolean;
   homeUserNearStore: boolean;
+  /** Calendar & Task Management — next timed item today (minutes); 999 = none. */
+  calendarNextCommitmentMinutes: number;
+  calendarOverdueCount: number;
+  calendarTodayCount: number;
+  calendarHasCommitments: boolean;
+  /** LifePulse trackers with due dates. */
+  lifePulseOverdueCount: number;
+  lifePulseDueTodayCount: number;
+  lifePulseHasCommitments: boolean;
 };
 
-export type LogicBridgeActionKind = "assemble_navigate" | "enable_deep_work";
+export type LogicBridgeActionKind =
+  | "assemble_navigate"
+  | "enable_deep_work"
+  | "navigate_route";
 
 export type LogicBridgeAlert = {
   bridgeId: string;
@@ -93,6 +105,8 @@ export type LogicBridgeAlert = {
   condition: string;
   message: string;
   targetNode?: ActiveNode;
+  /** When set, primary action navigates here (Calendar, LifePulse, etc.). */
+  primaryRoute?: string;
   primaryActionLabel: string;
   actionKind: LogicBridgeActionKind;
 };
@@ -138,6 +152,13 @@ const DEFAULT_BRIDGE_SIGNALS: BridgeSignals = {
   proFocusSecondsWhileOnPro: 0,
   homeFridgeMilkLow: false,
   homeUserNearStore: false,
+  calendarNextCommitmentMinutes: 999,
+  calendarOverdueCount: 0,
+  calendarTodayCount: 0,
+  calendarHasCommitments: false,
+  lifePulseOverdueCount: 0,
+  lifePulseDueTodayCount: 0,
+  lifePulseHasCommitments: false,
 };
 
 const EMPTY_NODE_PULSE: NodePulse = { summary: "", alerts: [] };
@@ -344,6 +365,65 @@ function evaluateLogicBridges(signals: BridgeSignals): LogicBridgeAlert[] {
     });
   }
 
+  if (
+    signals.calendarOverdueCount > 0 &&
+    signals.calendarHasCommitments
+  ) {
+    alerts.push({
+      bridgeId: "calendar-overdue",
+      triggerSource: "Calendar & Tasks",
+      condition: `${signals.calendarOverdueCount} overdue schedule item(s)`,
+      message:
+        "You have calendar items that passed their window. Open your schedule to reprioritize or reschedule?",
+      primaryRoute: "/calendar",
+      primaryActionLabel: "Open Calendar",
+      actionKind: "navigate_route",
+    });
+  }
+
+  if (
+    signals.calendarNextCommitmentMinutes <= 15 &&
+    signals.calendarNextCommitmentMinutes >= 0 &&
+    signals.calendarTodayCount > 0
+  ) {
+    alerts.push({
+      bridgeId: "calendar-starting-soon",
+      triggerSource: "Calendar & Tasks",
+      condition: "Commitment starting within 15 minutes",
+      message:
+        "A task or appointment on your calendar is starting soon. Want to review the details before you begin?",
+      primaryRoute: "/calendar",
+      primaryActionLabel: "Review schedule",
+      actionKind: "navigate_route",
+    });
+  }
+
+  if (signals.lifePulseOverdueCount > 0 && signals.lifePulseHasCommitments) {
+    alerts.push({
+      bridgeId: "lifepulse-overdue",
+      triggerSource: "LifePulse",
+      condition: `${signals.lifePulseOverdueCount} tracker(s) past due date`,
+      message:
+        "LifePulse shows commitments that are overdue. Should we open your planner and adjust due dates?",
+      primaryRoute: "/pulse",
+      primaryActionLabel: "Open LifePulse",
+      actionKind: "navigate_route",
+    });
+  }
+
+  if (signals.lifePulseDueTodayCount > 0 && signals.lifePulseHasCommitments) {
+    alerts.push({
+      bridgeId: "lifepulse-due-today",
+      triggerSource: "LifePulse",
+      condition: `${signals.lifePulseDueTodayCount} tracker(s) due today`,
+      message:
+        "You have LifePulse goals due today. Want to check progress before the day runs away?",
+      primaryRoute: "/pulse",
+      primaryActionLabel: "View trackers",
+      actionKind: "navigate_route",
+    });
+  }
+
   return alerts;
 }
 
@@ -475,6 +555,9 @@ export function resolveLifeNodeTheme(
 ): LifeNodeTheme {
   if (pathname === "/" || pathname === "") return "grainy-dawn";
   if (pathname?.startsWith("/home")) return "mint-cream";
+  if (pathname?.startsWith("/calendar") || pathname?.startsWith("/pulse")) {
+    return "grainy-dawn";
+  }
   return ACTIVE_NODE_THEME[activeNode];
 }
 
@@ -756,8 +839,20 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
 
   const linoSignalsReady = useMemo(() => {
     if (hasConnectedIntegrations) return true;
+    if (
+      bridgeSignals.calendarHasCommitments ||
+      bridgeSignals.lifePulseHasCommitments
+    ) {
+      return true;
+    }
     return configuredHats.some((hat) => nodeUserDataReady[hat] === true);
-  }, [configuredHats, hasConnectedIntegrations, nodeUserDataReady]);
+  }, [
+    configuredHats,
+    hasConnectedIntegrations,
+    nodeUserDataReady,
+    bridgeSignals.calendarHasCommitments,
+    bridgeSignals.lifePulseHasCommitments,
+  ]);
 
   /** Connected OAuth apps can feed bridge signals without manual card entry. */
   useEffect(() => {
@@ -865,6 +960,11 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
         );
         return;
       }
+      if (alert.primaryRoute) {
+        dismissLogicBridgeAlert(alert.bridgeId);
+        window.location.assign(alert.primaryRoute);
+        return;
+      }
       if (alert.targetNode) {
         beginAssemblingToNode(alert.targetNode);
         dismissLogicBridgeAlert(alert.bridgeId);
@@ -926,7 +1026,13 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
    *     Dropped silently — same logic as the previous filter.
    */
   useEffect(() => {
-    if (!linoAlertsArmed || !linoSignalsReady) {
+    const commitmentAlertsEnabled =
+      bridgeSignals.calendarHasCommitments ||
+      bridgeSignals.lifePulseHasCommitments;
+    const alertsEnabled =
+      linoSignalsReady && (linoAlertsArmed || commitmentAlertsEnabled);
+
+    if (!alertsEnabled) {
       queueMicrotask(() => {
         setActiveLogicBridgeAlerts([]);
         setLinoMessage(null);

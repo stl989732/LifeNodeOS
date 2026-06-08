@@ -1,10 +1,12 @@
 export type IntegrationProviderId =
   | "hubspot"
   | "google_calendar"
+  | "google_drive"
   | "gmail"
   | "salesforce"
   | "pipedrive"
   | "slack"
+  | "zoom"
   | "gohighlevel";
 
 export type UserIntegrationRow = {
