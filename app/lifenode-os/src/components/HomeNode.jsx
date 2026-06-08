@@ -3,7 +3,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
+import {
+  readScopedLocalStorage,
+  userScopedStorageKey,
+} from "@/src/lib/userScopedStorage";
 import {
   NODE_WIDGET_KEYS,
   hydrateWidgetsFromServer,
@@ -396,14 +399,20 @@ export default function HomeNode() {
       const g = readNativeGroceryList(scopedKeys.nativeGrocery);
       setNativeGroceryList(g);
 
-      const saved = window.localStorage.getItem(scopedKeys.setup);
-      const savedNotes = window.localStorage.getItem(scopedKeys.notes);
-      const savedNotesList = window.localStorage.getItem(scopedKeys.savedNotes);
-      const rawVault = window.localStorage.getItem(scopedKeys.recipeVault);
-      const rawBudget = window.localStorage.getItem(scopedKeys.budget);
-      const rawChores = window.localStorage.getItem(scopedKeys.chores);
-      const rawPrep = window.localStorage.getItem(scopedKeys.prep);
-      const rawEng = window.localStorage.getItem(scopedKeys.engagement);
+      const saved = readScopedLocalStorage(scopedKeys.setup, [STORAGE_KEY]);
+      const savedNotes = readScopedLocalStorage(scopedKeys.notes, [NOTES_KEY]);
+      const savedNotesList = readScopedLocalStorage(scopedKeys.savedNotes, [
+        SAVED_NOTES_KEY,
+      ]);
+      const rawVault = readScopedLocalStorage(scopedKeys.recipeVault, [
+        RECIPE_VAULT_KEY,
+      ]);
+      const rawBudget = readScopedLocalStorage(scopedKeys.budget, [BUDGET_ROWS_KEY]);
+      const rawChores = readScopedLocalStorage(scopedKeys.chores, [CHORE_ROWS_KEY]);
+      const rawPrep = readScopedLocalStorage(scopedKeys.prep, [ACTIVITY_PREP_KEY]);
+      const rawEng = readScopedLocalStorage(scopedKeys.engagement, [
+        UPCOMING_ENGAGEMENT_KEY,
+      ]);
 
       if (savedNotes) setNotes(savedNotes);
       if (savedNotesList) {
@@ -599,7 +608,7 @@ export default function HomeNode() {
     let cancelled = false;
     let localKitchen = null;
     try {
-      const rawKitchen = window.localStorage.getItem(scopedKeys.kitchenAi);
+      const rawKitchen = readScopedLocalStorage(scopedKeys.kitchenAi, [KITCHEN_AI_KEY]);
       if (rawKitchen) localKitchen = JSON.parse(rawKitchen);
     } catch {
       localKitchen = null;

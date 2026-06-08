@@ -5,11 +5,12 @@ import type {
   ScratchPadTag,
 } from "./types";
 import { VANODE_STORAGE_KEY, defaultVanodePersisted } from "./constants";
+import { readScopedLocalStorage } from "@/src/lib/userScopedStorage";
 
 export function loadVanode(storageKey: string = VANODE_STORAGE_KEY): VanodePersisted {
   if (typeof window === "undefined") return defaultVanodePersisted();
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = readScopedLocalStorage(storageKey, [VANODE_STORAGE_KEY]);
     if (!raw) return defaultVanodePersisted();
     const parsed = JSON.parse(raw) as Partial<VanodePersisted>;
     const d = defaultVanodePersisted();

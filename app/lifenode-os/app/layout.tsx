@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono, Outfit, Playfair_Display, DM_Sans } from "next/font/google";
 import LinoAlert from "@/src/components/LinoAlert";
 import LinoAssistantDynamic from "@/src/components/LinoAssistantDynamic";
@@ -13,7 +14,6 @@ import { TERMLY_RESOURCE_BLOCKER_SRC } from "@/src/components/legal/termlyConfig
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import LiveCaptureRoot from "@/components/vanode/LiveCaptureRoot";
 import ScreenRecordingRoot from "@/components/vanode/ScreenRecordingRoot";
-import Script from "next/script";
 import { Suspense } from "react";
 import "./globals.css";
 

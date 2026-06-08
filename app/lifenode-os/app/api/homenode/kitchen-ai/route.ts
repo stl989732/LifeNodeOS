@@ -390,23 +390,55 @@ Keep it concise for speed:
 - "steps" (array of 4-6 short instruction strings)
 - "caloriesPerServing" (integer)`;
 
+type KitchenAiRequestBody = {
+  mode?: KitchenMode;
+  ingredients?: string;
+  userRequest?: string;
+  selectedMeal?: string;
+  pantryHints?: string;
+  extraContext?: string;
+  recipeTitle?: string;
+  recipeText?: string;
+  imageBase64?: string;
+  mimeType?: string;
+  audioBase64?: string;
+  probeMultimodal?: boolean;
+  probeRecipe?: boolean;
+};
+
+async function readKitchenAiBody(request: Request): Promise<
+  | { ok: true; body: KitchenAiRequestBody }
+  | { ok: false; response: NextResponse }
+> {
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Invalid JSON body. Send Content-Type: application/json with a valid JSON object." },
+        { status: 400 },
+      ),
+    };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Request body must be a JSON object." },
+        { status: 400 },
+      ),
+    };
+  }
+  return { ok: true, body: raw as KitchenAiRequestBody };
+}
+
 export async function POST(request: Request) {
   const apiKey = process.env.GOOGLE_API_KEY?.trim();
-  const body = (await request.json()) as {
-    mode?: KitchenMode;
-    ingredients?: string;
-    userRequest?: string;
-    selectedMeal?: string;
-    pantryHints?: string;
-    extraContext?: string;
-    recipeTitle?: string;
-    recipeText?: string;
-    imageBase64?: string;
-    mimeType?: string;
-    audioBase64?: string;
-    probeMultimodal?: boolean;
-    probeRecipe?: boolean;
-  };
+  const parsedBody = await readKitchenAiBody(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.body;
 
   const sanitizeTextField = (value?: string) => {
     const trimmed = (value ?? "").trim();

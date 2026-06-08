@@ -5,7 +5,10 @@ import { useLnFeatureParam, scrollToLnFeature } from "@/src/hooks/useLnFeaturePa
 import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
+import {
+  readScopedLocalStorage,
+  userScopedStorageKey,
+} from "@/src/lib/userScopedStorage";
 import {
   NODE_WIDGET_KEYS,
   hydrateWidgetsFromServer,
@@ -221,12 +224,10 @@ function loadPersistedState(storageKey) {
   };
   if (typeof window === "undefined") return defaults;
   try {
-    const isUserScoped = storageKey.includes("::");
-    let raw = window.localStorage.getItem(storageKey);
-    if (!raw && !isUserScoped) {
-      raw = window.localStorage.getItem(STORAGE_KEY_V3);
-      if (!raw) raw = window.localStorage.getItem(STORAGE_KEY_V2);
-    }
+    const raw = readScopedLocalStorage(storageKey, [
+      STORAGE_KEY_V3,
+      STORAGE_KEY_V2,
+    ]);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
     return {
