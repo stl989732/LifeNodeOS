@@ -449,7 +449,10 @@ export function VANodeDashboard() {
           </VaFocusShell>
 
           <VaFocusShell title="Credential vault">
-            <CredentialVaultCard clients={store.data.clients} />
+            <CredentialVaultCard
+              clients={store.data.clients}
+              onUpdateClient={(id, patch) => store.updateClient(id, patch)}
+            />
           </VaFocusShell>
 
           <VaFocusShell title="Waiting on">

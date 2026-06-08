@@ -1,5 +1,6 @@
-/** Far-left sidebar hat order (Hub removed; LifePulse first). */
+/** Far-left sidebar hat order (Hub removed; Calendar first). */
 export const SIDEBAR_HAT_ORDER = [
+  "calendar",
   "pulse",
   "work",
   "va",

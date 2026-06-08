@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   Briefcase,
+  CalendarRange,
   HeartPulse,
   Home,
   LayoutDashboard,
@@ -21,9 +22,16 @@ export type HatNavItem = {
 
 /**
  * Hat rail entries — Hub removed from sidebar; order applied via `sortBySidebarHatOrder`.
- * LifePulse → BizNode → VANode → HomeNode → VitalNode → ProNode → TraderNode.
+ * Calendar → LifePulse → BizNode → VANode → HomeNode → VitalNode → ProNode → TraderNode.
  */
 export const HAT_NAV_ITEMS: HatNavItem[] = [
+  {
+    id: "calendar",
+    label: "Calendar",
+    route: "/calendar",
+    Icon: CalendarRange,
+    pathPrefix: "/calendar",
+  },
   {
     id: "pulse",
     label: "LifePulse",

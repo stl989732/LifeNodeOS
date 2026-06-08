@@ -14,6 +14,7 @@ import {
   Sparkles,
   StickyNote,
   Tag,
+  Pencil,
   Trash2,
   Users,
   Video,
@@ -27,6 +28,10 @@ import {
 import { useActiveClient } from "./ActiveClientContext";
 import { ScreenRecorder } from "./ScreenRecorder";
 import { SavedScreenCaptures } from "./SavedScreenCaptures";
+import {
+  applyCredentialPatch,
+  applyCredentialRemoval,
+} from "@/lib/vanode/credentials";
 import { COMMON_TIMEZONES } from "@/lib/vanode/constants";
 import { computeOutsourceInsight, userTimezone } from "@/lib/vanode/outsource";
 import { openInvoicePrint } from "@/lib/vanode/invoice-print";
@@ -1405,8 +1410,10 @@ export function UnifiedFeedCard({
 
 export function CredentialVaultCard({
   clients,
+  onUpdateClient,
 }: {
   clients: ClientProfile[];
+  onUpdateClient: (clientId: string, patch: Partial<ClientProfile>) => void;
 }) {
   const { activeClientId } = useActiveClient();
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
@@ -1414,6 +1421,7 @@ export function CredentialVaultCard({
     (c.credentials ?? []).map((cred) => ({
       key: `${c.id}:${cred.id}`,
       clientId: c.id,
+      credId: cred.id,
       clientName: c.name,
       label: cred.label,
       secret: cred.secret,
@@ -1424,6 +1432,27 @@ export function CredentialVaultCard({
     activeClientId === null
       ? rows
       : rows.filter((r) => r.clientId === activeClientId);
+
+  const handleUpdate = (
+    clientId: string,
+    credId: string,
+    patch: Partial<Pick<ClientCredential, "label" | "secret">>,
+  ) => {
+    const client = clients.find((c) => c.id === clientId);
+    if (!client) return;
+    onUpdateClient(clientId, {
+      credentials: applyCredentialPatch(client, credId, patch),
+    });
+  };
+
+  const handleDelete = (clientId: string, credId: string) => {
+    const client = clients.find((c) => c.id === clientId);
+    if (!client) return;
+    if (!window.confirm("Delete this credential? This cannot be undone.")) return;
+    onUpdateClient(clientId, {
+      credentials: applyCredentialRemoval(client, credId),
+    });
+  };
 
   return (
     <section className="group relative flex h-full flex-col rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.05)] p-5 shadow-xl shadow-slate-900/[0.04] backdrop-blur-[12px] md:p-6">
@@ -1443,17 +1472,14 @@ export function CredentialVaultCard({
             onMouseEnter={() => setHoveredRow(r.key)}
             onMouseLeave={() => setHoveredRow(null)}
           >
-            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              {r.clientName} · {r.label}
-            </div>
-            <div
-              className="mt-1 select-none transition duration-200"
-              style={{
-                filter: hoveredRow === r.key ? "none" : "blur(8px)",
-              }}
-            >
-              <span className="font-mono text-sm text-slate-900">{r.secret}</span>
-            </div>
+            <ClientCredentialRow
+              label={r.label}
+              secret={r.secret}
+              onUpdate={(patch) => handleUpdate(r.clientId, r.credId, patch)}
+              onDelete={() => handleDelete(r.clientId, r.credId)}
+              meta={`${r.clientName}`}
+              revealOnHover={hoveredRow === r.key}
+            />
           </li>
         ))}
         {visible.length === 0 ? (
@@ -1625,32 +1651,167 @@ const clientCommandInputClass =
 function ClientCredentialRow({
   label,
   secret,
+  onUpdate,
+  onDelete,
+  meta,
+  revealOnHover,
 }: {
   label: string;
   secret: string;
+  onUpdate?: (patch: Partial<Pick<ClientCredential, "label" | "secret">>) => void;
+  onDelete?: () => void;
+  meta?: string;
+  /** When set, secret blur follows parent hover (vault). Otherwise uses eye toggle. */
+  revealOnHover?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
-  return (
-    <li className="flex items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5">
-      <span className="font-medium text-slate-800">{label}</span>
-      <div className="flex min-w-0 items-center gap-1">
-        <span className="truncate font-mono text-slate-700">
-          {visible ? secret : "••••••••"}
-        </span>
-        <button
-          type="button"
-          className="shrink-0 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-          aria-label={visible ? "Hide password" : "Show password"}
-          onClick={() => setVisible((v) => !v)}
-        >
-          {visible ? (
-            <EyeOff className="h-3.5 w-3.5" />
-          ) : (
-            <Eye className="h-3.5 w-3.5" />
-          )}
-        </button>
+  const [editing, setEditing] = useState(false);
+  const [editLabel, setEditLabel] = useState(label);
+  const [editSecret, setEditSecret] = useState(secret);
+  const [showEditSecret, setShowEditSecret] = useState(false);
+
+  const revealed = revealOnHover ?? visible;
+
+  const startEdit = () => {
+    setEditLabel(label);
+    setEditSecret(secret);
+    setEditing(true);
+  };
+
+  const saveEdit = () => {
+    const nextLabel = editLabel.trim();
+    const nextSecret = editSecret.trim();
+    if (!nextLabel || !nextSecret) return;
+    onUpdate?.({ label: nextLabel, secret: nextSecret });
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        {meta ? (
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {meta}
+          </div>
+        ) : null}
+        <input
+          className={`w-full text-xs ${clientCommandInputClass}`}
+          value={editLabel}
+          onChange={(e) => setEditLabel(e.target.value)}
+          placeholder="Label"
+          aria-label="Credential label"
+        />
+        <div className="relative">
+          <input
+            type={showEditSecret ? "text" : "password"}
+            className={`w-full pr-8 text-xs ${clientCommandInputClass}`}
+            value={editSecret}
+            onChange={(e) => setEditSecret(e.target.value)}
+            placeholder="Secret / code"
+            aria-label="Credential secret"
+          />
+          <button
+            type="button"
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 hover:bg-slate-100"
+            aria-label={showEditSecret ? "Hide secret" : "Show secret"}
+            onClick={() => setShowEditSecret((v) => !v)}
+          >
+            {showEditSecret ? (
+              <EyeOff className="h-3.5 w-3.5" />
+            ) : (
+              <Eye className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-lg bg-teal-700 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-teal-800"
+            onClick={saveEdit}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+            onClick={() => setEditing(false)}
+          >
+            Cancel
+          </button>
+        </div>
       </div>
-    </li>
+    );
+  }
+
+  return (
+    <div
+      className={
+        meta
+          ? "flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between"
+          : "flex flex-wrap items-center justify-between gap-2"
+      }
+    >
+      {meta ? (
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {meta} · {label}
+          </div>
+          <div
+            className="mt-0.5 select-none font-mono text-sm text-slate-700 transition duration-200"
+            style={!revealed ? { filter: "blur(8px)" } : undefined}
+          >
+            {secret}
+          </div>
+        </div>
+      ) : (
+        <>
+          <span className="shrink-0 font-medium text-slate-800">{label}</span>
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+            <span className="truncate font-mono text-slate-700">
+              {revealed ? secret : "••••••••"}
+            </span>
+            <button
+              type="button"
+              className="shrink-0 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              aria-label={visible ? "Hide password" : "Show password"}
+              onClick={() => setVisible((v) => !v)}
+            >
+              {visible ? (
+                <EyeOff className="h-3.5 w-3.5" />
+              ) : (
+                <Eye className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
+        </>
+      )}
+      {onUpdate || onDelete ? (
+        <div className="flex shrink-0 items-center gap-1">
+          {onUpdate ? (
+            <button
+              type="button"
+              className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-teal-800"
+              aria-label={`Edit ${label}`}
+              title="Edit"
+              onClick={startEdit}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+          {onDelete ? (
+            <button
+              type="button"
+              className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-700"
+              aria-label={`Delete ${label}`}
+              title="Delete"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1923,11 +2084,32 @@ export function ClientCommandCard({
             </div>
             <ul className="mt-1 space-y-1 text-xs text-slate-600">
               {(c.credentials ?? []).map((cr) => (
-                <ClientCredentialRow
+                <li
                   key={cr.id}
-                  label={cr.label}
-                  secret={cr.secret}
-                />
+                  className="rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1.5"
+                >
+                  <ClientCredentialRow
+                    label={cr.label}
+                    secret={cr.secret}
+                    onUpdate={(patch) =>
+                      onUpdateClient(c.id, {
+                        credentials: applyCredentialPatch(c, cr.id, patch),
+                      })
+                    }
+                    onDelete={() => {
+                      if (
+                        !window.confirm(
+                          `Delete credential "${cr.label}"? This cannot be undone.`,
+                        )
+                      ) {
+                        return;
+                      }
+                      onUpdateClient(c.id, {
+                        credentials: applyCredentialRemoval(c, cr.id),
+                      });
+                    }}
+                  />
+                </li>
               ))}
               {(c.credentials ?? []).length === 0 ? (
                 <li className="text-slate-500">None yet — add below.</li>

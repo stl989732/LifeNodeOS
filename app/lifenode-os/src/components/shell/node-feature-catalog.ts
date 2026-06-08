@@ -34,6 +34,10 @@ export type CatalogFeature = {
 
 /** Static feature menus per hat — used in sidebar dropdowns and deep links (`?ln-feature=`). */
 export const NODE_FEATURE_CATALOG: Record<string, CatalogFeature[]> = {
+  calendar: [
+    { id: "overview", label: "Calendar", icon: LayoutDashboard },
+    { id: "integrations", label: "Connect Apps", icon: CalendarCheck },
+  ],
   pulse: [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "calm-wheel", label: "Calm Wheel", icon: Activity },
@@ -93,6 +97,7 @@ export function catalogForHat(hatId: string): CatalogFeature[] {
 
 export function hatIdFromPath(pathname: string | null): string | null {
   if (!pathname) return null;
+  if (pathname === "/calendar" || pathname.startsWith("/calendar/")) return "calendar";
   if (pathname === "/pulse" || pathname.startsWith("/pulse/")) return "pulse";
   if (pathname === "/work" || pathname.startsWith("/work/")) return "work";
   if (pathname === "/vanode" || pathname.startsWith("/vanode/")) return "va";

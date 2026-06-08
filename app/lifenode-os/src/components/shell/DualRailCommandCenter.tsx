@@ -94,7 +94,7 @@ export default function DualRailCommandCenter({
   const filteredNodeItems = useMemo(() => {
     const items = HAT_NAV_ITEMS.filter((item) => {
       if (item.id === "shell") return false;
-      if (item.id === "pulse") return true;
+      if (item.id === "pulse" || item.id === "calendar") return true;
       const node = HAT_SHELL_TO_ACTIVE[item.id];
       return node ? configuredHats.includes(node) : false;
     });
