@@ -223,16 +223,16 @@ export default function DualRailCommandCenter({
                     title={label}
                     aria-expanded={expanded}
                     aria-haspopup="menu"
-                    className={`relative flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl py-2 transition-colors duration-200 group-hover/rail1:justify-start ${
+                    className={`relative flex min-h-[44px] w-full items-center justify-center rounded-xl py-2 transition-colors duration-200 group-hover/rail1:justify-start group-hover/rail1:gap-2 ${
                       active ? ACTIVE_NODE : "text-black hover:bg-slate-100"
                     } px-0 group-hover/rail1:px-2`}
                   >
                     <NodeIconBadge Icon={Icon} />
-                    <span className="min-w-0 max-w-0 overflow-hidden text-left text-xs font-bold uppercase tracking-wider text-black opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+                    <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-xs font-bold uppercase tracking-wider text-black transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[9rem]">
                       {label}
                     </span>
                     <ChevronDown
-                      className={`ml-auto h-3.5 w-3.5 shrink-0 text-slate-500 opacity-0 transition group-hover/rail1:opacity-100 ${
+                      className={`hidden h-3.5 w-3.5 shrink-0 text-slate-500 group-hover/rail1:ml-auto group-hover/rail1:block ${
                         expanded ? "rotate-180" : ""
                       }`}
                       aria-hidden
@@ -300,7 +300,7 @@ export default function DualRailCommandCenter({
             className="group/wb flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-teal-600/40 bg-gradient-to-br from-teal-600 to-cyan-700 py-2 text-white shadow-md transition hover:from-teal-500 hover:to-cyan-600 group-hover/rail1:justify-start"
           >
             <PenLine className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
-            <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[9rem]">
               Whiteboard
             </span>
           </button>
@@ -312,7 +312,7 @@ export default function DualRailCommandCenter({
             className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
           >
             <LogOut className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-            <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[9rem]">
               Sign out
             </span>
           </button>
@@ -324,7 +324,7 @@ export default function DualRailCommandCenter({
             className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
           >
             <Settings className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-            <span className="min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:max-w-[9rem] group-hover/rail1:opacity-100">
+            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[9rem]">
               Settings
             </span>
           </button>

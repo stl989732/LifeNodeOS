@@ -141,7 +141,7 @@ function VaFocusShell({
     return overlay;
   }
   return (
-    <div className="relative aspect-square min-h-[260px] w-full overflow-hidden rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.06)] shadow-lg backdrop-blur-[12px] dark:bg-white/[0.06]">
+    <div className="relative w-full overflow-hidden rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.06)] shadow-lg backdrop-blur-[12px] dark:bg-white/[0.06] md:aspect-square md:min-h-[260px]">
       <button
         type="button"
         aria-label={`Maximize ${titleLabel}`}
@@ -150,7 +150,7 @@ function VaFocusShell({
       >
         <Maximize2 className="h-4 w-4" />
       </button>
-      <div className="h-full overflow-auto p-1">{children}</div>
+      <div className="overflow-auto p-3 md:h-full md:p-1">{children}</div>
     </div>
   );
 }
@@ -360,7 +360,7 @@ export function VANodeDashboard() {
       </header>
 
       <div
-        className={`main-workspace relative z-0 mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-8 ${
+        className={`main-workspace relative z-0 mx-auto max-w-6xl space-y-4 px-4 py-6 md:space-y-6 md:px-8 md:py-8 ${
           store.data.activeClientId
             ? "rounded-[2rem] ring-2 ring-[#00ffc8]/50 shadow-[0_0_40px_rgba(0,255,200,0.12)]"
             : ""
@@ -396,7 +396,7 @@ export function VANodeDashboard() {
           onPatchMetrics={store.patchValueMetrics}
         />
 
-        <div className="grid auto-rows-fr gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:auto-rows-fr md:grid-cols-2">
           {nt.eod && (
             <VaFocusShell title="EOD reporter">
               <EodReporterCard

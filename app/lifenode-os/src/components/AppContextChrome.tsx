@@ -51,20 +51,22 @@ export default function AppContextChrome({
     ? "border-b border-slate-200/90 bg-[#F8F8FF]/98"
     : "border-b border-white/10 bg-[#0f172a]/96";
 
-  const railInset = offsetForRail ? "left-0 md:left-[60px]" : "left-0";
-
   const pillCompact =
     "inline-flex min-h-[36px] shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition sm:min-h-[38px] sm:gap-1.5 sm:px-2.5 sm:py-1.5 sm:text-[11px] sm:tracking-[0.16em] md:px-3";
 
   return (
     <header
-      className={`fixed top-0 right-0 z-[108] ${railInset} shadow-[0_1px_0_rgba(15,23,42,0.06)] backdrop-blur-md ${barBg} pt-[env(safe-area-inset-top,0px)]`}
+      className={`fixed inset-x-0 top-0 z-[108] shadow-[0_1px_0_rgba(15,23,42,0.06)] backdrop-blur-md ${barBg} pt-[env(safe-area-inset-top,0px)]`}
       style={{
         height: "calc(var(--ln-node-nav-chrome-block) + env(safe-area-inset-top, 0px))",
       }}
       aria-label="LifeNode navigation"
     >
-      <div className="flex h-[var(--ln-node-nav-chrome-block)] items-center justify-between gap-2 px-2 sm:px-3 md:px-4">
+      <div
+        className={`flex h-[var(--ln-node-nav-chrome-block)] items-center justify-between gap-2 px-2 sm:px-3 md:px-4 ${
+          offsetForRail ? "md:pl-[calc(60px+0.75rem)]" : ""
+        }`}
+      >
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
