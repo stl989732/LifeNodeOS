@@ -19,6 +19,7 @@ import {
   type KanbanBoard,
   type KanbanCard,
   type KanbanColumn,
+  type KanbanColumnPreset,
   type KanbanStore,
 } from "@/src/lib/kanban/types";
 
@@ -42,7 +43,9 @@ export default function KanbanBoardSection({
   const [editTitle, setEditTitle] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editTargetDate, setEditTargetDate] = useState("");
-  const [addColumnLabel, setAddColumnLabel] = useState(KANBAN_COLUMN_PRESETS[0]);
+  const [addColumnLabel, setAddColumnLabel] = useState<KanbanColumnPreset>(
+    KANBAN_COLUMN_PRESETS[0],
+  );
 
   const activeBoard = useMemo(
     () =>
@@ -255,7 +258,9 @@ export default function KanbanBoardSection({
             id="kanban-add-column"
             className={`${AURA_INPUT_CLASS} text-sm`}
             value={addColumnLabel}
-            onChange={(e) => setAddColumnLabel(e.target.value)}
+            onChange={(e) =>
+              setAddColumnLabel(e.target.value as KanbanColumnPreset)
+            }
           >
             {KANBAN_COLUMN_PRESETS.map((label) => (
               <option key={label} value={label}>
