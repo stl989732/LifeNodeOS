@@ -7,11 +7,18 @@ import { VANODE_STORAGE_KEY } from "@/lib/vanode/constants";
 import { syncActiveClientSession } from "@/lib/vanode/activeClientSession";
 import { resolveClientIdForWrite } from "@/lib/vanode/clientScope";
 import { loadVanode, saveVanode } from "@/lib/vanode/storage";
+import {
+  hasMeaningfulVanodeData,
+  parseVanodePersisted,
+} from "@/lib/vanode/parseVanodePersisted";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
 import { setScreenCaptureUserScope } from "@/lib/vanode/screenCaptureStorage";
+import { hydrateScreenCaptureManifestFromServer } from "@/lib/vanode/screenCaptureSync";
 import {
   NODE_WIDGET_KEYS,
-  fetchNodeWidgets,
+  fetchNodeWidgetsWithMeta,
+  readLocalWidgetUpdatedAt,
+  resolveWidgetBootstrap,
   scheduleNodeWidgetSave,
 } from "@/src/lib/nodeWidgetSync";
 import {
@@ -77,18 +84,38 @@ export function useVanodeStore() {
       };
 
       void (async () => {
-        const remote = await fetchNodeWidgets([NODE_WIDGET_KEYS.vanode.dashboard]);
-        const serverPayload = remote[NODE_WIDGET_KEYS.vanode.dashboard];
-        let base = loaded;
-        if (serverPayload && typeof serverPayload === "object") {
-          base = { ...loaded, ...(serverPayload as Partial<VanodePersisted>) };
+        if (sessionStatus !== "authenticated" || !userId) {
+          setData(applyLoaded(loaded));
+          syncActiveClientSession(loaded.activeClientId);
+          persistReady.current = true;
+          setBootstrapped(true);
+          return;
         }
+
+        const remote = await fetchNodeWidgetsWithMeta([
+          NODE_WIDGET_KEYS.vanode.dashboard,
+        ]);
+        const { value: base, pushLocal } = resolveWidgetBootstrap({
+          local: loaded,
+          localUpdatedAt: readLocalWidgetUpdatedAt(storageKey),
+          remote: remote[NODE_WIDGET_KEYS.vanode.dashboard],
+          parseRemote: (payload) =>
+            parseVanodePersisted(payload as Partial<VanodePersisted>),
+          hasMeaningfulLocal: hasMeaningfulVanodeData,
+          remoteHasData: (payload) =>
+            hasMeaningfulVanodeData(
+              parseVanodePersisted(payload as Partial<VanodePersisted>),
+            ),
+        });
+
         const merged = applyLoaded(base);
-        if (serverPayload && typeof serverPayload === "object") {
-          saveVanode(merged, storageKey);
-        } else {
+        saveVanode(merged, storageKey);
+        if (pushLocal && hasMeaningfulVanodeData(merged)) {
           scheduleNodeWidgetSave(NODE_WIDGET_KEYS.vanode.dashboard, merged, 200);
         }
+
+        await hydrateScreenCaptureManifestFromServer(userId);
+
         setData(merged);
         syncActiveClientSession(merged.activeClientId);
         persistReady.current = true;
@@ -96,13 +123,17 @@ export function useVanodeStore() {
       })();
     });
     return () => cancelAnimationFrame(id);
-  }, [storageKey, sessionStatus]);
+  }, [storageKey, sessionStatus, userId]);
 
   useEffect(() => {
-    if (!persistReady.current) return;
+    if (!persistReady.current || sessionStatus !== "authenticated" || !userId) {
+      return;
+    }
     saveVanode(data, storageKey);
-    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.vanode.dashboard, data);
-  }, [data, storageKey]);
+    if (hasMeaningfulVanodeData(data)) {
+      scheduleNodeWidgetSave(NODE_WIDGET_KEYS.vanode.dashboard, data);
+    }
+  }, [data, storageKey, sessionStatus, userId]);
 
   const setDiscoveryComplete = useCallback((v: boolean) => {
     setData((d) => ({ ...d, discoveryComplete: v }));

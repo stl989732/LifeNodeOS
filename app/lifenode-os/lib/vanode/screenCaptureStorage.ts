@@ -1,18 +1,16 @@
 /**
- * Local screen captures: metadata in localStorage, video blobs in IndexedDB.
- * (Video files are too large for localStorage alone.)
+ * Screen captures: metadata syncs via Supabase widget + optional cloud blob upload;
+ * local IndexedDB remains the fast on-device cache.
  */
+import {
+  fetchScreenCaptureBlobFromCloud,
+  getScreenCaptureManifestKey,
+  persistScreenCaptureManifest,
+  uploadScreenCaptureToCloud,
+  type ScreenCaptureRecord,
+} from "./screenCaptureSync";
 
-export type ScreenCaptureRecord = {
-  id: string;
-  filename: string;
-  mimeType: string;
-  createdAt: string;
-  durationSec: number;
-  includeMic: boolean;
-  sizeBytes: number;
-  clientId?: string | null;
-};
+export type { ScreenCaptureRecord } from "./screenCaptureSync";
 
 let captureUserScope: string | undefined;
 
@@ -21,8 +19,7 @@ export function setScreenCaptureUserScope(userId: string | undefined) {
 }
 
 function manifestKey() {
-  const base = "lifenode.vanode.screen-captures.v1";
-  return captureUserScope ? `${base}::${captureUserScope}` : base;
+  return getScreenCaptureManifestKey(captureUserScope);
 }
 
 function dbName() {
@@ -46,8 +43,7 @@ function readManifest(): ScreenCaptureRecord[] {
 }
 
 function writeManifest(rows: ScreenCaptureRecord[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(manifestKey(), JSON.stringify(rows.slice(0, 24)));
+  persistScreenCaptureManifest(captureUserScope, rows);
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -112,6 +108,7 @@ export async function saveScreenCapture(
 
   const next = [record, ...readManifest()];
   writeManifest(next);
+  void uploadScreenCaptureToCloud(record, blob);
   return record;
 }
 
@@ -121,7 +118,7 @@ export async function listScreenCaptures(): Promise<ScreenCaptureRecord[]> {
 
 export async function getScreenCaptureBlob(id: string): Promise<Blob | null> {
   const db = await openDb();
-  const blob = await new Promise<Blob | null>((resolve, reject) => {
+  const localBlob = await new Promise<Blob | null>((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
     tx.onerror = () => reject(tx.error);
     const req = tx.objectStore(STORE).get(id);
@@ -129,7 +126,8 @@ export async function getScreenCaptureBlob(id: string): Promise<Blob | null> {
     req.onerror = () => reject(req.error);
   });
   db.close();
-  return blob;
+  if (localBlob) return localBlob;
+  return fetchScreenCaptureBlobFromCloud(id);
 }
 
 export async function deleteScreenCapture(id: string): Promise<void> {

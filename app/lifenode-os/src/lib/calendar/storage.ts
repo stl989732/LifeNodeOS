@@ -2,6 +2,7 @@ import {
   readScopedLocalStorage,
   userScopedStorageKey,
 } from "@/src/lib/userScopedStorage";
+import { touchLocalWidgetUpdatedAt } from "@/src/lib/nodeWidgetSync";
 import {
   DEFAULT_INTEGRATIONS,
   type CalendarIntegration,
@@ -46,7 +47,9 @@ export function saveCalendarStore(
   store: CalendarStore,
 ): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(calendarStorageKey(userId), JSON.stringify(store));
+  const key = calendarStorageKey(userId);
+  window.localStorage.setItem(key, JSON.stringify(store));
+  touchLocalWidgetUpdatedAt(key);
 }
 
 export function newScheduleItemId(): string {

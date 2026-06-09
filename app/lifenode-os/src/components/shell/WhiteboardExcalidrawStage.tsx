@@ -1,21 +1,20 @@
 "use client";
 
 import type { MutableRefObject } from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Excalidraw, restore } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
+  hydrateWhiteboardSceneFromServer,
+  loadWhiteboardSceneLocal,
   persistWhiteboardScene,
-  WB_SCENE_KEY,
 } from "./whiteboardExcalidrawActions";
 
-function loadInitialData() {
-  if (typeof window === "undefined") return {};
+function restoreScene(data: Record<string, unknown>) {
+  if (!Object.keys(data).length) return {};
   try {
-    const raw = localStorage.getItem(WB_SCENE_KEY);
-    if (!raw) return {};
-    const data = JSON.parse(raw) as Record<string, unknown>;
     const r = restore(data, null, null, { refreshDimensions: true });
     return { elements: r.elements, appState: r.appState, files: r.files };
   } catch {
@@ -28,12 +27,48 @@ export default function WhiteboardExcalidrawStage({
 }: {
   excalidRef: MutableRefObject<ExcalidrawImperativeAPI | null>;
 }) {
-  const initialRef = useRef(loadInitialData());
+  const { data: session, status } = useSession();
+  const userId = session?.user?.id ? String(session.user.id) : null;
+  const [initialData, setInitialData] = useState<Record<string, unknown>>({});
+  const [ready, setReady] = useState(false);
   const debounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (status === "loading") return;
+    let cancelled = false;
+
+    void (async () => {
+      const local = loadWhiteboardSceneLocal(userId);
+      if (!cancelled) {
+        setInitialData(restoreScene(local));
+        setReady(true);
+      }
+
+      if (status === "authenticated" && userId) {
+        const remote = await hydrateWhiteboardSceneFromServer(userId);
+        if (!cancelled && Object.keys(remote).length) {
+          setInitialData(restoreScene(remote));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status, userId]);
+
+  if (!ready) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center text-sm text-slate-500">
+        Loading whiteboard…
+      </div>
+    );
+  }
 
   return (
     <div className="h-full min-h-0 w-full flex-1 [&_.excalidraw]:h-full [&_.excalidraw-container]:h-full">
       <Excalidraw
+        key={userId ?? "guest"}
         excalidrawAPI={(api) => {
           excalidRef.current = api;
           api.onChange(() => {
@@ -41,12 +76,12 @@ export default function WhiteboardExcalidrawStage({
               window.clearTimeout(debounceRef.current);
             }
             debounceRef.current = window.setTimeout(() => {
-              void persistWhiteboardScene(api);
+              void persistWhiteboardScene(api, userId);
               debounceRef.current = null;
             }, 600);
           });
         }}
-        initialData={initialRef.current}
+        initialData={initialData}
       />
     </div>
   );

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Camera, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { loadVanode } from "@/lib/vanode/storage";
 import { toTitleCase } from "@/lib/vanode/title-case";
@@ -28,6 +29,8 @@ type Props = {
 };
 
 export default function GlobalWhiteboardOverlay({ open, onClose }: Props) {
+  const { data: session } = useSession();
+  const userId = session?.user?.id ? String(session.user.id) : null;
   const bridge = useWhiteboardVaultBridge();
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -35,9 +38,9 @@ export default function GlobalWhiteboardOverlay({ open, onClose }: Props) {
 
   const handleCloseSave = useCallback(() => {
     const api = apiRef.current;
-    if (api) void persistWhiteboardScene(api);
+    if (api) void persistWhiteboardScene(api, userId);
     onClose();
-  }, [onClose]);
+  }, [onClose, userId]);
 
   const handleCapture = useCallback(async () => {
     const api = apiRef.current;

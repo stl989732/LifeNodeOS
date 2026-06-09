@@ -14,6 +14,12 @@ export const NODE_WIDGET_KEYS = {
   },
   vanode: {
     dashboard: "vanode.dashboard",
+    screenCaptures: "vanode.screen_captures",
+  },
+  shell: {
+    whiteboard: "shell.whiteboard",
+    kanban: "shell.kanban",
+    calendar: "shell.calendar",
   },
   vital: {
     dashboard: "vital.dashboard",
@@ -39,7 +45,8 @@ export type NodeWidgetKey =
   | (typeof NODE_WIDGET_KEYS)["vital"][keyof (typeof NODE_WIDGET_KEYS)["vital"]]
   | (typeof NODE_WIDGET_KEYS)["trader"][keyof (typeof NODE_WIDGET_KEYS)["trader"]]
   | (typeof NODE_WIDGET_KEYS)["biz"][keyof (typeof NODE_WIDGET_KEYS)["biz"]]
-  | (typeof NODE_WIDGET_KEYS)["pro"][keyof (typeof NODE_WIDGET_KEYS)["pro"]];
+  | (typeof NODE_WIDGET_KEYS)["pro"][keyof (typeof NODE_WIDGET_KEYS)["pro"]]
+  | (typeof NODE_WIDGET_KEYS)["shell"][keyof (typeof NODE_WIDGET_KEYS)["shell"]];
 
 const ALLOWED_KEY = /^[a-z][a-z0-9._-]{0,127}$/;
 

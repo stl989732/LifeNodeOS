@@ -34,6 +34,7 @@ import { mergeSyncedItems } from "@/src/lib/calendar/mergeSyncedItems";
 import { readScheduleDrag, SCHEDULE_DRAG_MIME } from "@/src/lib/calendar/scheduleDrag";
 import {
   buildMonthGrid,
+  calendarStorageKey,
   formatDateKey,
   itemsForDate,
   loadCalendarStore,
@@ -47,8 +48,19 @@ import {
   type ScheduleItemKind,
   type ScheduleProvider,
 } from "@/src/lib/calendar/types";
-import { loadKanbanStore, saveKanbanStore } from "@/src/lib/kanban/storage";
+import {
+  kanbanStorageKey,
+  loadKanbanStore,
+  saveKanbanStore,
+} from "@/src/lib/kanban/storage";
 import type { KanbanStore } from "@/src/lib/kanban/types";
+import {
+  NODE_WIDGET_KEYS,
+  fetchNodeWidgetsWithMeta,
+  readLocalWidgetUpdatedAt,
+  resolveWidgetBootstrap,
+  scheduleNodeWidgetSave,
+} from "@/src/lib/nodeWidgetSync";
 import { computeCalendarCommitmentSignals } from "@/src/lib/linos/commitmentSignals";
 import { useConnectedApps } from "@/src/lib/useConnectedApps";
 import { toConnectedAppId } from "@/src/lib/integrations/appProviderMap";
@@ -149,6 +161,95 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
   );
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [shellSyncReady, setShellSyncReady] = useState(!userId);
+
+  useEffect(() => {
+    if (!userId) {
+      setShellSyncReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    setShellSyncReady(false);
+
+    void (async () => {
+      const calKey = calendarStorageKey(userId);
+      const kanKey = kanbanStorageKey(userId);
+      const localCal = loadCalendarStore(userId);
+      const localKan = loadKanbanStore(userId);
+
+      const remote = await fetchNodeWidgetsWithMeta([
+        NODE_WIDGET_KEYS.shell.calendar,
+        NODE_WIDGET_KEYS.shell.kanban,
+      ]);
+
+      const calResolved = resolveWidgetBootstrap({
+        local: localCal,
+        localUpdatedAt: readLocalWidgetUpdatedAt(calKey),
+        remote: remote[NODE_WIDGET_KEYS.shell.calendar],
+        parseRemote: (payload) => {
+          const p = payload as Partial<typeof localCal>;
+          return {
+            items: Array.isArray(p.items) ? p.items : localCal.items,
+            integrations:
+              Array.isArray(p.integrations) && p.integrations.length > 0
+                ? p.integrations
+                : localCal.integrations,
+          };
+        },
+        hasMeaningfulLocal: (store) => store.items.length > 0,
+        remoteHasData: (payload) => {
+          const p = payload as { items?: unknown[] };
+          return Array.isArray(p.items) && p.items.length > 0;
+        },
+      });
+
+      const kanResolved = resolveWidgetBootstrap({
+        local: localKan,
+        localUpdatedAt: readLocalWidgetUpdatedAt(kanKey),
+        remote: remote[NODE_WIDGET_KEYS.shell.kanban],
+        parseRemote: (payload) => {
+          const p = payload as Partial<KanbanStore>;
+          const boards = Array.isArray(p.boards) ? p.boards : localKan.boards;
+          const cards = Array.isArray(p.cards) ? p.cards : localKan.cards;
+          return {
+            boards,
+            cards,
+            activeBoardId:
+              typeof p.activeBoardId === "string"
+                ? p.activeBoardId
+                : localKan.activeBoardId,
+          };
+        },
+        hasMeaningfulLocal: (store) => store.cards.length > 0,
+        remoteHasData: (payload) => {
+          const p = payload as { cards?: unknown[] };
+          return Array.isArray(p.cards) && p.cards.length > 0;
+        },
+      });
+
+      if (cancelled) return;
+
+      saveCalendarStore(userId, calResolved.value);
+      saveKanbanStore(userId, kanResolved.value);
+      setItems(calResolved.value.items);
+      setIntegrations(calResolved.value.integrations);
+      setKanbanStore(kanResolved.value);
+
+      if (calResolved.pushLocal && calResolved.value.items.length > 0) {
+        scheduleNodeWidgetSave(NODE_WIDGET_KEYS.shell.calendar, calResolved.value, 200);
+      }
+      if (kanResolved.pushLocal && kanResolved.value.cards.length > 0) {
+        scheduleNodeWidgetSave(NODE_WIDGET_KEYS.shell.kanban, kanResolved.value, 200);
+      }
+
+      setShellSyncReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const syncCommitmentSignals = useCallback(
     (nextItems: ScheduleItem[]) => {
@@ -180,21 +281,28 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
   const persist = useCallback(
     (nextItems: ScheduleItem[], nextIntegrations = integrations) => {
       setItems(nextItems);
-      saveCalendarStore(userId, {
+      const payload = {
         items: nextItems,
         integrations: nextIntegrations,
-      });
+      };
+      saveCalendarStore(userId, payload);
+      if (userId && shellSyncReady && nextItems.length > 0) {
+        scheduleNodeWidgetSave(NODE_WIDGET_KEYS.shell.calendar, payload);
+      }
       syncCommitmentSignals(nextItems);
     },
-    [integrations, syncCommitmentSignals, userId],
+    [integrations, shellSyncReady, syncCommitmentSignals, userId],
   );
 
   const persistKanban = useCallback(
     (next: KanbanStore) => {
       setKanbanStore(next);
       saveKanbanStore(userId, next);
+      if (userId && shellSyncReady && next.cards.length > 0) {
+        scheduleNodeWidgetSave(NODE_WIDGET_KEYS.shell.kanban, next);
+      }
     },
-    [userId],
+    [shellSyncReady, userId],
   );
 
   const connectedIntegrations = useMemo(

@@ -2,6 +2,7 @@ import {
   readScopedLocalStorage,
   userScopedStorageKey,
 } from "@/src/lib/userScopedStorage";
+import { touchLocalWidgetUpdatedAt } from "@/src/lib/nodeWidgetSync";
 import {
   DEFAULT_KANBAN_COLUMNS,
   type KanbanBoard,
@@ -74,7 +75,9 @@ export function saveKanbanStore(
   store: KanbanStore,
 ): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(kanbanStorageKey(userId), JSON.stringify(store));
+  const key = kanbanStorageKey(userId);
+  window.localStorage.setItem(key, JSON.stringify(store));
+  touchLocalWidgetUpdatedAt(key);
 }
 
 export function createKanbanBoard(name: string): KanbanBoard {

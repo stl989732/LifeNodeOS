@@ -106,7 +106,7 @@ export async function hydrateConfiguredHatKeys(): Promise<ShellHatKey[]> {
   const pending = readPendingShellHats();
   const merged = mergeConfiguredHatKeys(serverHats, pending);
 
-  if (merged.length && pending.length) {
+  if (merged.length && (pending.length || serverHats.length === 0)) {
     void persistConfiguredHatsToApi(merged);
   } else if (merged.length) {
     notifyConfiguredHatsUpdated(merged);
