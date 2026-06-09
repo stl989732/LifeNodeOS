@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CalendarDays,
   ChevronLeft,
@@ -10,9 +11,11 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import ConnectCalendarsModal from "@/src/components/calendar/ConnectCalendarsModal";
 import EmojiPickerButton from "@/src/components/calendar/EmojiPickerButton";
 import {
   AURA_BTN_PRIMARY,
@@ -42,7 +45,10 @@ import {
   type CalendarIntegration,
   type ScheduleItem,
   type ScheduleItemKind,
+  type ScheduleProvider,
 } from "@/src/lib/calendar/types";
+import { syncCalendarProvider } from "@/src/lib/calendar/clientSync";
+import { mergeSyncedItems } from "@/src/lib/calendar/mergeSyncedItems";
 import { computeCalendarCommitmentSignals } from "@/src/lib/linos/commitmentSignals";
 import { useConnectedApps } from "@/src/lib/useConnectedApps";
 import { toConnectedAppId } from "@/src/lib/integrations/appProviderMap";
@@ -90,6 +96,8 @@ export default function CalendarDashboard() {
 }
 
 function CalendarDashboardInner({ userId }: { userId: string | null }) {
+  const searchParams = useSearchParams();
+  const dayPanelRef = useRef<HTMLElement>(null);
   const initialStore = loadCalendarStore(userId);
   const { patchBridgeSignals } = useLifeNodeContext();
   const { connectedApps } = useConnectedApps(userId ?? "");
@@ -115,6 +123,12 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
   );
   const [filterOpen, setFilterOpen] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [connectModalOpen, setConnectModalOpen] = useState(false);
+  const [asideExpanded, setAsideExpanded] = useState(false);
+  const [syncingProvider, setSyncingProvider] = useState<ScheduleProvider | null>(
+    null,
+  );
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   const syncCommitmentSignals = useCallback(
     (nextItems: ScheduleItem[]) => {
@@ -154,6 +168,101 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     },
     [integrations, syncCommitmentSignals, userId],
   );
+
+  const connectedIntegrations = useMemo(
+    () => integrations.filter((row) => row.connected && row.id !== "local"),
+    [integrations],
+  );
+
+  const monthAnchorKey = useMemo(
+    () => `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-01`,
+    [viewMonth, viewYear],
+  );
+
+  const runProviderSync = useCallback(
+    async (provider: ScheduleProvider) => {
+      if (!userId) return;
+      setSyncingProvider(provider);
+      setSyncNotice(null);
+      try {
+        const result = await syncCalendarProvider(provider, monthAnchorKey);
+        if (!result.ok) {
+          setSyncNotice(result.error ?? "Could not sync calendar.");
+          return;
+        }
+        if (result.items.length > 0) {
+          setItems((prev) => {
+            const merged = mergeSyncedItems(prev, result.items, provider);
+            saveCalendarStore(userId, { items: merged, integrations });
+            syncCommitmentSignals(merged);
+            return merged;
+          });
+        }
+        setSyncNotice(
+          result.message ??
+            (result.liveSync
+              ? result.items.length > 0
+                ? `Synced ${result.items.length} event${result.items.length === 1 ? "" : "s"} from ${providerLabel(provider)}.`
+                : `No upcoming events found in ${providerLabel(provider)} for this month.`
+              : `${providerLabel(provider)} connected — live sync coming soon.`),
+        );
+      } catch {
+        setSyncNotice("Sync failed. Try again in a moment.");
+      } finally {
+        setSyncingProvider(null);
+      }
+    },
+    [integrations, monthAnchorKey, syncCommitmentSignals, userId],
+  );
+
+  useEffect(() => {
+    const status = searchParams.get("status");
+    const integration = searchParams.get("integration");
+    if (status === "connected" && integration?.includes("google")) {
+      void runProviderSync("google");
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("integration");
+        url.searchParams.delete("status");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      }
+    }
+  }, [runProviderSync, searchParams]);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as { type?: string; node?: string };
+      if (data?.type !== "lifenode-integration-connected") return;
+      if (data.node?.toUpperCase() !== CALENDAR_TARGET_NODE) return;
+      setConnectModalOpen(false);
+      setSyncNotice(
+        "Connection saved. Live event sync for this tool will appear here when OAuth is enabled.",
+      );
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  useEffect(() => {
+    const googleKey = connectedAppKey(toConnectedAppId(CALENDAR_CONNECT_APPS.google));
+    const hasGoogleItems = items.some((row) => row.source === "google");
+    if (connectedApps[googleKey] === "connected" && !hasGoogleItems) {
+      void runProviderSync("google");
+    }
+  }, [connectedApps, items, runProviderSync]);
+
+  function selectDate(key: string) {
+    setSelectedDate(key);
+    setAsideExpanded(true);
+    requestAnimationFrame(() => {
+      dayPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+
+  function providerLabel(provider: ScheduleProvider): string {
+    return integrations.find((row) => row.id === provider)?.label ?? provider;
+  }
 
   const grid = useMemo(
     () => buildMonthGrid(viewYear, viewMonth),
@@ -290,6 +399,13 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
       );
       setIntegrations(next);
       saveCalendarStore(userId, { items, integrations: next });
+      if (row.id === "google") {
+        await runProviderSync("google");
+      } else {
+        setSyncNotice(
+          `${row.label} connected. Live event sync for this provider is coming soon.`,
+        );
+      }
     } finally {
       setConnectingId(null);
     }
@@ -302,21 +418,75 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
   return (
     <div className={`${AURA_SUNRISE_BG} px-4 pb-16 pt-6 md:px-8`}>
       <div className="mx-auto max-w-6xl space-y-6">
-        <header className="space-y-2">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-            Default · Always on
-          </p>
-          <h1 className={`text-2xl font-bold md:text-3xl ${AURA_TEXT.title}`}>
-            Calendar & Task Management
-          </h1>
-          <p className={`max-w-2xl text-sm ${AURA_TEXT.body}`}>
-            Plan tasks, appointments, events, travel, and projects in one view.
-            Connect external calendars to merge schedules — like Motion or
-            Sunsama, unified inside LifeNode OS.
-          </p>
+        <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+              Default · Always on
+            </p>
+            <h1 className={`text-2xl font-bold md:text-3xl ${AURA_TEXT.title}`}>
+              Calendar & Task Management
+            </h1>
+            <p className={`max-w-2xl text-sm ${AURA_TEXT.body}`}>
+              Plan tasks, appointments, events, travel, and projects in one view.
+              Connect external calendars to merge schedules — like Motion or
+              Sunsama, unified inside LifeNode OS.
+            </p>
+            {syncNotice ? (
+              <p className="max-w-xl rounded-lg border border-teal-600/30 bg-teal-50/80 px-3 py-2 text-xs font-medium text-teal-900">
+                {syncNotice}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex w-full shrink-0 flex-col items-stretch gap-2 md:w-auto md:min-w-[15rem] md:items-end">
+            {connectedIntegrations.map((row) => (
+              <div
+                key={row.id}
+                className="flex w-full items-center justify-between gap-2 rounded-xl border border-emerald-600/30 bg-emerald-50/90 px-3 py-2 shadow-sm md:min-w-[15rem]"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-emerald-950">
+                    {row.label}
+                  </p>
+                  <p className="text-[10px] font-semibold text-emerald-800/80">
+                    Connected
+                  </p>
+                </div>
+                {row.id === "google" ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-700/30 bg-white px-2 py-1 text-[10px] font-bold text-emerald-900 hover:bg-emerald-100"
+                    onClick={() => void runProviderSync("google")}
+                    disabled={syncingProvider === "google"}
+                  >
+                    {syncingProvider === "google" ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                    Sync
+                  </button>
+                ) : null}
+              </div>
+            ))}
+            <button
+              type="button"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-500/70 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 shadow-md transition hover:border-teal-600 hover:bg-teal-50 hover:text-teal-900 md:w-auto"
+              onClick={() => setConnectModalOpen(true)}
+            >
+              <Link2 className="h-4 w-4" />
+              Connect Calendars & Schedulers
+            </button>
+          </div>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div
+          className={`grid gap-6 transition-all duration-300 ${
+            asideExpanded
+              ? "lg:grid-cols-2"
+              : "lg:grid-cols-[minmax(0,1fr)_20rem]"
+          }`}
+        >
           <section
             className={`${AURA_GLASS_CLASS} p-5 md:p-6`}
             style={AURA_GLASS_STYLE}
@@ -367,10 +537,10 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
                 <button
                   type="button"
                   className={NAV_BTN}
-                  onClick={() => {
+                    onClick={() => {
                     setViewYear(today.getFullYear());
                     setViewMonth(today.getMonth());
-                    setSelectedDate(todayKey);
+                    selectDate(todayKey);
                   }}
                 >
                   Today
@@ -414,7 +584,7 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setSelectedDate(key)}
+                    onClick={() => selectDate(key)}
                     className={`min-h-[72px] rounded-xl border p-1.5 text-left transition ${
                       isSelected
                         ? "border-slate-800/40 bg-white/45 ring-2 ring-slate-800/20"
@@ -451,9 +621,11 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
             </div>
           </section>
 
-          <aside className="space-y-4">
+          <aside ref={dayPanelRef} className="space-y-4 lg:min-w-0">
             <section
-              className={`${AURA_GLASS_CLASS} p-4`}
+              className={`${AURA_GLASS_CLASS} p-4 transition-all duration-300 ${
+                asideExpanded ? "lg:p-5" : ""
+              }`}
               style={AURA_GLASS_STYLE}
             >
               <div className="flex items-start justify-between gap-2">
@@ -504,7 +676,11 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
                   ) : null}
                 </div>
               </div>
-              <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+              <ul
+                className={`mt-3 space-y-2 overflow-y-auto ${
+                  asideExpanded ? "max-h-[min(50vh,28rem)]" : "max-h-48"
+                }`}
+              >
                 {filteredSelectedItems.length === 0 ? (
                   <li className={`text-xs ${AURA_TEXT.muted}`}>
                     {selectedItems.length > 0
@@ -528,6 +704,7 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
                         </div>
                         <p className="text-[10px] text-slate-600">
                           {SCHEDULE_KIND_LABELS[item.kind]}
+                          {item.source !== "local" ? ` · ${providerLabel(item.source)}` : ""}
                           {item.allDay
                             ? " · All day"
                             : item.startTime
@@ -655,53 +832,13 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
           </aside>
         </div>
 
-        <section
-          className={`${AURA_GLASS_CLASS} p-5 md:p-6`}
-          style={AURA_GLASS_STYLE}
-        >
-          <h2 className={`mb-1 flex items-center gap-2 text-lg font-bold ${AURA_TEXT.title}`}>
-            <Link2 className="h-5 w-5" />
-            Connect calendars & schedulers
-          </h2>
-          <p className={`mb-4 text-sm ${AURA_TEXT.muted}`}>
-            Connect through LifeNode OAuth (Google Calendar uses your Google sign-in).
-            Other tools open the standard LifeNode connection flow.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {integrations.map((row) => (
-              <div
-                key={row.id}
-                className="flex flex-col justify-between rounded-2xl border border-white/25 bg-white/20 p-4"
-              >
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{row.label}</p>
-                  <p className="mt-1 text-xs text-slate-600">{row.description}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={connectingId === row.id || row.connected}
-                  className={`mt-3 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition disabled:cursor-default ${
-                    row.connected
-                      ? "border border-emerald-600/40 bg-emerald-50 text-emerald-900"
-                      : "border border-slate-400/80 bg-white text-slate-900 shadow-sm hover:border-teal-600 hover:bg-teal-50 hover:text-teal-900"
-                  }`}
-                  onClick={() => void handleConnect(row)}
-                >
-                  {connectingId === row.id ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Connecting…
-                    </>
-                  ) : row.connected ? (
-                    "Connected"
-                  ) : (
-                    "Connect"
-                  )}
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
+        <ConnectCalendarsModal
+          open={connectModalOpen}
+          integrations={integrations.filter((row) => row.id !== "local")}
+          connectingId={connectingId}
+          onClose={() => setConnectModalOpen(false)}
+          onConnect={(row) => void handleConnect(row)}
+        />
       </div>
     </div>
   );

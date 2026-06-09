@@ -1,4 +1,5 @@
 import nextDynamic from "next/dynamic";
+import { Suspense } from "react";
 import GenericNodeCommandShell from "@/src/components/shell/GenericNodeCommandShell";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,9 @@ export default function CalendarPage() {
   return (
     <div className="min-h-full pt-[calc(env(safe-area-inset-top,0px)+var(--ln-node-nav-chrome-block))]">
       <GenericNodeCommandShell workspaceTone="light">
-        <CalendarDashboard />
+        <Suspense fallback={<CalendarLoading />}>
+          <CalendarDashboard />
+        </Suspense>
       </GenericNodeCommandShell>
     </div>
   );

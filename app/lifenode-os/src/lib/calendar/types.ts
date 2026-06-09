@@ -25,6 +25,8 @@ export type ScheduleItem = {
   allDay?: boolean;
   notes?: string;
   source: ScheduleProvider;
+  /** Provider event id for synced rows (dedupe on re-sync). */
+  externalId?: string;
   createdAt: string;
   updatedAt: string;
 };

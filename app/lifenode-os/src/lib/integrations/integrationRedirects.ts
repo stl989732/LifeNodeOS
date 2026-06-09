@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
 import { OAUTH_STATE_COOKIE, oauthStateCookieOptions } from "./oauthState";
 
+const NODE_RETURN_PATHS: Record<string, string> = {
+  VA: "/vanode",
+  BIZ: "/work",
+  CALENDAR: "/calendar",
+  PULSE: "/pulse",
+  HOME: "/home",
+  VITAL: "/vital",
+  TRADER: "/trader",
+  PRO: "/pro",
+};
+
 export function nodeReturnPath(targetNode?: string): string {
   const node = (targetNode ?? "BIZ").toUpperCase();
-  return node === "VA" ? "/vanode" : "/work";
+  return NODE_RETURN_PATHS[node] ?? "/work";
 }
 
 export function integrationReturnRedirect(

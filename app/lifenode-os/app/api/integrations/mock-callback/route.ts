@@ -36,11 +36,22 @@ export async function GET(request: Request) {
     return new NextResponse(
       `
       <html>
-        <body style="font-family: sans-serif; text-align: center; padding-top: 50px; background: #f8fafc;">
-          <h2 style="color: #10b981;">Sync Complete!</h2>
-          <p style="color: #64748b;">LifeNode OS has linked your ${app} account.</p>
+        <body style="font-family: sans-serif; text-align: center; padding: 32px 24px; background: #f8fafc;">
+          <h2 style="color: #0f766e; margin-bottom: 8px;">Connection saved</h2>
+          <p style="color: #64748b; max-width: 320px; margin: 0 auto 12px;">
+            LifeNode OS linked <strong>${app}</strong> for ${node}. Live event sync for this provider is coming soon — your calendar dashboard will update automatically when OAuth is enabled.
+          </p>
+          <p style="color: #94a3b8; font-size: 13px;">This window will close…</p>
           <script>
-            setTimeout(() => { window.close(); }, 1000);
+            try {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage(
+                  { type: "lifenode-integration-connected", app: ${JSON.stringify(app)}, node: ${JSON.stringify(node)} },
+                  window.location.origin
+                );
+              }
+            } catch (e) {}
+            setTimeout(function () { window.close(); }, 1400);
           </script>
         </body>
       </html>
