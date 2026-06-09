@@ -6,6 +6,7 @@ import {
   NODE_ROUTE,
   isShellHatKey,
 } from "@/lib/node-mappings";
+import { resolveSessionPersistence } from "@/lib/persistence-user-id";
 import { getNodeOnboarding } from "@/lib/user-state-store";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
 
@@ -29,7 +30,9 @@ export default async function NodeOnboardingPage({
 
   if (!DEV_FRESH_SESSION) {
     try {
-      const status = await getNodeOnboarding(session.user.id, activeNode);
+      const resolved = await resolveSessionPersistence(session);
+      const userId = resolved?.userId ?? session.user.id;
+      const status = await getNodeOnboarding(userId, activeNode);
       if (status.onboardingCompleted) {
         redirect(NODE_ROUTE[activeNode]);
       }

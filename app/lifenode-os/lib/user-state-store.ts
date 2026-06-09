@@ -485,6 +485,11 @@ async function writeUserState(state: UserState): Promise<void> {
   }
 }
 
+/** Used when merging legacy OAuth shell state onto a canonical credential id. */
+export async function writeUserStateDirect(state: UserState): Promise<void> {
+  await writeUserState(state);
+}
+
 export type UserStatePatch = {
   displayName?: string | null;
   configuredHats?: ShellHatKey[];

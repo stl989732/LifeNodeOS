@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import {
   ACTIVE_NODE_NAMES,
   NODE_ONBOARDING_STEPS,
@@ -9,6 +8,7 @@ import {
   type ActiveNodeName,
   type NodeOnboardingStep,
 } from "@/lib/user-state-store";
+import { requirePersistenceAuth } from "@/lib/persistence-session";
 
 export const runtime = "nodejs";
 
@@ -30,17 +30,16 @@ function isStep(value: unknown): value is NodeOnboardingStep {
 }
 
 export async function GET() {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
-  const statuses = await getAllNodeOnboarding(userId);
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const statuses = await getAllNodeOnboarding(authResult.userId);
   return NextResponse.json({ statuses });
 }
 
 export async function PUT(request: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const userId = authResult.userId;
 
   let body: unknown;
   try {

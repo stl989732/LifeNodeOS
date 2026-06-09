@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { isNodeWidgetKey } from "@/lib/node-widget-keys";
 import {
   getNodeWidgets,
@@ -7,6 +6,7 @@ import {
   parseWidgetKeysParam,
   NodeWidgetPersistenceError,
 } from "@/lib/node-widget-data-store";
+import { requirePersistenceAuth } from "@/lib/persistence-session";
 
 export const runtime = "nodejs";
 
@@ -15,9 +15,9 @@ function unauthorized() {
 }
 
 export async function GET(request: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const userId = authResult.userId;
 
   const { searchParams } = new URL(request.url);
   const keys = parseWidgetKeysParam(searchParams.get("keys"));
@@ -43,9 +43,9 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const userId = authResult.userId;
 
   let body: unknown;
   try {

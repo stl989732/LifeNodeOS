@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import {
   addWorkflow,
   getUserState,
   type ActiveNodeName,
   type WorkflowInput,
 } from "@/lib/user-state-store";
+import { requirePersistenceAuth } from "@/lib/persistence-session";
 
 export const runtime = "nodejs";
 
@@ -27,17 +27,16 @@ function isActiveNodeName(value: unknown): value is ActiveNodeName {
 }
 
 export async function GET() {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
-  const state = await getUserState(userId);
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const state = await getUserState(authResult.userId);
   return NextResponse.json({ workflows: state.workflows });
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const userId = authResult.userId;
 
   let body: unknown;
   try {

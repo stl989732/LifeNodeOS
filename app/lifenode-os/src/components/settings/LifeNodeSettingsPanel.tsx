@@ -103,7 +103,7 @@ function exportUserDataJson() {
     app: "LifeNode OS",
     localPreferences: settings,
   };
-  return fetch("/api/user-state", { cache: "no-store" })
+  return fetch("/api/user-state", { cache: "no-store", credentials: "include" })
     .then((r) => (r.ok ? r.json() : null))
     .then((userState) => {
       payload.workspaceState = userState;
@@ -169,6 +169,7 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
       await fetch("/api/user-state", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ displayName: displayName.trim() || null }),
       });
     } finally {

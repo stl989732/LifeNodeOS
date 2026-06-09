@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { deleteWorkflow } from "@/lib/user-state-store";
+import { requirePersistenceAuth } from "@/lib/persistence-session";
 
 export const runtime = "nodejs";
 
@@ -12,9 +12,9 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const userId = authResult.userId;
   const { id } = await context.params;
   if (!id) {
     return NextResponse.json({ error: "MISSING_ID" }, { status: 400 });

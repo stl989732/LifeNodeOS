@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import {
   getUserState,
   patchUserState,
@@ -10,6 +9,7 @@ import {
   type NodeOnboardingDraft,
   type UserStatePatch,
 } from "@/lib/user-state-store";
+import { requirePersistenceAuth } from "@/lib/persistence-session";
 
 export const runtime = "nodejs";
 
@@ -27,17 +27,16 @@ function unauthorized() {
 }
 
 export async function GET() {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
-  const state = await getUserState(userId);
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const state = await getUserState(authResult.userId);
   return NextResponse.json({ state });
 }
 
 export async function PUT(request: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const authResult = await requirePersistenceAuth();
+  if (!authResult.ok) return authResult.response;
+  const userId = authResult.userId;
 
   let body: unknown;
   try {

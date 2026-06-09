@@ -237,6 +237,7 @@ export default function LifeNodeShell() {
       void fetch("/api/user-state", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ lastActiveNode: targetNode }),
       }).catch(() => {
         lastSavedNodeRef.current = null;
@@ -292,6 +293,7 @@ export default function LifeNodeShell() {
       try {
         const res = await fetch("/api/user-state/onboarding", {
           cache: "no-store",
+          credentials: "include",
         });
         if (!res.ok) return;
         const data = await res.json();

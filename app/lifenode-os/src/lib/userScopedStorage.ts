@@ -46,3 +46,34 @@ export function readScopedLocalStorage(
   }
   return null;
 }
+
+/**
+ * Copy all `baseKey::legacyUserId` localStorage entries to `baseKey::userId`
+ * after OAuth ↔ credential account linking (common on mobile re-sign-in).
+ */
+export function migrateLegacyUserScopedKeys(
+  userId: string,
+  legacyUserId: string,
+): void {
+  if (typeof window === "undefined") return;
+  const canonical = userId.trim();
+  const legacy = legacyUserId.trim();
+  if (!canonical || !legacy || canonical === legacy) return;
+
+  const legacySuffix = `::${legacy}`;
+  const canonicalSuffix = `::${canonical}`;
+  const keysToMigrate: string[] = [];
+
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (key?.endsWith(legacySuffix)) keysToMigrate.push(key);
+  }
+
+  for (const key of keysToMigrate) {
+    const base = key.slice(0, -legacySuffix.length);
+    const targetKey = `${base}${canonicalSuffix}`;
+    if (window.localStorage.getItem(targetKey)) continue;
+    const value = window.localStorage.getItem(key);
+    if (value) window.localStorage.setItem(targetKey, value);
+  }
+}

@@ -99,6 +99,7 @@ export default function WorkflowsManager() {
     try {
       const res = await fetch("/api/user-state/workflows", {
         cache: "no-store",
+        credentials: "include",
       });
       if (!res.ok) throw new Error(`LOAD_${res.status}`);
       const data = (await res.json()) as { workflows: WorkflowDefinition[] };
@@ -158,6 +159,7 @@ export default function WorkflowsManager() {
       const res = await fetch("/api/user-state/workflows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           name: draft.name.trim(),
           triggerNode: draft.triggerNode,
@@ -194,6 +196,7 @@ export default function WorkflowsManager() {
       }
       const res = await fetch(`/api/user-state/workflows/${id}`, {
         method: "DELETE",
+        credentials: "include",
       });
       if (!res.ok) throw new Error(`DELETE_${res.status}`);
       const data = (await res.json()) as { workflows: WorkflowDefinition[] };

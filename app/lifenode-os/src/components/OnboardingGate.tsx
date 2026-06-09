@@ -6,6 +6,7 @@ import {
   ACTIVE_TO_HAT_KEY,
   type ActiveNodeName,
 } from "@/lib/node-mappings";
+import { resolveSessionPersistence } from "@/lib/persistence-user-id";
 import { getNodeOnboarding } from "@/lib/user-state-store";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
 
@@ -49,9 +50,12 @@ export default async function OnboardingGate({
     return <div className={nodePageChromePadClass}>{children}</div>;
   }
 
+  const resolved = await resolveSessionPersistence(session);
+  const userId = resolved?.userId ?? session.user.id;
+
   let onboardingCompleted = true;
   try {
-    const status = await readNodeOnboarding(session.user.id, node);
+    const status = await readNodeOnboarding(userId, node);
     onboardingCompleted = status.onboardingCompleted;
   } catch (e) {
     console.error("[OnboardingGate] user state read failed:", e);

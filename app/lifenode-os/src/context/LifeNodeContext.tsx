@@ -799,7 +799,10 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const refreshArmed = async () => {
       try {
-        const res = await fetch("/api/user-state/onboarding", { cache: "no-store" });
+        const res = await fetch("/api/user-state/onboarding", {
+          cache: "no-store",
+          credentials: "include",
+        });
         if (!res.ok) {
           if (!cancelled) setLinoAlertsArmed(false);
           return;

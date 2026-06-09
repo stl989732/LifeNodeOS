@@ -2,6 +2,8 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
+import { findCredentialUserByEmail } from "@/lib/auth-users-store";
+import { provisionCoreSubscription } from "@/src/lib/billing/provisionCoreSubscription";
 
 const googleConfigured =
   Boolean(process.env.GOOGLE_CLIENT_ID?.trim()) &&
@@ -78,12 +80,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user, account }) {
       if (user) {
-        token.sub = user.id ?? token.sub;
+        let stableId = user.id ?? token.sub;
+
+        if (
+          account &&
+          (account.provider === "google" || account.provider === "github")
+        ) {
+          token.oauth = true;
+          const email = user.email?.trim().toLowerCase();
+          if (email) {
+            try {
+              const cred = await findCredentialUserByEmail(email);
+              if (cred?.id) {
+                token.oauthSubject = stableId ?? undefined;
+                stableId = cred.id;
+              }
+            } catch (e) {
+              console.error("[auth] OAuth credential link lookup failed:", e);
+            }
+          }
+        }
+
+        token.sub = stableId ?? token.sub;
         token.email = user.email ?? token.email;
         token.name = user.name ?? token.name;
-      }
-      if (account?.provider === "google" || account?.provider === "github") {
-        token.oauth = true;
+        provisionCoreSubscription(stableId ?? token.sub);
       }
       return token;
     },
@@ -95,6 +116,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
         if (typeof token.name === "string") {
           session.user.name = token.name;
+        }
+        if (typeof token.oauthSubject === "string") {
+          session.user.legacyUserId = token.oauthSubject;
         }
       }
       return session;
