@@ -1,32 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Filter,
   Link2,
   Loader2,
-  Pencil,
-  Plus,
   RefreshCw,
-  Trash2,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import ConnectedCalendarCard from "@/src/components/calendar/ConnectedCalendarCard";
 import ConnectCalendarsModal from "@/src/components/calendar/ConnectCalendarsModal";
-import EmojiPickerButton from "@/src/components/calendar/EmojiPickerButton";
+import DayFocusModal from "@/src/components/calendar/DayFocusModal";
+import KanbanBoardSection from "@/src/components/calendar/KanbanBoardSection";
 import {
-  AURA_BTN_PRIMARY,
   AURA_GLASS_CLASS,
   AURA_GLASS_STYLE,
-  AURA_INPUT_CLASS,
   AURA_SUNRISE_BG,
   AURA_TEXT,
 } from "@/src/components/lifePulse/lifePulseAura";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { connectAppToNode } from "@/src/lib/integrations";
+import { appLabelToProvider } from "@/src/lib/integrations/appProviderMap";
+import { syncCalendarProvider } from "@/src/lib/calendar/clientSync";
+import {
+  CALENDAR_CONNECT_APPS,
+  CALENDAR_TARGET_NODE,
+  connectedAppKey,
+} from "@/src/lib/calendar/integrationConnect";
+import { mergeSyncedItems } from "@/src/lib/calendar/mergeSyncedItems";
+import { readScheduleDrag, SCHEDULE_DRAG_MIME } from "@/src/lib/calendar/scheduleDrag";
 import {
   buildMonthGrid,
   formatDateKey,
@@ -36,19 +41,14 @@ import {
   saveCalendarStore,
 } from "@/src/lib/calendar/storage";
 import {
-  CALENDAR_CONNECT_APPS,
-  CALENDAR_TARGET_NODE,
-  connectedAppKey,
-} from "@/src/lib/calendar/integrationConnect";
-import {
   SCHEDULE_KIND_LABELS,
   type CalendarIntegration,
   type ScheduleItem,
   type ScheduleItemKind,
   type ScheduleProvider,
 } from "@/src/lib/calendar/types";
-import { syncCalendarProvider } from "@/src/lib/calendar/clientSync";
-import { mergeSyncedItems } from "@/src/lib/calendar/mergeSyncedItems";
+import { loadKanbanStore, saveKanbanStore } from "@/src/lib/kanban/storage";
+import type { KanbanStore } from "@/src/lib/kanban/types";
 import { computeCalendarCommitmentSignals } from "@/src/lib/linos/commitmentSignals";
 import { useConnectedApps } from "@/src/lib/useConnectedApps";
 import { toConnectedAppId } from "@/src/lib/integrations/appProviderMap";
@@ -84,8 +84,26 @@ const NAV_BTN =
 const NAV_ICON_BTN =
   "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-400/70 bg-white text-slate-900 shadow-md transition hover:border-teal-600 hover:bg-teal-50 hover:text-teal-900 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40";
 
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  missing_credentials:
+    "Google OAuth is not configured on the server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel.",
+  account_link_failed:
+    "Could not link your account for calendar sync. Sign out and sign in again, then retry.",
+  invalid_state: "OAuth session expired. Close this tab and connect again from Calendar.",
+  session_mismatch: "Session changed during OAuth. Sign in and connect again.",
+  token_exchange_failed: "Google rejected the token exchange. Check redirect URI and OAuth client settings.",
+};
+
 function buildYearOptions(anchor: number) {
   return Array.from({ length: 21 }, (_, i) => anchor - 10 + i);
+}
+
+function formatOAuthError(reason: string | null, integration: string | null): string {
+  if (reason && OAUTH_ERROR_MESSAGES[reason]) {
+    return OAUTH_ERROR_MESSAGES[reason];
+  }
+  if (reason) return `Connection failed: ${reason.replace(/_/g, " ")}`;
+  return `Could not connect ${integration ?? "calendar"}. Try again.`;
 }
 
 export default function CalendarDashboard() {
@@ -97,8 +115,8 @@ export default function CalendarDashboard() {
 
 function CalendarDashboardInner({ userId }: { userId: string | null }) {
   const searchParams = useSearchParams();
-  const dayPanelRef = useRef<HTMLElement>(null);
   const initialStore = loadCalendarStore(userId);
+  const initialKanban = loadKanbanStore(userId);
   const { patchBridgeSignals } = useLifeNodeContext();
   const { connectedApps } = useConnectedApps(userId ?? "");
 
@@ -109,8 +127,10 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [dayModalOpen, setDayModalOpen] = useState(false);
   const [items, setItems] = useState<ScheduleItem[]>(() => initialStore.items);
   const [integrations, setIntegrations] = useState(() => initialStore.integrations);
+  const [kanbanStore, setKanbanStore] = useState<KanbanStore>(() => initialKanban);
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<ScheduleItemKind>("task");
   const [startTime, setStartTime] = useState("09:00");
@@ -124,11 +144,11 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectModalOpen, setConnectModalOpen] = useState(false);
-  const [asideExpanded, setAsideExpanded] = useState(false);
   const [syncingProvider, setSyncingProvider] = useState<ScheduleProvider | null>(
     null,
   );
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const syncCommitmentSignals = useCallback(
     (nextItems: ScheduleItem[]) => {
@@ -167,6 +187,14 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
       syncCommitmentSignals(nextItems);
     },
     [integrations, syncCommitmentSignals, userId],
+  );
+
+  const persistKanban = useCallback(
+    (next: KanbanStore) => {
+      setKanbanStore(next);
+      saveKanbanStore(userId, next);
+    },
+    [userId],
   );
 
   const connectedIntegrations = useMemo(
@@ -215,29 +243,44 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     [integrations, monthAnchorKey, syncCommitmentSignals, userId],
   );
 
+  function clearIntegrationQueryParams() {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("integration");
+    url.searchParams.delete("status");
+    url.searchParams.delete("reason");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  }
+
   useEffect(() => {
     const status = searchParams.get("status");
     const integration = searchParams.get("integration");
+    const reason = searchParams.get("reason");
+
+    if (status === "error") {
+      setSyncNotice(formatOAuthError(reason, integration));
+      setConnectModalOpen(true);
+      clearIntegrationQueryParams();
+      return;
+    }
+
     if (status === "connected" && integration?.includes("google")) {
+      setConnectModalOpen(false);
+      setSyncNotice("Google Calendar connected. Syncing your events…");
       void runProviderSync("google");
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("integration");
-        url.searchParams.delete("status");
-        window.history.replaceState({}, "", url.pathname + url.search);
-      }
+      clearIntegrationQueryParams();
     }
   }, [runProviderSync, searchParams]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
-      const data = event.data as { type?: string; node?: string };
+      const data = event.data as { type?: string; node?: string; app?: string };
       if (data?.type !== "lifenode-integration-connected") return;
       if (data.node?.toUpperCase() !== CALENDAR_TARGET_NODE) return;
       setConnectModalOpen(false);
       setSyncNotice(
-        "Connection saved. Live event sync for this tool will appear here when OAuth is enabled.",
+        `${data.app ?? "App"} connected. Live event sync for this tool will appear when OAuth is enabled.`,
       );
     }
     window.addEventListener("message", onMessage);
@@ -254,10 +297,14 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
 
   function selectDate(key: string) {
     setSelectedDate(key);
-    setAsideExpanded(true);
-    requestAnimationFrame(() => {
-      dayPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
+    setDayModalOpen(true);
+    resetForm();
+  }
+
+  function closeDayModal() {
+    setDayModalOpen(false);
+    setFilterOpen(false);
+    resetForm();
   }
 
   function providerLabel(provider: ScheduleProvider): string {
@@ -289,6 +336,17 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     }
     return map;
   }, [items, kindFilters]);
+
+  const itemsByProvider = useMemo(() => {
+    const map = new Map<ScheduleProvider, ScheduleItem[]>();
+    for (const item of items) {
+      if (item.source === "local") continue;
+      const list = map.get(item.source) ?? [];
+      list.push(item);
+      map.set(item.source, list);
+    }
+    return map;
+  }, [items]);
 
   function shiftMonth(delta: number) {
     const d = new Date(viewYear, viewMonth + delta, 1);
@@ -366,6 +424,27 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     persist(items.filter((i) => i.id !== id));
   }
 
+  function moveItemDate(itemId: string, newDate: string) {
+    const now = new Date().toISOString();
+    persist(
+      items.map((row) =>
+        row.id === itemId
+          ? { ...row, date: newDate, updatedAt: now }
+          : row,
+      ),
+    );
+    setSyncNotice(
+      "Event rescheduled on your dashboard. External calendars are read-only until write access is enabled.",
+    );
+  }
+
+  function handleDropOnDate(e: React.DragEvent<HTMLButtonElement>, dateKey: string) {
+    e.preventDefault();
+    setDragOverDate(null);
+    const payload = readScheduleDrag(e);
+    if (payload?.itemId) moveItemDate(payload.itemId, dateKey);
+  }
+
   function toggleKindFilter(k: ScheduleItemKind) {
     setKindFilters((prev) => {
       const next = new Set(prev);
@@ -385,25 +464,21 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     }
 
     setConnectingId(row.id);
+    setSyncNotice(null);
     try {
       const appLabel = CALENDAR_CONNECT_APPS[row.id];
+      const oauthProvider = appLabelToProvider(appLabel);
       const ok = await connectAppToNode(userId, CALENDAR_TARGET_NODE, appLabel);
       if (!ok) {
         window.alert(
-          "Could not start connection. Sign in and try again, or check OAuth credentials in Settings.",
+          "Could not start connection. Sign in and try again, or check that Google OAuth credentials are set in Vercel.",
         );
         return;
       }
-      const next = integrations.map((i) =>
-        i.id === row.id ? { ...i, connected: true } : i,
-      );
-      setIntegrations(next);
-      saveCalendarStore(userId, { items, integrations: next });
-      if (row.id === "google") {
-        await runProviderSync("google");
-      } else {
+
+      if (!oauthProvider) {
         setSyncNotice(
-          `${row.label} connected. Live event sync for this provider is coming soon.`,
+          `${row.label} connection started. Complete the popup to finish linking.`,
         );
       }
     } finally {
@@ -428,8 +503,8 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
             </h1>
             <p className={`max-w-2xl text-sm ${AURA_TEXT.body}`}>
               Plan tasks, appointments, events, travel, and projects in one view.
-              Connect external calendars to merge schedules — like Motion or
-              Sunsama, unified inside LifeNode OS.
+              Click any date to open its schedule. Connect external calendars and
+              drag events between days.
             </p>
             {syncNotice ? (
               <p className="max-w-xl rounded-lg border border-teal-600/30 bg-teal-50/80 px-3 py-2 text-xs font-medium text-teal-900">
@@ -480,357 +555,224 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
           </div>
         </header>
 
-        <div
-          className={`grid gap-6 transition-all duration-300 ${
-            asideExpanded
-              ? "lg:grid-cols-2"
-              : "lg:grid-cols-[minmax(0,1fr)_20rem]"
-          }`}
+        <section
+          className={`${AURA_GLASS_CLASS} p-5 md:p-6`}
+          style={AURA_GLASS_STYLE}
         >
-          <section
-            className={`${AURA_GLASS_CLASS} p-5 md:p-6`}
-            style={AURA_GLASS_STYLE}
-          >
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-slate-800" />
-                <label className="sr-only" htmlFor="calendar-month">
-                  Month
-                </label>
-                <select
-                  id="calendar-month"
-                  className={`${AURA_INPUT_CLASS} min-w-[8.5rem] font-bold`}
-                  value={viewMonth}
-                  onChange={(e) => setViewMonth(Number(e.target.value))}
-                >
-                  {MONTH_NAMES.map((name, idx) => (
-                    <option key={name} value={idx}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <label className="sr-only" htmlFor="calendar-year">
-                  Year
-                </label>
-                <select
-                  id="calendar-year"
-                  className={`${AURA_INPUT_CLASS} min-w-[5.5rem] font-bold`}
-                  value={viewYear}
-                  onChange={(e) => setViewYear(Number(e.target.value))}
-                >
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className={NAV_ICON_BTN}
-                  aria-label="Previous month"
-                  onClick={() => shiftMonth(-1)}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  className={NAV_BTN}
-                    onClick={() => {
-                    setViewYear(today.getFullYear());
-                    setViewMonth(today.getMonth());
-                    selectDate(todayKey);
-                  }}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  className={NAV_ICON_BTN}
-                  aria-label="Next month"
-                  onClick={() => shiftMonth(1)}
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-slate-800" />
+              <label className="sr-only" htmlFor="calendar-month">
+                Month
+              </label>
+              <select
+                id="calendar-month"
+                className="min-w-[8.5rem] rounded-xl border border-white/40 bg-white/60 px-3 py-2 text-sm font-bold text-slate-900 shadow-sm backdrop-blur-sm"
+                value={viewMonth}
+                onChange={(e) => setViewMonth(Number(e.target.value))}
+              >
+                {MONTH_NAMES.map((name, idx) => (
+                  <option key={name} value={idx}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <label className="sr-only" htmlFor="calendar-year">
+                Year
+              </label>
+              <select
+                id="calendar-year"
+                className="min-w-[5.5rem] rounded-xl border border-white/40 bg-white/60 px-3 py-2 text-sm font-bold text-slate-900 shadow-sm backdrop-blur-sm"
+                value={viewYear}
+                onChange={(e) => setViewYear(Number(e.target.value))}
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
             </div>
-
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase tracking-wide text-slate-600">
-              {WEEKDAY_LABELS.map((d) => (
-                <div key={d} className="py-1">
-                  {d}
-                </div>
-              ))}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className={NAV_ICON_BTN}
+                aria-label="Previous month"
+                onClick={() => shiftMonth(-1)}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                className={NAV_BTN}
+                onClick={() => {
+                  setViewYear(today.getFullYear());
+                  setViewMonth(today.getMonth());
+                  selectDate(todayKey);
+                }}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                className={NAV_ICON_BTN}
+                aria-label="Next month"
+                onClick={() => shiftMonth(1)}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
+          </div>
 
-            <div className="mt-1 grid grid-cols-7 gap-1">
-              {grid.map((cell, idx) => {
-                if (!cell) {
-                  return (
-                    <div
-                      key={`empty-${idx}`}
-                      className="min-h-[72px] rounded-xl bg-white/5"
-                      aria-hidden
-                    />
-                  );
-                }
-                const key = formatDateKey(cell);
-                const dayItems = itemsByDate.get(key) ?? [];
-                const isSelected = key === selectedDate;
-                const isToday = key === todayKey;
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase tracking-wide text-slate-600">
+            {WEEKDAY_LABELS.map((d) => (
+              <div key={d} className="py-1">
+                {d}
+              </div>
+            ))}
+          </div>
 
+          <div className="mt-1 grid grid-cols-7 gap-1">
+            {grid.map((cell, idx) => {
+              if (!cell) {
                 return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => selectDate(key)}
-                    className={`min-h-[72px] rounded-xl border p-1.5 text-left transition ${
-                      isSelected
+                  <div
+                    key={`empty-${idx}`}
+                    className="min-h-[72px] rounded-xl bg-white/5"
+                    aria-hidden
+                  />
+                );
+              }
+              const key = formatDateKey(cell);
+              const dayItems = itemsByDate.get(key) ?? [];
+              const isSelected = key === selectedDate && dayModalOpen;
+              const isToday = key === todayKey;
+              const isDragTarget = dragOverDate === key;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => selectDate(key)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverDate(key);
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverDate === key) setDragOverDate(null);
+                  }}
+                  onDrop={(e) => handleDropOnDate(e, key)}
+                  className={`min-h-[72px] rounded-xl border p-1.5 text-left transition ${
+                    isDragTarget
+                      ? "border-teal-600 bg-teal-50/60 ring-2 ring-teal-500/30"
+                      : isSelected
                         ? "border-slate-800/40 bg-white/45 ring-2 ring-slate-800/20"
                         : "border-white/20 bg-white/15 hover:bg-white/28"
-                    }`}
-                  >
-                    <span
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                        isToday
-                          ? "bg-slate-900 text-white"
-                          : "text-slate-800"
-                      }`}
-                    >
-                      {cell.getDate()}
-                    </span>
-                    <div className="mt-1 space-y-0.5">
-                      {dayItems.slice(0, 2).map((item) => (
-                        <div
-                          key={item.id}
-                          className={`truncate rounded px-1 py-0.5 text-[9px] font-semibold text-white ${KIND_COLORS[item.kind]}`}
-                        >
-                          {item.title}
-                        </div>
-                      ))}
-                      {dayItems.length > 2 ? (
-                        <div className="text-[9px] font-semibold text-slate-600">
-                          +{dayItems.length - 2} more
-                        </div>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <aside ref={dayPanelRef} className="space-y-4 lg:min-w-0">
-            <section
-              className={`${AURA_GLASS_CLASS} p-4 transition-all duration-300 ${
-                asideExpanded ? "lg:p-5" : ""
-              }`}
-              style={AURA_GLASS_STYLE}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h3 className={`text-sm font-bold ${AURA_TEXT.title}`}>
-                  {parseDisplayDate(selectedDate)}
-                </h3>
-                <div className="relative">
-                  <button
-                    type="button"
-                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition ${
-                      filterOpen || kindFilters.size < ALL_KINDS.length
-                        ? "border-teal-600 bg-teal-50 text-teal-900"
-                        : "border-slate-300/80 bg-white/70 text-slate-800 hover:border-teal-500 hover:bg-teal-50"
-                    }`}
-                    aria-expanded={filterOpen}
-                    onClick={() => setFilterOpen((v) => !v)}
-                  >
-                    <Filter className="h-3.5 w-3.5" />
-                    Filter
-                  </button>
-                  {filterOpen ? (
-                    <>
-                      <button
-                        type="button"
-                        className="fixed inset-0 z-[100]"
-                        aria-label="Close filters"
-                        onClick={() => setFilterOpen(false)}
-                      />
-                      <div className="absolute right-0 z-[101] mt-1 w-44 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                        {ALL_KINDS.map((k) => (
-                          <label
-                            key={k}
-                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-slate-50"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={kindFilters.has(k)}
-                              onChange={() => toggleKindFilter(k)}
-                            />
-                            <span
-                              className={`h-2 w-2 rounded-full ${KIND_COLORS[k]}`}
-                            />
-                            {SCHEDULE_KIND_LABELS[k]}
-                          </label>
-                        ))}
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-              <ul
-                className={`mt-3 space-y-2 overflow-y-auto ${
-                  asideExpanded ? "max-h-[min(50vh,28rem)]" : "max-h-48"
-                }`}
-              >
-                {filteredSelectedItems.length === 0 ? (
-                  <li className={`text-xs ${AURA_TEXT.muted}`}>
-                    {selectedItems.length > 0
-                      ? "No items match your filters."
-                      : "Nothing scheduled — add below."}
-                  </li>
-                ) : (
-                  filteredSelectedItems.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-start justify-between gap-2 rounded-xl border border-white/25 bg-white/20 px-2.5 py-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`h-2 w-2 shrink-0 rounded-full ${KIND_COLORS[item.kind]}`}
-                          />
-                          <span className="truncate text-xs font-bold text-slate-900">
-                            {item.title}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-slate-600">
-                          {SCHEDULE_KIND_LABELS[item.kind]}
-                          {item.source !== "local" ? ` · ${providerLabel(item.source)}` : ""}
-                          {item.allDay
-                            ? " · All day"
-                            : item.startTime
-                              ? ` · ${item.startTime}${item.endTime ? `–${item.endTime}` : ""}`
-                              : ""}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <button
-                          type="button"
-                          className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-teal-800"
-                          aria-label={`Edit ${item.title}`}
-                          onClick={() => startEdit(item)}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded p-1 text-slate-500 hover:bg-red-50 hover:text-red-700"
-                          aria-label={`Delete ${item.title}`}
-                          onClick={() => removeItem(item.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </section>
-
-            <section
-              className={`${AURA_GLASS_CLASS} p-4`}
-              style={AURA_GLASS_STYLE}
-            >
-              <h3 className={`mb-3 flex items-center gap-2 text-sm font-bold ${AURA_TEXT.title}`}>
-                {editingId ? (
-                  <>
-                    <Pencil className="h-4 w-4" />
-                    Edit item
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4" />
-                    Add to calendar
-                  </>
-                )}
-              </h3>
-              <div className="space-y-2">
-                <input
-                  className={`w-full ${AURA_INPUT_CLASS}`}
-                  placeholder="Title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-                <select
-                  className={`w-full ${AURA_INPUT_CLASS}`}
-                  value={kind}
-                  onChange={(e) =>
-                    setKind(e.target.value as ScheduleItemKind)
-                  }
+                  }`}
                 >
-                  {ALL_KINDS.map((k) => (
-                    <option key={k} value={k}>
-                      {SCHEDULE_KIND_LABELS[k]}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex items-center gap-2 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={allDay}
-                    onChange={(e) => setAllDay(e.target.checked)}
-                  />
-                  All day
-                </label>
-                {!allDay ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="time"
-                      className={`flex-1 ${AURA_INPUT_CLASS}`}
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                    />
-                    <input
-                      type="time"
-                      className={`flex-1 ${AURA_INPUT_CLASS}`}
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                    />
-                  </div>
-                ) : null}
-                <div className="relative">
-                  <textarea
-                    className={`min-h-[72px] w-full resize-y pr-11 ${AURA_INPUT_CLASS}`}
-                    placeholder="Notes (optional)"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                  <EmojiPickerButton
-                    className="absolute bottom-2 right-2"
-                    onPick={insertEmoji}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className={`flex-1 ${AURA_BTN_PRIMARY}`}
-                    onClick={saveItem}
+                  <span
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                      isToday ? "bg-slate-900 text-white" : "text-slate-800"
+                    }`}
                   >
-                    {editingId ? "Update item" : `Save to ${selectedDate}`}
-                  </button>
-                  {editingId ? (
-                    <button
-                      type="button"
-                      className="rounded-xl border border-slate-300/80 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white"
-                      onClick={resetForm}
-                    >
-                      Cancel
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-          </aside>
-        </div>
+                    {cell.getDate()}
+                  </span>
+                  <div className="mt-1 space-y-0.5">
+                    {dayItems.slice(0, 2).map((item) => (
+                      <div
+                        key={item.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          const payload = JSON.stringify({ itemId: item.id });
+                          e.dataTransfer.setData(SCHEDULE_DRAG_MIME, payload);
+                          e.dataTransfer.setData("text/plain", payload);
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`truncate rounded px-1 py-0.5 text-[9px] font-semibold text-white ${KIND_COLORS[item.kind]}`}
+                      >
+                        {item.title}
+                      </div>
+                    ))}
+                    {dayItems.length > 2 ? (
+                      <div className="text-[9px] font-semibold text-slate-600">
+                        +{dayItems.length - 2} more
+                      </div>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {connectedIntegrations.length > 0 ? (
+          <div className="space-y-4">
+            <h2 className={`text-lg font-bold ${AURA_TEXT.title}`}>
+              Connected calendars
+            </h2>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {connectedIntegrations.map((row) => (
+                <ConnectedCalendarCard
+                  key={row.id}
+                  integration={row}
+                  items={itemsByProvider.get(row.id) ?? []}
+                  anchorDateKey={selectedDate}
+                  kindColors={KIND_COLORS}
+                  onMoveItem={moveItemDate}
+                  onSync={
+                    row.id === "google"
+                      ? () => void runProviderSync("google")
+                      : undefined
+                  }
+                  syncing={syncingProvider === row.id}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <KanbanBoardSection
+          store={kanbanStore}
+          userId={userId}
+          onStoreChange={persistKanban}
+        />
+
+        <DayFocusModal
+          open={dayModalOpen}
+          dateKey={selectedDate}
+          items={selectedItems}
+          filteredItems={filteredSelectedItems}
+          kindFilters={kindFilters}
+          filterOpen={filterOpen}
+          kindColors={KIND_COLORS}
+          allKinds={ALL_KINDS}
+          title={title}
+          kind={kind}
+          startTime={startTime}
+          endTime={endTime}
+          allDay={allDay}
+          notes={notes}
+          editingId={editingId}
+          providerLabel={providerLabel}
+          onClose={closeDayModal}
+          onToggleFilter={() => setFilterOpen((v) => !v)}
+          onCloseFilter={() => setFilterOpen(false)}
+          onToggleKindFilter={toggleKindFilter}
+          onStartEdit={startEdit}
+          onRemove={removeItem}
+          onTitleChange={setTitle}
+          onKindChange={setKind}
+          onStartTimeChange={setStartTime}
+          onEndTimeChange={setEndTime}
+          onAllDayChange={setAllDay}
+          onNotesChange={setNotes}
+          onInsertEmoji={insertEmoji}
+          onSave={saveItem}
+          onCancelEdit={resetForm}
+        />
 
         <ConnectCalendarsModal
           open={connectModalOpen}
@@ -842,14 +784,4 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
       </div>
     </div>
   );
-}
-
-function parseDisplayDate(key: string) {
-  const d = new Date(`${key}T12:00:00`);
-  return d.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 }
