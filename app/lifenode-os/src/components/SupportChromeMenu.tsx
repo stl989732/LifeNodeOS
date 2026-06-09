@@ -52,7 +52,7 @@ export default function SupportChromeMenu({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className={`pointer-events-auto inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] backdrop-blur-2xl transition ${triggerClass}`}
+        className={`inline-flex min-h-[36px] items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] backdrop-blur-2xl transition sm:min-h-[38px] sm:gap-1.5 sm:px-2.5 sm:py-1.5 sm:text-[11px] sm:tracking-[0.16em] md:px-3 ${triggerClass}`}
       >
         <LifeBuoy className="h-3.5 w-3.5" />
         Support

@@ -7,7 +7,32 @@
   --ln-surface: #ffffff;
   --ln-text: #1e293b;
   /* Clears fixed NodeNavChrome (Back + LifeNode Dashboard) on gated node pages */
-  --ln-node-nav-chrome-block: 4rem;
+  --ln-node-nav-chrome-block: 3.25rem;
+  /* Bottom safe zone when mobile tab bar is visible */
+  --ln-mobile-bottom-nav-block: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  :root {
+    --ln-node-nav-chrome-block: 3.5rem;
+  }
+}
+
+/* Node dashboards: prevent horizontal scroll jank on small screens */
+@media (max-width: 767px) {
+  .ln-node-stage {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  .ln-node-stage table,
+  .ln-node-stage pre {
+    max-width: 100%;
+  }
+
+  .ln-node-stage .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Deep Onyx — BizNode, ProNode, TraderNode */

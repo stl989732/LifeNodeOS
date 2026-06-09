@@ -1145,15 +1145,24 @@ export default function LinoAssistant() {
         {assemblingNavigation && (
           <AssemblyOverlay label={assemblingNavigation.label} />
         )}
-        <div className="pointer-events-none fixed bottom-6 right-6 z-[100]">
+        <div className="pointer-events-none fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 z-[65] md:bottom-6 md:left-auto md:right-6 md:z-[100]">
           <button
             type="button"
             onClick={() => setAssistantMinimized(false)}
-            className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/20 bg-[#0f172a]/90 px-4 py-3 text-sm font-semibold text-slate-100 shadow-lg backdrop-blur-xl"
+            className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/20 bg-[#0f172a]/92 p-2.5 text-sm font-semibold text-slate-100 shadow-lg backdrop-blur-xl md:rounded-2xl md:px-4 md:py-3"
             aria-label="Expand Linos"
           >
-            <LinosSparkIcon size={18} className={nodeTheme.iconOnGlass} title="Linos" />
-            <span className={nodeTheme.headingFont}>Linos</span>
+            <LinosSparkIcon
+              size={22}
+              className={`${nodeTheme.iconOnGlass} md:hidden`}
+              title="Linos"
+            />
+            <LinosSparkIcon
+              size={18}
+              className={`hidden ${nodeTheme.iconOnGlass} md:block`}
+              title="Linos"
+            />
+            <span className={`hidden md:inline ${nodeTheme.headingFont}`}>Linos</span>
           </button>
         </div>
       </>
@@ -1166,7 +1175,7 @@ export default function LinoAssistant() {
         <AssemblyOverlay label={assemblingNavigation.label} />
       )}
 
-      <div className="linos-assistant pointer-events-none fixed bottom-6 left-1/2 z-[100] w-[min(980px,94vw)] -translate-x-1/2">
+      <div className="linos-assistant pointer-events-none fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[65] w-[min(980px,calc(100vw-1rem))] -translate-x-1/2 md:bottom-6 md:z-[100] md:w-[min(980px,94vw)]">
         <div className="pointer-events-auto rounded-2xl border border-white/15 bg-[#0B1220]/92 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur-2xl">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
