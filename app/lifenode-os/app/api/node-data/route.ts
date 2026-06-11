@@ -23,7 +23,10 @@ export async function GET(request: Request) {
   const keys = parseWidgetKeysParam(searchParams.get("keys"));
   if (!keys.length) {
     return NextResponse.json(
-      { error: "KEYS_REQUIRED", message: "Pass ?keys=home.budget,vanode.dashboard" },
+      {
+        error: "KEYS_REQUIRED",
+        message: "Pass ?keys=home.budget,vanode.dashboard or ?keys=all",
+      },
       { status: 400 },
     );
   }

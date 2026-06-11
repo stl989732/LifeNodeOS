@@ -7,8 +7,7 @@ import SessionPersistenceBootstrap from "@/src/components/SessionPersistenceBoot
 export function AuthProviders({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
-      <SessionPersistenceBootstrap />
-      {children}
+      <SessionPersistenceBootstrap>{children}</SessionPersistenceBootstrap>
     </SessionProvider>
   );
 }

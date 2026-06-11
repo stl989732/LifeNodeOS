@@ -1,3 +1,4 @@
+import { listAllNodeWidgetKeys } from "@/lib/all-node-widget-keys";
 import { isNodeWidgetKey, type NodeWidgetKey } from "@/lib/node-widget-keys";
 
 export { NODE_WIDGET_KEYS } from "@/lib/node-widget-keys";
@@ -106,8 +107,11 @@ export async function fetchNodeWidgetsWithMeta(
 ): Promise<Record<string, WidgetRemoteRow>> {
   if (typeof window === "undefined" || !keys.length) return {};
   try {
+    const allKeys = listAllNodeWidgetKeys();
+    const queryKeys =
+      keys.length === allKeys.length ? "all" : keys.join(",");
     const res = await fetch(
-      `/api/node-data?keys=${encodeURIComponent(keys.join(","))}`,
+      `/api/node-data?keys=${encodeURIComponent(queryKeys)}`,
       { cache: "no-store", credentials: "include" },
     );
     if (!res.ok) return {};

@@ -95,13 +95,6 @@ export async function migrateLegacyPersistenceIfNeeded(
     const canonicalKey = sanitizeUserId(canonicalUserId);
     const legacyKey = sanitizeUserId(legacyUserId);
 
-    const { count: canonicalCount } = await supabase
-      .from("user_node_widget_data")
-      .select("widget_key", { count: "exact", head: true })
-      .eq("user_id", canonicalKey);
-
-    if ((canonicalCount ?? 0) > 0) return;
-
     const { data: legacyRows, error: readErr } = await supabase
       .from("user_node_widget_data")
       .select("widget_key, payload, updated_at")
@@ -109,12 +102,43 @@ export async function migrateLegacyPersistenceIfNeeded(
 
     if (readErr || !legacyRows?.length) return;
 
-    const upserts = legacyRows.map((row) => ({
-      user_id: canonicalKey,
-      widget_key: row.widget_key,
-      payload: row.payload,
-      updated_at: row.updated_at ?? new Date().toISOString(),
-    }));
+    const { data: canonicalRows, error: canonicalReadErr } = await supabase
+      .from("user_node_widget_data")
+      .select("widget_key, updated_at")
+      .eq("user_id", canonicalKey);
+
+    if (canonicalReadErr) {
+      console.error(
+        "[persistence-user-id] canonical widget read failed:",
+        canonicalReadErr,
+      );
+      return;
+    }
+
+    const canonicalByKey = new Map(
+      (canonicalRows ?? []).map((row) => [
+        row.widget_key,
+        typeof row.updated_at === "string" ? row.updated_at : null,
+      ]),
+    );
+
+    const upserts = legacyRows
+      .filter((row) => {
+        const canonicalUpdatedAt = canonicalByKey.get(row.widget_key);
+        if (!canonicalUpdatedAt) return true;
+        const legacyUpdatedAt =
+          typeof row.updated_at === "string" ? row.updated_at : null;
+        if (!legacyUpdatedAt) return false;
+        return Date.parse(legacyUpdatedAt) > Date.parse(canonicalUpdatedAt);
+      })
+      .map((row) => ({
+        user_id: canonicalKey,
+        widget_key: row.widget_key,
+        payload: row.payload,
+        updated_at: row.updated_at ?? new Date().toISOString(),
+      }));
+
+    if (!upserts.length) return;
 
     const { error: upsertErr } = await supabase
       .from("user_node_widget_data")

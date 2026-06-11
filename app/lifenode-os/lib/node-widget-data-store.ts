@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
+import { listAllNodeWidgetKeys } from "@/lib/all-node-widget-keys";
 import { isNodeWidgetKey, type NodeWidgetKey } from "@/lib/node-widget-keys";
 
 export type NodeWidgetRecord = {
@@ -236,6 +237,10 @@ export async function upsertNodeWidget(
 
 export function parseWidgetKeysParam(raw: string | null): NodeWidgetKey[] {
   if (!raw?.trim()) return [];
+  const trimmed = raw.trim();
+  if (trimmed === "all" || trimmed === "*") {
+    return listAllNodeWidgetKeys();
+  }
   return raw
     .split(",")
     .map((k) => k.trim())
