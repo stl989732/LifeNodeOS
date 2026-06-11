@@ -61,11 +61,7 @@ const BILLABLE_SESSIONS_KEY = "lifenode.pronode.billable-sessions.v1";
 function loadSavedBillableSessions(storageKey) {
   if (typeof window === "undefined") return [];
   try {
-    let raw = window.localStorage.getItem(storageKey);
-    if (!raw && storageKey.includes("::")) {
-      raw = window.localStorage.getItem(BILLABLE_SESSIONS_KEY);
-      if (raw) window.localStorage.setItem(storageKey, raw);
-    }
+    const raw = window.localStorage.getItem(storageKey);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {

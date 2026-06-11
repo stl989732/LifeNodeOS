@@ -215,11 +215,7 @@ function defaultPersisted() {
 function loadPersisted(storageKey) {
   if (typeof window === "undefined") return defaultPersisted();
   try {
-    let raw = window.localStorage.getItem(storageKey);
-    if (!raw && storageKey.includes("::")) {
-      raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) window.localStorage.setItem(storageKey, raw);
-    }
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return defaultPersisted();
     const parsed = JSON.parse(raw);
     const defaults = defaultPersisted();
@@ -277,11 +273,7 @@ function isSameLocalDay(iso) {
 function loadJournal(journalKey) {
   if (typeof window === "undefined") return [];
   try {
-    let raw = window.localStorage.getItem(journalKey);
-    if (!raw && journalKey.includes("::")) {
-      raw = window.localStorage.getItem(JOURNAL_KEY);
-      if (raw) window.localStorage.setItem(journalKey, raw);
-    }
+    const raw = window.localStorage.getItem(journalKey);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];

@@ -12,10 +12,44 @@ export function userScopedStorageKey(
 }
 
 /**
- * Read localStorage with migrate-on-load when keys were renamed or user-scoped.
- *
- * Order: current key → (if scoped) unscoped base key → each legacy key in order.
- * On fallback hit, copies data forward to `storageKey` so the next load is fast.
+ * Unscoped localStorage keys that were used before per-user namespacing.
+ * Drained into `baseKey::userId` once on login, then removed from the device.
+ */
+export const USER_SCOPED_STORAGE_BASE_KEYS = [
+  "lifenode.homenode.setup.v1",
+  "lifenode.homenode.notes.v1",
+  "lifenode.homenode.saved-notes.v1",
+  "lifenode.homenode.budget-rows.v1",
+  "lifenode.homenode.chore-rows.v1",
+  "lifenode.homenode.activity-prep.v1",
+  "lifenode.homenode.kitchen-ai.v1",
+  "lifenode.homenode.upcoming-engagement.v1",
+  "lifenode.homenode.recipe-vault.v1",
+  "lifenode.homenode.native-grocery.v1",
+  "lifenode.homenode.child-name.v1",
+  "lifenode.homenode.kitchen.setup.v1",
+  "lifenode.kitchen.pantry.v1",
+  "lifenode.kitchen.mealplan.v1",
+  "lifenode.kanban.v1",
+  "lifenode.calendar.v1",
+  "lifenode_vanode_v1",
+  "lifenode.tradernode.v1",
+  "lifenode.tradernode.journal.v1",
+  "lifenode.pronode.billable-sessions.v1",
+  "lifenode.vitalnode.v3",
+  "lifenode.vitalnode.v2",
+  "lifenode_excalidraw_global_v1",
+  "lifenode.vanode.screen-captures.v1",
+  "lifenode.flare-mode.v1",
+  "lifenode.flare-task-flags.v1",
+  "lifenode.pro-workspace-role.v1",
+  "lifenode.biznode.data-hub.v1",
+  "lifenode.vanode.activeClientId",
+] as const;
+
+/**
+ * Read localStorage for the exact key, then optional same-user rename keys.
+ * Never copies data forward and never reads unscoped `baseKey` for a scoped key.
  */
 export function readScopedLocalStorage(
   storageKey: string,
@@ -26,25 +60,48 @@ export function readScopedLocalStorage(
   const current = window.localStorage.getItem(storageKey);
   if (current) return current;
 
-  const candidates: string[] = [];
-  if (storageKey.includes("::")) {
-    const baseKey = storageKey.split("::")[0];
-    if (baseKey) candidates.push(baseKey);
-  }
   for (const key of legacyKeys) {
-    if (key && key !== storageKey && !candidates.includes(key)) {
-      candidates.push(key);
-    }
-  }
-
-  for (const legacy of candidates) {
-    const raw = window.localStorage.getItem(legacy);
-    if (raw) {
-      window.localStorage.setItem(storageKey, raw);
-      return raw;
-    }
+    if (!key || key === storageKey) continue;
+    const raw = window.localStorage.getItem(key);
+    if (raw) return raw;
   }
   return null;
+}
+
+/** Remove legacy unscoped payloads from this browser (safe on sign-out). */
+export function removeUnscopedStorageKeys(): void {
+  if (typeof window === "undefined") return;
+  for (const baseKey of USER_SCOPED_STORAGE_BASE_KEYS) {
+    try {
+      window.localStorage.removeItem(baseKey);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * One-time per device: move orphan unscoped data into the signing-in user's scoped
+ * keys, then delete the unscoped copies so other accounts cannot inherit them.
+ */
+export function migrateUnscopedStorageToUser(userId: string): void {
+  if (typeof window === "undefined") return;
+  const canonical = userId.trim();
+  if (!canonical) return;
+
+  for (const baseKey of USER_SCOPED_STORAGE_BASE_KEYS) {
+    const scopedKey = userScopedStorageKey(baseKey, canonical);
+    try {
+      const unscoped = window.localStorage.getItem(baseKey);
+      if (!unscoped) continue;
+      if (!window.localStorage.getItem(scopedKey)) {
+        window.localStorage.setItem(scopedKey, unscoped);
+      }
+      window.localStorage.removeItem(baseKey);
+    } catch {
+      /* quota / private mode */
+    }
+  }
 }
 
 /**

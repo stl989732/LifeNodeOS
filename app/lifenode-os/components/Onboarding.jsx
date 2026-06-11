@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
 import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
 import {
@@ -480,7 +481,11 @@ export default function Onboarding() {
           {session?.user ? (
             <button
               type="button"
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={() =>
+                void signOutWithClientCleanup(session?.user?.id, {
+                  callbackUrl: "/",
+                })
+              }
               className="text-slate-600 transition hover:text-slate-900"
             >
               Sign out

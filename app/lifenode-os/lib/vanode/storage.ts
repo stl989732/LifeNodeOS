@@ -7,7 +7,7 @@ import { touchLocalWidgetUpdatedAt } from "@/src/lib/nodeWidgetSync";
 export function loadVanode(storageKey: string = VANODE_STORAGE_KEY): VanodePersisted {
   if (typeof window === "undefined") return defaultVanodePersisted();
   try {
-    const raw = readScopedLocalStorage(storageKey, [VANODE_STORAGE_KEY]);
+    const raw = readScopedLocalStorage(storageKey);
     if (!raw) return defaultVanodePersisted();
     return parseVanodePersisted(JSON.parse(raw) as Partial<VanodePersisted>);
   } catch {

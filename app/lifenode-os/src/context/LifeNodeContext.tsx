@@ -767,17 +767,31 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
 
+    if (status !== "authenticated" || !session?.user?.id) {
+      setConfiguredHats([]);
+      return;
+    }
+
     const applyHats = (hatKeys: string[]) => {
-      if (cancelled || !hatKeys.length) return;
+      if (cancelled) return;
+      if (!hatKeys.length) {
+        setConfiguredHats([]);
+        return;
+      }
       setConfiguredHatsFromShellKeys(hatKeys);
     };
 
     const onHatsUpdated = (event: Event) => {
       const detail = (event as CustomEvent<{ hats?: string[] }>).detail;
-      if (detail?.hats?.length) applyHats(detail.hats);
+      applyHats(Array.isArray(detail?.hats) ? detail.hats : []);
+    };
+
+    const onSessionCleared = () => {
+      if (!cancelled) setConfiguredHats([]);
     };
 
     window.addEventListener("lifenode:hats:updated", onHatsUpdated);
+    window.addEventListener("lifenode:session:cleared", onSessionCleared);
 
     void (async () => {
       const hats = await hydrateConfiguredHatKeys();
@@ -787,6 +801,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
       window.removeEventListener("lifenode:hats:updated", onHatsUpdated);
+      window.removeEventListener("lifenode:session:cleared", onSessionCleared);
     };
   }, [status, session?.user?.id, setConfiguredHatsFromShellKeys]);
 

@@ -499,3 +499,21 @@ export function publicSecurityQuestions(
     question: q.question,
   }));
 }
+
+/** Remove a credential sign-up row after full account deletion. */
+export async function deleteCredentialUserById(userId: string): Promise<void> {
+  const id = userId.trim();
+  if (!id) return;
+
+  if (useSupabaseCredentialStore()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from("credential_users").delete().eq("id", id);
+    if (error) throw error;
+    return;
+  }
+
+  const users = await readUsers();
+  const next = users.filter((user) => user.id !== id);
+  if (next.length === users.length) return;
+  await writeUsers(next);
+}

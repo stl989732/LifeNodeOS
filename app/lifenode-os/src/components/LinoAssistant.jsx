@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import LinosSparkIcon from "@/src/components/linos/LinosSparkIcon";
 import { linosChatStorageKey } from "@/src/lib/linos/linosChatStorage";
+import { assistantPrefsStorageKey } from "@/src/lib/sessionClientIsolation";
 import ReactMarkdown from "react-markdown";
 import { getSupabaseBrowserClient } from "@/src/lib/supabase/client";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
@@ -380,22 +381,34 @@ export default function LinoAssistant() {
   useEffect(() => {
     queueMicrotask(() => {
       if (typeof window === "undefined") return;
+      const userId = session?.user?.id;
+      if (!userId) return;
       try {
-        const raw = window.localStorage.getItem(ASSISTANT_PREFS_KEY);
+        const raw =
+          window.localStorage.getItem(assistantPrefsStorageKey(userId)) ??
+          window.localStorage.getItem(ASSISTANT_PREFS_KEY);
         if (!raw) return;
         const p = JSON.parse(raw);
         if (typeof p.briefReplies === "boolean") setPrefBriefReplies(p.briefReplies);
         if (typeof p.voiceAutoSend === "boolean") setPrefVoiceAutoSend(p.voiceAutoSend);
+        window.localStorage.setItem(assistantPrefsStorageKey(userId), raw);
+        window.localStorage.removeItem(ASSISTANT_PREFS_KEY);
       } catch {
         /* ignore */
       }
     });
-  }, []);
+  }, [session?.user?.id]);
 
-  const persistAssistantPrefs = useCallback((next) => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(ASSISTANT_PREFS_KEY, JSON.stringify(next));
-  }, []);
+  const persistAssistantPrefs = useCallback(
+    (next) => {
+      if (typeof window === "undefined") return;
+      const userId = session?.user?.id;
+      if (!userId) return;
+      window.localStorage.setItem(assistantPrefsStorageKey(userId), JSON.stringify(next));
+      window.localStorage.removeItem(ASSISTANT_PREFS_KEY);
+    },
+    [session?.user?.id],
+  );
 
   const loadThread = useCallback(async (forcedChatId) => {
     const effectiveId =
@@ -954,11 +967,17 @@ export default function LinoAssistant() {
             ? data.reply.trim()
             : "No reply from the model.";
         if (!res.ok) {
-          reply = localFallbackReply(text || userContent, {
-            activeNode,
-            userHats,
-            pathname,
-          });
+          if (data?.error === "AI_LIMIT_REACHED" && typeof data.message === "string") {
+            reply = data.message;
+          } else if (res.status === 401) {
+            reply = "Please sign in to use Linos Assistant.";
+          } else {
+            reply = localFallbackReply(text || userContent, {
+              activeNode,
+              userHats,
+              pathname,
+            });
+          }
         }
 
         const { error: asstErr } = await supabase.from("linos_messages").insert({

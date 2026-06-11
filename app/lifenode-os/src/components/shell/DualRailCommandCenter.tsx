@@ -12,7 +12,8 @@ import {
   Settings,
   X,
 } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
 import GlobalWhiteboardOverlay from "./GlobalWhiteboardOverlay";
 import LifeNodeSettingsPanel from "@/src/components/settings/LifeNodeSettingsPanel";
 import {
@@ -91,6 +92,7 @@ export default function DualRailCommandCenter({
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: session } = useSession();
   const { configuredHats, toggleConfiguredHat, registerHatGalleryLauncher } =
     useLifeNodeContext();
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -306,7 +308,11 @@ export default function DualRailCommandCenter({
           </button>
           <button
             type="button"
-            onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
+            onClick={() =>
+              void signOutWithClientCleanup(session?.user?.id, {
+                callbackUrl: "/auth/signin",
+              })
+            }
             aria-label="Sign out"
             title="Sign out"
             className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
@@ -547,7 +553,11 @@ export default function DualRailCommandCenter({
               </button>
               <button
                 type="button"
-                onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
+                onClick={() =>
+                  void signOutWithClientCleanup(session?.user?.id, {
+                    callbackUrl: "/auth/signin",
+                  })
+                }
                 className="flex w-full min-h-[48px] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-black hover:bg-slate-50"
               >
                 <LogOut className="h-5 w-5 shrink-0" strokeWidth={1.75} />

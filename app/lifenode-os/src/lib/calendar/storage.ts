@@ -26,7 +26,7 @@ export function calendarStorageKey(userId: string | null | undefined): string {
 export function loadCalendarStore(userId: string | null | undefined): CalendarStore {
   if (typeof window === "undefined") return emptyStore();
   const key = calendarStorageKey(userId);
-  const raw = readScopedLocalStorage(key, [STORAGE_BASE]);
+  const raw = readScopedLocalStorage(key);
   if (!raw) return emptyStore();
   try {
     const parsed = JSON.parse(raw) as Partial<CalendarStore>;

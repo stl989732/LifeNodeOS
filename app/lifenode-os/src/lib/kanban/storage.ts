@@ -50,7 +50,7 @@ export function kanbanStorageKey(userId: string | null | undefined): string {
 export function loadKanbanStore(userId: string | null | undefined): KanbanStore {
   if (typeof window === "undefined") return defaultStore();
   const key = kanbanStorageKey(userId);
-  const raw = readScopedLocalStorage(key, [STORAGE_BASE]);
+  const raw = readScopedLocalStorage(key);
   if (!raw) return defaultStore();
   try {
     const parsed = JSON.parse(raw) as Partial<KanbanStore>;

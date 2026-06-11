@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
 import {
   ArrowRight,
   Briefcase,
@@ -385,7 +386,7 @@ export default function LifeNodeShell() {
     setPersistedHats([]);
     setAssemblingHat(null);
     setConfiguredHatsFromShellKeys([]);
-    await signOut({ callbackUrl: "/" });
+    await signOutWithClientCleanup(session?.user?.id, { callbackUrl: "/" });
   };
 
   useEffect(() => {

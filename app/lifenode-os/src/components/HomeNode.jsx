@@ -399,20 +399,14 @@ export default function HomeNode() {
       const g = readNativeGroceryList(scopedKeys.nativeGrocery);
       setNativeGroceryList(g);
 
-      const saved = readScopedLocalStorage(scopedKeys.setup, [STORAGE_KEY]);
-      const savedNotes = readScopedLocalStorage(scopedKeys.notes, [NOTES_KEY]);
-      const savedNotesList = readScopedLocalStorage(scopedKeys.savedNotes, [
-        SAVED_NOTES_KEY,
-      ]);
-      const rawVault = readScopedLocalStorage(scopedKeys.recipeVault, [
-        RECIPE_VAULT_KEY,
-      ]);
-      const rawBudget = readScopedLocalStorage(scopedKeys.budget, [BUDGET_ROWS_KEY]);
-      const rawChores = readScopedLocalStorage(scopedKeys.chores, [CHORE_ROWS_KEY]);
-      const rawPrep = readScopedLocalStorage(scopedKeys.prep, [ACTIVITY_PREP_KEY]);
-      const rawEng = readScopedLocalStorage(scopedKeys.engagement, [
-        UPCOMING_ENGAGEMENT_KEY,
-      ]);
+      const saved = readScopedLocalStorage(scopedKeys.setup);
+      const savedNotes = readScopedLocalStorage(scopedKeys.notes);
+      const savedNotesList = readScopedLocalStorage(scopedKeys.savedNotes);
+      const rawVault = readScopedLocalStorage(scopedKeys.recipeVault);
+      const rawBudget = readScopedLocalStorage(scopedKeys.budget);
+      const rawChores = readScopedLocalStorage(scopedKeys.chores);
+      const rawPrep = readScopedLocalStorage(scopedKeys.prep);
+      const rawEng = readScopedLocalStorage(scopedKeys.engagement);
 
       if (savedNotes) setNotes(savedNotes);
       if (savedNotesList) {
@@ -608,7 +602,7 @@ export default function HomeNode() {
     let cancelled = false;
     let localKitchen = null;
     try {
-      const rawKitchen = readScopedLocalStorage(scopedKeys.kitchenAi, [KITCHEN_AI_KEY]);
+      const rawKitchen = readScopedLocalStorage(scopedKeys.kitchenAi);
       if (rawKitchen) localKitchen = JSON.parse(rawKitchen);
     } catch {
       localKitchen = null;

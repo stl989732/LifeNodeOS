@@ -9,7 +9,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onExportData: () => void;
-  onConfirmDelete: () => void;
+  onConfirmDelete: () => void | Promise<void>;
   userEmail?: string | null;
 };
 
@@ -26,11 +26,15 @@ export default function AccountDeletionModal({
   const [step, setStep] = useState<Step>("warning");
   const [phrase, setPhrase] = useState("");
   const [exported, setExported] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setStep("warning");
     setPhrase("");
     setExported(false);
+    setDeleting(false);
+    setDeleteError(null);
   }, []);
 
   const handleClose = () => {
@@ -163,24 +167,44 @@ export default function AccountDeletionModal({
               className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus:border-rose-400/50 focus:outline-none focus:ring-1 focus:ring-rose-400/40"
               autoComplete="off"
             />
+            {deleteError ? (
+              <p className="text-sm text-rose-300" role="alert">
+                {deleteError}
+              </p>
+            ) : null}
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
               <button
                 type="button"
+                disabled={deleting}
                 onClick={() => setStep("export")}
-                className="text-sm text-slate-400 hover:text-slate-200"
+                className="text-sm text-slate-400 hover:text-slate-200 disabled:opacity-50"
               >
                 Back
               </button>
               <button
                 type="button"
-                disabled={!phraseOk}
+                disabled={!phraseOk || deleting}
                 onClick={() => {
-                  onConfirmDelete();
-                  handleClose();
+                  void (async () => {
+                    setDeleting(true);
+                    setDeleteError(null);
+                    try {
+                      await onConfirmDelete();
+                      handleClose();
+                    } catch (e) {
+                      setDeleteError(
+                        e instanceof Error
+                          ? e.message
+                          : "Could not delete your account. Try again.",
+                      );
+                    } finally {
+                      setDeleting(false);
+                    }
+                  })();
                 }}
                 className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Delete my account permanently
+                {deleting ? "Deleting…" : "Delete my account permanently"}
               </button>
             </div>
           </div>

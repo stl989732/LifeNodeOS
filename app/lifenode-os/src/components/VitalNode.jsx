@@ -213,7 +213,7 @@ function glassNight() {
   return "rounded-3xl border border-indigo-300/25 bg-slate-950/45 text-slate-100 shadow-[0_18px_50px_rgba(2,6,23,0.45)] backdrop-blur-[14px]";
 }
 
-function loadPersistedState(storageKey) {
+function loadPersistedState(storageKey, userId) {
   const defaults = {
     setupDone: false,
     onboardingStep: 1,
@@ -224,10 +224,10 @@ function loadPersistedState(storageKey) {
   };
   if (typeof window === "undefined") return defaults;
   try {
-    const raw = readScopedLocalStorage(storageKey, [
-      STORAGE_KEY_V3,
-      STORAGE_KEY_V2,
-    ]);
+    const legacyKeys = userId
+      ? [userScopedStorageKey(STORAGE_KEY_V2, userId)]
+      : [];
+    const raw = readScopedLocalStorage(storageKey, legacyKeys);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
     return {
@@ -387,7 +387,7 @@ export default function VitalNode() {
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    const state = loadPersistedState(storageKey);
+    const state = loadPersistedState(storageKey, userId);
     setSetupDone(state.setupDone);
     setOnboardingStep(state.onboardingStep);
     setSyncedApps(state.syncedApps);

@@ -42,9 +42,7 @@ export function loadWhiteboardSceneLocal(
   if (typeof window === "undefined") return {};
   const storageKey = whiteboardStorageKey(userId);
   try {
-    const raw =
-      window.localStorage.getItem(storageKey) ??
-      window.localStorage.getItem(WB_SCENE_BASE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return {};
     const data = JSON.parse(raw) as Record<string, unknown>;
     return data;
@@ -61,10 +59,7 @@ export async function hydrateWhiteboardSceneFromServer(
   }
 
   const storageKey = whiteboardStorageKey(userId);
-  const localRaw =
-    window.localStorage.getItem(storageKey) ??
-    window.localStorage.getItem(WB_SCENE_BASE_KEY);
-  const localScene = localRaw ?? null;
+  const localScene = window.localStorage.getItem(storageKey);
 
   const remote = await fetchNodeWidgetsWithMeta([NODE_WIDGET_KEYS.shell.whiteboard]);
   const { value, pushLocal } = resolveWidgetBootstrap({

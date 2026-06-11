@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import {
+  clearUserBrowserPersistence,
+  signOutWithClientCleanup,
+} from "@/src/lib/sessionClientIsolation";
 import {
   Bell,
   Bot,
@@ -314,7 +318,11 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
                 </ul>
                 <button
                   type="button"
-                  onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
+                  onClick={() =>
+                    void signOutWithClientCleanup(session?.user?.id, {
+                      callbackUrl: "/auth/signin",
+                    })
+                  }
                   className="w-full rounded-xl border border-slate-300/80 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5"
                 >
                   Log out of all other sessions
@@ -677,8 +685,30 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
         onClose={() => setDeleteOpen(false)}
         userEmail={email}
         onExportData={() => void exportUserDataJson()}
-        onConfirmDelete={() => {
-          void signOut({ callbackUrl: "/auth/signin?deleted=1" });
+        onConfirmDelete={async () => {
+          const res = await fetch("/api/account/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ confirmPhrase: "DELETE MY ACCOUNT" }),
+          });
+          const payload = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          if (!res.ok) {
+            throw new Error(
+              payload.error === "CONFIRMATION_REQUIRED"
+                ? "Type DELETE MY ACCOUNT to confirm."
+                : payload.error ?? "Account deletion failed.",
+            );
+          }
+          await clearUserBrowserPersistence(
+            session?.user?.id,
+            session?.user?.legacyUserId,
+          );
+          await signOutWithClientCleanup(session?.user?.id, {
+            callbackUrl: "/auth/signin?deleted=1",
+          });
         }}
       />
     </>
