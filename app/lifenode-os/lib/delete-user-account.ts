@@ -8,12 +8,36 @@ const SCREEN_CAPTURE_BUCKET = "user-screen-captures";
 const USER_STATE_DIR = path.join(process.cwd(), "data", "user-state");
 const WIDGET_DATA_DIR = path.join(process.cwd(), "data", "node-widgets");
 
+const USER_SCOPED_TABLES = [
+  "linos_chats",
+  "user_node_widget_data",
+  "user_shell_state",
+  "user_integrations",
+  "user_connected_apps",
+  "lifenode_trackers",
+  "vital_health_metrics",
+  "biz_deal_triage",
+  "family_events",
+  "user_subscriptions",
+  "ai_daily_usage",
+  "daily_image_generation_caps",
+  "inbox_items",
+] as const;
+
 function useSupabasePersistence(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
       (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
         process.env.SUPABASE_SERVICE_KEY?.trim()),
   );
+}
+
+/** Local JSON files are dev-only; Vercel/serverless must use Supabase. */
+function useFilesystemDevPersistence(): boolean {
+  if (process.env.VERCEL === "1" || process.env.VERCEL === "true") {
+    return false;
+  }
+  return !useSupabasePersistence();
 }
 
 function sanitizeUserId(userId: string): string {
@@ -31,46 +55,60 @@ function uniqueUserIds(...ids: Array<string | null | undefined>): string[] {
   return Array.from(seen);
 }
 
-async function deleteRowsForUserId(
+function userIdVariants(userId: string): string[] {
+  const trimmed = userId.trim();
+  if (!trimmed) return [];
+  const safeId = sanitizeUserId(trimmed);
+  return trimmed === safeId ? [safeId] : [trimmed, safeId];
+}
+
+function collectUserIdVariants(userIds: string[]): string[] {
+  const variants = new Set<string>();
+  for (const id of userIds) {
+    for (const variant of userIdVariants(id)) {
+      variants.add(variant);
+    }
+  }
+  return Array.from(variants);
+}
+
+async function deleteRowsForUserIds(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
-  userId: string,
+  userIds: string[],
 ): Promise<void> {
-  const safeId = sanitizeUserId(userId);
+  const variants = collectUserIdVariants(userIds);
+  if (variants.length === 0) return;
 
-  const { data: chats } = await supabase
-    .from("linos_chats")
-    .select("id")
-    .eq("user_id", safeId);
-  const chatIds = (chats ?? [])
-    .map((row) => row.id)
-    .filter((id): id is string => typeof id === "string");
-
-  if (chatIds.length > 0) {
-    const { error: messagesError } = await supabase
-      .from("linos_messages")
-      .delete()
-      .in("chat_id", chatIds);
-    if (messagesError) throw messagesError;
+  const chatIds = new Set<string>();
+  for (const uid of variants) {
+    const { data: chats, error: chatsError } = await supabase
+      .from("linos_chats")
+      .select("id")
+      .eq("user_id", uid);
+    if (chatsError && chatsError.code !== "42P01") throw chatsError;
+    for (const row of chats ?? []) {
+      if (typeof row.id === "string") chatIds.add(row.id);
+    }
   }
 
-  const tables = [
-    "linos_chats",
-    "user_node_widget_data",
-    "user_shell_state",
-    "user_integrations",
-    "user_connected_apps",
-    "lifenode_trackers",
-    "vital_health_metrics",
-    "biz_deal_triage",
-    "family_events",
-    "user_subscriptions",
-    "ai_daily_usage",
-    "daily_image_generation_caps",
-  ] as const;
+  const chatIdList = Array.from(chatIds);
+  if (chatIdList.length > 0) {
+    const chunkSize = 100;
+    for (let i = 0; i < chatIdList.length; i += chunkSize) {
+      const chunk = chatIdList.slice(i, i + chunkSize);
+      const { error: messagesError } = await supabase
+        .from("linos_messages")
+        .delete()
+        .in("chat_id", chunk);
+      if (messagesError) throw messagesError;
+    }
+  }
 
-  for (const table of tables) {
-    const { error } = await supabase.from(table).delete().eq("user_id", safeId);
-    if (error && error.code !== "42P01") throw error;
+  for (const table of USER_SCOPED_TABLES) {
+    for (const uid of variants) {
+      const { error } = await supabase.from(table).delete().eq("user_id", uid);
+      if (error && error.code !== "42P01") throw error;
+    }
   }
 }
 
@@ -86,7 +124,10 @@ async function deleteScreenCapturesForUser(
       .from(SCREEN_CAPTURE_BUCKET)
       .list(prefixPath, { limit: 200 });
     if (error) {
-      if (error.message?.toLowerCase().includes("not found")) return;
+      const message = error.message?.toLowerCase() ?? "";
+      if (message.includes("not found") || message.includes("does not exist")) {
+        return;
+      }
       throw error;
     }
     for (const item of data ?? []) {
@@ -105,7 +146,9 @@ async function deleteScreenCapturesForUser(
   const chunkSize = 100;
   for (let i = 0; i < paths.length; i += chunkSize) {
     const chunk = paths.slice(i, i + chunkSize);
-    const { error } = await supabase.storage.from(SCREEN_CAPTURE_BUCKET).remove(chunk);
+    const { error } = await supabase.storage
+      .from(SCREEN_CAPTURE_BUCKET)
+      .remove(chunk);
     if (error) throw error;
   }
 }
@@ -118,13 +161,15 @@ async function deleteLocalDevFiles(userId: string): Promise<void> {
   try {
     await fs.unlink(statePath);
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "EACCES" && code !== "EPERM") throw e;
   }
 
   try {
     await fs.rm(widgetDir, { recursive: true, force: true });
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "EACCES" && code !== "EPERM") throw e;
   }
 }
 
@@ -146,14 +191,25 @@ export async function deleteUserAccount(options: {
   try {
     if (useSupabasePersistence()) {
       const supabase = createSupabaseAdminClient();
-      for (const id of userIds) {
-        await deleteRowsForUserId(supabase, id);
-        await deleteScreenCapturesForUser(supabase, id);
+      await deleteRowsForUserIds(supabase, userIds);
+
+      const captureIds = new Set(userIds.map((id) => sanitizeUserId(id)));
+      for (const id of captureIds) {
+        try {
+          await deleteScreenCapturesForUser(supabase, id);
+        } catch (e) {
+          console.warn(
+            "[delete-user-account] screen capture cleanup failed (continuing):",
+            e,
+          );
+        }
       }
     }
 
-    for (const id of userIds) {
-      await deleteLocalDevFiles(id);
+    if (useFilesystemDevPersistence()) {
+      for (const id of userIds) {
+        await deleteLocalDevFiles(id);
+      }
     }
 
     if (options.removeCredentialUser) {
