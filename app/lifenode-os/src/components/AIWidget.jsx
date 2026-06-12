@@ -79,6 +79,12 @@ export default function AIWidget({ nodeContext }) {
 
       const data = await response.json();
       if (!response.ok) {
+        if (data?.error === "AI_LIMIT_REACHED" && typeof data.message === "string") {
+          throw new Error(data.message);
+        }
+        if (response.status === 401) {
+          throw new Error("Please sign in to use the assistant.");
+        }
         throw new Error(data?.error || "AI request failed");
       }
 

@@ -1,7 +1,14 @@
 import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { meterDeniedResponse } from "@/src/lib/ai-metering/errors";
+import { meterAiUsage } from "@/src/lib/ai-metering/meterAiUsage";
 import { getChefTextModelId } from "@/src/lib/chefKitchenConfig";
 import { geminiGenerateContentUrl } from "@/src/lib/geminiModels";
+
+function unauthorized() {
+  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,6 +94,10 @@ async function fetchUrlHint(url: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    const userId = session?.user?.id;
+    if (!userId) return unauthorized();
+
     const body = (await request.json()) as {
       mode?: VanodeAiMode;
       thread?: string;
@@ -100,12 +111,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing mode." }, { status: 400 });
     }
 
-    if (mode === "email_assist") {
-      const thread = (body.thread ?? "").trim();
-      if (!thread) {
-        return NextResponse.json({ error: "Missing thread." }, { status: 400 });
-      }
+    const thread = (body.thread ?? "").trim();
+    const videoUrl = (body.videoUrl ?? "").trim();
+    const transcript = (body.transcript ?? "").trim();
+    const sessionTitle = (body.sessionTitle ?? "Live session").trim();
 
+    if (mode === "email_assist" && !thread) {
+      return NextResponse.json({ error: "Missing thread." }, { status: 400 });
+    }
+    if (mode === "video_sop" && !videoUrl) {
+      return NextResponse.json({ error: "Missing videoUrl." }, { status: 400 });
+    }
+    if (mode === "live_summary" && !transcript) {
+      return NextResponse.json({ error: "Missing transcript." }, { status: 400 });
+    }
+    if (
+      mode !== "email_assist" &&
+      mode !== "video_sop" &&
+      mode !== "live_summary"
+    ) {
+      return NextResponse.json({ error: "Invalid mode." }, { status: 400 });
+    }
+
+    const meterResult = await meterAiUsage(userId, "vanode_ai");
+    if (!meterResult.allowed) {
+      return meterDeniedResponse(meterResult);
+    }
+
+    if (mode === "email_assist") {
       const text = await callGeminiText(
         `You are a professional virtual assistant drafting client email replies.
 
@@ -135,11 +168,6 @@ Return ONLY valid JSON:
     }
 
     if (mode === "video_sop") {
-      const videoUrl = (body.videoUrl ?? "").trim();
-      if (!videoUrl) {
-        return NextResponse.json({ error: "Missing videoUrl." }, { status: 400 });
-      }
-
       const hint = await fetchUrlHint(videoUrl);
       const text = await callGeminiText(
         `You are creating a Standard Operating Procedure from a client video link.
@@ -192,12 +220,6 @@ Return ONLY valid JSON:
     }
 
     if (mode === "live_summary") {
-      const transcript = (body.transcript ?? "").trim();
-      const sessionTitle = (body.sessionTitle ?? "Live session").trim();
-      if (!transcript) {
-        return NextResponse.json({ error: "Missing transcript." }, { status: 400 });
-      }
-
       const text = await callGeminiText(
         `Summarize this live meeting/webinar/interview transcript for a VA handoff.
 
@@ -216,8 +238,6 @@ Follow-ups`,
 
       return NextResponse.json({ summary: text || "No summary generated." });
     }
-
-    return NextResponse.json({ error: "Invalid mode." }, { status: 400 });
   } catch (e) {
     Sentry.captureException(e, { tags: { feature: "vanode-ai" } });
     return NextResponse.json(

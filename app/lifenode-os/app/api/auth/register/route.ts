@@ -5,6 +5,7 @@ import {
   SECURITY_QUESTIONS_REQUIRED,
 } from "@/lib/auth-users-store";
 import { sendVerificationEmail } from "@/lib/email";
+import { ensureCoreSubscription } from "@/src/lib/billing/subscriptionStore";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -78,6 +79,12 @@ export async function POST(request: Request) {
       name: name || email.split("@")[0],
       securityQuestions: questions,
     });
+
+    try {
+      await ensureCoreSubscription(user.id);
+    } catch (subErr) {
+      console.error("[auth/register] ensureCoreSubscription failed:", subErr);
+    }
 
     const emailResult = await sendVerificationEmail(
       user.email,

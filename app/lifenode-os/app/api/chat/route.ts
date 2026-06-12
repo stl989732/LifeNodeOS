@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { sanitizeAndTruncate } from "@/lib/truncation";
+import { meterDeniedResponse } from "@/src/lib/ai-metering/errors";
+import {
+  meterAiUsage,
+  resolveChatMeterEvent,
+} from "@/src/lib/ai-metering/meterAiUsage";
 
 export const runtime = "nodejs";
 import { getGeminiTextModel, geminiGenerateContentUrl } from "@/src/lib/geminiModels";
 import { LINOS_MARKDOWN_STYLE_SYSTEM, prependFormattingBlock } from "@/src/lib/linos/linosFormatting";
+
+function unauthorized() {
+  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+}
 
 type InlinePart =
   | { text: string }
@@ -60,6 +70,10 @@ function toGeminiPayload(messages: ChatMessage[]) {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    const userId = session?.user?.id;
+    if (!userId) return unauthorized();
+
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -68,7 +82,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = (await request.json()) as { messages?: ChatMessage[] };
+    const body = (await request.json()) as {
+      messages?: ChatMessage[];
+      meterContext?: string;
+    };
     const messages = Array.isArray(body.messages) ? body.messages : [];
 
     if (messages.length === 0) {
@@ -84,6 +101,12 @@ export async function POST(request: Request) {
         { error: "Include at least one user or assistant message." },
         { status: 400 },
       );
+    }
+
+    const meterEvent = resolveChatMeterEvent(body);
+    const meterResult = await meterAiUsage(userId, meterEvent);
+    if (!meterResult.allowed) {
+      return meterDeniedResponse(meterResult);
     }
 
     const geminiBody = toGeminiPayload(messages);

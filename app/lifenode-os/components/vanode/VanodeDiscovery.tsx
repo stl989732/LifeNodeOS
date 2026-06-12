@@ -8,7 +8,8 @@ import { WORKSPACE_TOOL_CATEGORIES } from "@/lib/vanode/constants";
 import type { NativeToolKey } from "@/lib/vanode/types";
 import ConnectAppDialog from "@/src/components/ConnectAppDialog";
 import AppCategoryRequestFooter from "@/src/components/AppCategoryRequestFooter";
-import { connectAppToNode } from "@/src/lib/integrations";
+import { resolveAppConnectProvider } from "@/src/lib/integrations/appProviderMap";
+import { connectAppToNode, startOAuthConnect } from "@/src/lib/integrations";
 import { useConnectedApps } from "@/src/lib/useConnectedApps";
 
 const NATIVE_DEF: { key: NativeToolKey; title: string; description: string }[] =
@@ -69,10 +70,12 @@ function vaCommCardClass(status: "connected" | "syncing" | "disconnected") {
 function VaCommunicationGrid({
   userId,
   getCardStatus,
+  connectingId,
   onPromptConnect,
 }: {
   userId: string;
   getCardStatus: (appId: string) => "connected" | "syncing" | "disconnected";
+  connectingId: string | null;
   onPromptConnect: (appId: string, name: string) => void;
 }) {
   const commApps = [
@@ -125,11 +128,12 @@ function VaCommunicationGrid({
               {status !== "connected" && status !== "syncing" ? (
                 <button
                   type="button"
-                  onClick={() => onPromptConnect(app.id, app.label)}
-                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-teal-500"
+                  onClick={() => void onPromptConnect(app.id, app.label)}
+                  disabled={connectingId === app.id}
+                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-teal-500 disabled:cursor-wait disabled:opacity-70"
                 >
                   <LogIn className="h-3.5 w-3.5" />
-                  Connect account
+                  {connectingId === app.id ? "Redirecting…" : "Connect account"}
                 </button>
               ) : null}
             </div>
@@ -154,7 +158,10 @@ export function VanodeDiscovery({
   const [pendingConnect, setPendingConnect] = useState<{
     id: string;
     name: string;
+    mode: "oauth" | "mock";
   } | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
   const { data: session } = useSession();
   const userId = session?.user?.id ?? "";
   const { connectedApps, loading: appsLoading } = useConnectedApps(userId);
@@ -166,17 +173,55 @@ export function VanodeDiscovery({
 
   const getCardStatus = getVAAppStatus;
 
-  const promptConnect = (id: string, name: string) => {
-    if (!syncedToolIds.includes(id)) onToggleTool(id);
-    setPendingConnect({ id, name });
-  };
+  const handleConnect = async (id: string, name: string) => {
+    setConnectError(null);
 
-  const runConnect = async (id: string) => {
     if (!userId) {
       router.push(`/auth/signin?callbackUrl=${encodeURIComponent("/vanode")}`);
       return;
     }
-    await connectAppToNode(userId, "VA", id);
+
+    const status = getCardStatus(id);
+    if (status === "connected" || status === "syncing") return;
+
+    if (!syncedToolIds.includes(id)) onToggleTool(id);
+
+    const provider = resolveAppConnectProvider(id);
+    if (provider) {
+      setConnectingId(id);
+      try {
+        const outcome = await startOAuthConnect("VA", id);
+        if (outcome === "unauthorized") {
+          router.push(`/auth/signin?callbackUrl=${encodeURIComponent("/vanode")}`);
+        } else if (outcome === "unsupported") {
+          setConnectError(`${name} is not available for OAuth yet.`);
+        }
+      } catch (err) {
+        setConnectError(
+          err instanceof Error
+            ? err.message
+            : `Could not connect ${name}. Check provider credentials.`,
+        );
+      } finally {
+        setConnectingId(null);
+      }
+      return;
+    }
+
+    setPendingConnect({ id, name, mode: "mock" });
+  };
+
+  const runMockConnect = async (id: string) => {
+    if (!userId) {
+      router.push(`/auth/signin?callbackUrl=${encodeURIComponent("/vanode")}`);
+      return;
+    }
+    setConnectingId(id);
+    try {
+      await connectAppToNode(userId, "VA", id);
+    } finally {
+      setConnectingId(null);
+    }
   };
 
   const toggleToolSelection = (id: string) => {
@@ -189,25 +234,25 @@ export function VanodeDiscovery({
     return (
       <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-100 via-teal-50/40 to-indigo-100/80 px-4 py-16 text-slate-800">
         <ConnectAppDialog
-          app={pendingConnect?.name ?? null}
+          app={pendingConnect?.mode === "mock" ? pendingConnect.name : null}
           nodeLabel="VANode"
           accent="#0D9488"
           reason={
             !userId
               ? "Sign in to LifeNode OS first, then connect this app so VANode can sync your workspace."
-              : undefined
+              : "This app uses a preview connection flow until full OAuth is configured."
           }
           onLogin={() => {
             const target = pendingConnect;
             setPendingConnect(null);
-            if (!target) return;
+            if (!target || target.mode !== "mock") return;
             if (!userId) {
               router.push(
                 `/auth/signin?callbackUrl=${encodeURIComponent("/vanode")}`,
               );
               return;
             }
-            void runConnect(target.id);
+            void runMockConnect(target.id);
           }}
           onLater={() => {
             setPendingConnect(null);
@@ -230,10 +275,16 @@ export function VanodeDiscovery({
               Loading connection states…
             </p>
           ) : null}
+          {connectError ? (
+            <p className="mb-6 text-center text-sm font-medium text-rose-700">
+              {connectError}
+            </p>
+          ) : null}
           <VaCommunicationGrid
             userId={userId}
             getCardStatus={getVAAppStatus}
-            onPromptConnect={promptConnect}
+            connectingId={connectingId}
+            onPromptConnect={handleConnect}
           />
           <div className="space-y-10">
             {WORKSPACE_TOOL_CATEGORIES.map((cat) => (
@@ -295,11 +346,12 @@ export function VanodeDiscovery({
                         {status !== "connected" && status !== "syncing" ? (
                           <button
                             type="button"
-                            onClick={() => promptConnect(t.id, t.name)}
-                            className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-teal-600/30 bg-teal-600/10 px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-teal-800 transition hover:bg-teal-600 hover:text-white"
+                            onClick={() => void handleConnect(t.id, t.name)}
+                            disabled={connectingId === t.id}
+                            className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-teal-600/30 bg-teal-600/10 px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-teal-800 transition hover:bg-teal-600 hover:text-white disabled:cursor-wait disabled:opacity-70"
                           >
                             <LogIn className="h-3 w-3" />
-                            Connect
+                            {connectingId === t.id ? "Redirecting…" : "Connect"}
                           </button>
                         ) : null}
                       </div>
