@@ -5,6 +5,7 @@ import {
   CalendarRange,
   HeartPulse,
   Home,
+  Inbox,
   LayoutDashboard,
   MessageSquare,
   Scale,
@@ -31,6 +32,13 @@ export const HAT_NAV_ITEMS: HatNavItem[] = [
     route: "/calendar",
     Icon: CalendarRange,
     pathPrefix: "/calendar",
+  },
+  {
+    id: "inbox",
+    label: "Inbox",
+    route: "/inbox",
+    Icon: Inbox,
+    pathPrefix: "/inbox",
   },
   {
     id: "pulse",

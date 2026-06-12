@@ -101,6 +101,12 @@ async function fetchVanodeAi(payload: Record<string, unknown>) {
     data = {};
   }
   if (!res.ok) {
+    if (data.error === "AI_LIMIT_REACHED" && typeof data.message === "string") {
+      throw new Error(data.message);
+    }
+    if (res.status === 401) {
+      throw new Error("Please sign in to use VANode AI.");
+    }
     throw new Error(
       typeof data.error === "string" ? data.error : "VANode AI request failed.",
     );
@@ -1310,8 +1316,14 @@ export function UnifiedFeedCard({
       <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
         {items.length === 0 ? (
           <li className="rounded-xl border border-dashed border-white/15 bg-white/10 px-4 py-8 text-center text-sm text-slate-600">
-            No messages in your feed yet. Connect email or calendar tools in VANode
-            settings when integrations are available.
+            Unified feed lives in the shell Inbox.{" "}
+            <a
+              href="/inbox"
+              className="font-semibold text-teal-800 underline underline-offset-2 hover:text-teal-950"
+            >
+              Open Inbox
+            </a>{" "}
+            to connect Gmail, Slack, and Calendar.
           </li>
         ) : null}
         {items.map((it) => (

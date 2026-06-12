@@ -98,6 +98,7 @@ export function catalogForHat(hatId: string): CatalogFeature[] {
 export function hatIdFromPath(pathname: string | null): string | null {
   if (!pathname) return null;
   if (pathname === "/calendar" || pathname.startsWith("/calendar/")) return "calendar";
+  if (pathname === "/inbox" || pathname.startsWith("/inbox/")) return "inbox";
   if (pathname === "/pulse" || pathname.startsWith("/pulse/")) return "pulse";
   if (pathname === "/work" || pathname.startsWith("/work/")) return "work";
   if (pathname === "/vanode" || pathname.startsWith("/vanode/")) return "va";

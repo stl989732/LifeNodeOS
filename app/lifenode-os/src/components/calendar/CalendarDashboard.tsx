@@ -32,6 +32,7 @@ import {
 } from "@/src/lib/calendar/integrationConnect";
 import { mergeSyncedItems } from "@/src/lib/calendar/mergeSyncedItems";
 import { readScheduleDrag, SCHEDULE_DRAG_MIME } from "@/src/lib/calendar/scheduleDrag";
+import { transferInboxDrop } from "@/src/hooks/useInboxDropTransfer";
 import {
   buildMonthGrid,
   calendarStorageKey,
@@ -546,9 +547,20 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     );
   }
 
-  function handleDropOnDate(e: React.DragEvent<HTMLButtonElement>, dateKey: string) {
+  async function handleDropOnDate(
+    e: React.DragEvent<HTMLButtonElement>,
+    dateKey: string,
+  ) {
     e.preventDefault();
     setDragOverDate(null);
+    const inboxTransferred = await transferInboxDrop(e, {
+      type: "date",
+      date: dateKey,
+    });
+    if (inboxTransferred) {
+      setSyncNotice("Inbox item scheduled on your calendar.");
+      return;
+    }
     const payload = readScheduleDrag(e);
     if (payload?.itemId) moveItemDate(payload.itemId, dateKey);
   }

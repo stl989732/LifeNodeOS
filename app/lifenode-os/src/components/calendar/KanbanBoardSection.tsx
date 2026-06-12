@@ -23,6 +23,8 @@ import {
   type KanbanStore,
 } from "@/src/lib/kanban/types";
 
+import { transferInboxDrop } from "@/src/hooks/useInboxDropTransfer";
+
 const KANBAN_DRAG_MIME = "application/x-lifenode-kanban-card";
 
 type KanbanBoardSectionProps = {
@@ -356,16 +358,19 @@ function KanbanColumnView({
       }}
       onDrop={(e) => {
         e.preventDefault();
-        const raw =
-          e.dataTransfer.getData(KANBAN_DRAG_MIME) ||
-          e.dataTransfer.getData("text/plain");
-        if (!raw) return;
-        try {
-          const parsed = JSON.parse(raw) as { cardId?: string };
-          if (parsed.cardId) onDropCard(parsed.cardId);
-        } catch {
-          /* ignore */
-        }
+        void transferInboxDrop(e, { type: "backlog" }).then((ok) => {
+          if (ok) return;
+          const raw =
+            e.dataTransfer.getData(KANBAN_DRAG_MIME) ||
+            e.dataTransfer.getData("text/plain");
+          if (!raw) return;
+          try {
+            const parsed = JSON.parse(raw) as { cardId?: string };
+            if (parsed.cardId) onDropCard(parsed.cardId);
+          } catch {
+            /* ignore */
+          }
+        });
       }}
     >
       <div className="border-b border-white/25 px-3 py-2">

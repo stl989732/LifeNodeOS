@@ -1,6 +1,7 @@
 /** Far-left sidebar hat order (Hub removed; Calendar first). */
 export const SIDEBAR_HAT_ORDER = [
   "calendar",
+  "inbox",
   "pulse",
   "work",
   "va",

@@ -78,7 +78,10 @@ const PROVIDER_BUILDERS: Record<
       tokenUrl: "https://oauth2.googleapis.com/token",
       clientId,
       clientSecret,
-      scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+      scopes: [
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
+      ],
       authorizeExtras: {
         access_type: "offline",
         prompt: "consent",
@@ -96,6 +99,8 @@ const PROVIDER_BUILDERS: Record<
       clientSecret,
       scopes: [
         "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.send",
         "https://www.googleapis.com/auth/userinfo.email",
       ],
       authorizeExtras: {
@@ -160,7 +165,18 @@ const PROVIDER_BUILDERS: Record<
       tokenUrl: "https://slack.com/api/oauth.v2.access",
       clientId,
       clientSecret,
-      scopes: ["channels:read", "chat:write", "users:read"],
+      scopes: [
+        "channels:read",
+        "channels:history",
+        "groups:read",
+        "groups:history",
+        "im:read",
+        "im:history",
+        "mpim:read",
+        "mpim:history",
+        "chat:write",
+        "users:read",
+      ],
     };
   },
   zoom: () => {

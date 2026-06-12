@@ -10,3 +10,7 @@ supabase/.branches/
 *.json
 !package.json
 !tsconfig.json
+!vercel.json
+
+.vercel
+.env*
