@@ -241,7 +241,19 @@ export async function deleteUserAccount(options: {
 
     return { ok: true };
   } catch (e) {
+    const pgCode =
+      e && typeof e === "object" && "code" in e
+        ? String((e as { code?: string }).code)
+        : null;
     console.error("[delete-user-account] failed:", e);
+    if (pgCode === "42501") {
+      return {
+        ok: false,
+        error:
+          "Account deletion is temporarily blocked by database permissions. Please try again shortly or contact support@lifenodeos.com.",
+        status: 503,
+      };
+    }
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Account deletion failed",
