@@ -263,6 +263,22 @@ export async function findCredentialUserByEmail(
   email: string
 ): Promise<StoredCredentialUser | null> {
   const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (useSupabaseCredentialStore()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("credential_users")
+      .select("*")
+      .eq("email", normalized)
+      .maybeSingle();
+    if (error) {
+      console.error("[auth-users-store] Supabase email lookup failed:", error);
+      throw error;
+    }
+    return data ? rowToUser(data as SupabaseCredentialRow) : null;
+  }
+
   const users = await readUsers();
   return users.find((u) => u.email === normalized) ?? null;
 }

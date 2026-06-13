@@ -24,6 +24,10 @@ const USER_SCOPED_TABLES = [
   "inbox_items",
 ] as const;
 
+function isServerlessRuntime(): boolean {
+  return process.env.VERCEL === "1" || process.env.VERCEL === "true";
+}
+
 function useSupabasePersistence(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
@@ -32,11 +36,13 @@ function useSupabasePersistence(): boolean {
   );
 }
 
+function useSupabaseCredentialStore(): boolean {
+  return useSupabasePersistence();
+}
+
 /** Local JSON files are dev-only; Vercel/serverless must use Supabase. */
 function useFilesystemDevPersistence(): boolean {
-  if (process.env.VERCEL === "1" || process.env.VERCEL === "true") {
-    return false;
-  }
+  if (isServerlessRuntime()) return false;
   return !useSupabasePersistence();
 }
 
@@ -189,6 +195,15 @@ export async function deleteUserAccount(options: {
   const userIds = uniqueUserIds(options.userId, ...(options.legacyUserIds ?? []));
 
   try {
+    if (isServerlessRuntime() && !useSupabasePersistence()) {
+      return {
+        ok: false,
+        error:
+          "Account deletion is unavailable: database storage is not configured on this server.",
+        status: 503,
+      };
+    }
+
     if (useSupabasePersistence()) {
       const supabase = createSupabaseAdminClient();
       await deleteRowsForUserIds(supabase, userIds);
@@ -213,6 +228,14 @@ export async function deleteUserAccount(options: {
     }
 
     if (options.removeCredentialUser) {
+      if (!useSupabaseCredentialStore() && isServerlessRuntime()) {
+        return {
+          ok: false,
+          error:
+            "Account deletion could not remove your sign-in record. Database storage is not configured on this server.",
+          status: 503,
+        };
+      }
       await deleteCredentialUserById(options.userId);
     }
 

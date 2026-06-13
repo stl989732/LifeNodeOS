@@ -36,6 +36,7 @@ import {
   type UiDensity,
 } from "@/src/lib/settings/lifeNodeSettings";
 import AccountDeletionModal from "./AccountDeletionModal";
+import { deleteAccountClient } from "@/src/lib/account/deleteAccountClient";
 
 type SectionId =
   | "account"
@@ -156,9 +157,10 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (deleteOpen) return;
       if (e.key === "Escape") onClose();
     },
-    [onClose],
+    [onClose, deleteOpen],
   );
 
   useEffect(() => {
@@ -197,14 +199,13 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
   const allNodes = NODE_GALLERY_ENTRIES.map((e) => e.node);
   const isNodeEnabled = (node: ActiveNode) => configuredHats.includes(node);
 
-  if (!open) return null;
-
   const email = session?.user?.email ?? "";
   const initials =
     (displayName || email || "U").slice(0, 2).toUpperCase();
 
   return (
     <>
+      {open ? (
       <div className="fixed inset-0 z-[280] flex justify-end">
         <button
           type="button"
@@ -679,28 +680,17 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
           </div>
         </aside>
       </div>
+      ) : null}
 
       <AccountDeletionModal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         userEmail={email}
         onExportData={() => void exportUserDataJson()}
-        onConfirmDelete={async () => {
-          const res = await fetch("/api/account/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ confirmPhrase: "DELETE MY ACCOUNT" }),
-          });
-          const payload = (await res.json().catch(() => ({}))) as {
-            error?: string;
-          };
-          if (!res.ok) {
-            throw new Error(
-              payload.error === "CONFIRMATION_REQUIRED"
-                ? "Type DELETE MY ACCOUNT to confirm."
-                : payload.error ?? "Account deletion failed.",
-            );
+        onConfirmDelete={async (confirmPhrase) => {
+          const result = await deleteAccountClient(confirmPhrase);
+          if (!result.ok) {
+            throw new Error(result.error);
           }
           await clearUserBrowserPersistence(
             session?.user?.id,

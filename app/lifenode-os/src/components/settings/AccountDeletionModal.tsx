@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { AlertTriangle, Download, X } from "lucide-react";
 
 type Step = "warning" | "export" | "confirm";
@@ -9,7 +9,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onExportData: () => void;
-  onConfirmDelete: () => void | Promise<void>;
+  onConfirmDelete: (confirmPhrase: string) => void | Promise<void>;
   userEmail?: string | null;
 };
 
@@ -37,10 +37,19 @@ export default function AccountDeletionModal({
     setDeleteError(null);
   }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     reset();
     onClose();
-  };
+  }, [onClose, reset]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !deleting) handleClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, deleting, handleClose]);
 
   if (!open) return null;
 
@@ -189,7 +198,7 @@ export default function AccountDeletionModal({
                     setDeleting(true);
                     setDeleteError(null);
                     try {
-                      await onConfirmDelete();
+                      await onConfirmDelete(phrase.trim());
                       handleClose();
                     } catch (e) {
                       setDeleteError(
