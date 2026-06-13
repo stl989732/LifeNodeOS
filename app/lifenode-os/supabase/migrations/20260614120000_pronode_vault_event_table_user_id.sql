@@ -5,8 +5,14 @@
 alter table public.pronode_vault
   add column if not exists user_id text;
 
+alter table public.pronode_vault
+  alter column user_id type text using user_id::text;
+
 alter table public.event_table
   add column if not exists user_id text;
+
+alter table public.event_table
+  alter column user_id type text using user_id::text;
 
 create index if not exists pronode_vault_user_node_type_updated_idx
   on public.pronode_vault (user_id, node_type, updated_at desc);
@@ -20,6 +26,10 @@ comment on column public.event_table.user_id is 'NextAuth / credential_users per
 -- pronode_vault RLS (NextAuth browser client uses anon + authenticated, not auth.uid())
 drop policy if exists "pronode_vault_select_authenticated" on public.pronode_vault;
 drop policy if exists "pronode_vault_write_authenticated" on public.pronode_vault;
+drop policy if exists "pronode_vault_select" on public.pronode_vault;
+drop policy if exists "pronode_vault_insert" on public.pronode_vault;
+drop policy if exists "pronode_vault_update" on public.pronode_vault;
+drop policy if exists "pronode_vault_delete" on public.pronode_vault;
 
 create policy "pronode_vault_select"
   on public.pronode_vault for select
@@ -29,13 +39,13 @@ create policy "pronode_vault_select"
 create policy "pronode_vault_insert"
   on public.pronode_vault for insert
   to anon, authenticated
-  with check (user_id is not null and length(trim(user_id)) > 0);
+  with check (user_id is not null and length(trim(user_id::text)) > 0);
 
 create policy "pronode_vault_update"
   on public.pronode_vault for update
   to anon, authenticated
   using (true)
-  with check (user_id is not null and length(trim(user_id)) > 0);
+  with check (user_id is not null and length(trim(user_id::text)) > 0);
 
 create policy "pronode_vault_delete"
   on public.pronode_vault for delete
@@ -47,6 +57,10 @@ grant select, insert, update, delete on table public.pronode_vault to anon, auth
 -- event_table RLS
 drop policy if exists "event_table_select_authenticated" on public.event_table;
 drop policy if exists "event_table_write_authenticated" on public.event_table;
+drop policy if exists "event_table_select" on public.event_table;
+drop policy if exists "event_table_insert" on public.event_table;
+drop policy if exists "event_table_update" on public.event_table;
+drop policy if exists "event_table_delete" on public.event_table;
 
 create policy "event_table_select"
   on public.event_table for select
@@ -56,13 +70,13 @@ create policy "event_table_select"
 create policy "event_table_insert"
   on public.event_table for insert
   to anon, authenticated
-  with check (user_id is not null and length(trim(user_id)) > 0);
+  with check (user_id is not null and length(trim(user_id::text)) > 0);
 
 create policy "event_table_update"
   on public.event_table for update
   to anon, authenticated
   using (true)
-  with check (user_id is not null and length(trim(user_id)) > 0);
+  with check (user_id is not null and length(trim(user_id::text)) > 0);
 
 create policy "event_table_delete"
   on public.event_table for delete
