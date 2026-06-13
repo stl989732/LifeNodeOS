@@ -180,8 +180,11 @@ export function filterTimelineByDate(events: TimelineEvent[], asOf: Date): Timel
  * Loads timeline rows scoped to the active workspace `node_type` values.
  * Falls back to mock data when Supabase is unavailable or the table is empty.
  */
-export async function fetchTimelineEvents(nodeTypes: string[]): Promise<TimelineEvent[]> {
-  if (!nodeTypes.length) return [];
+export async function fetchTimelineEvents(
+  nodeTypes: string[],
+  userId?: string | null,
+): Promise<TimelineEvent[]> {
+  if (!nodeTypes.length || !userId?.trim()) return [];
 
   try {
     const supabase = getSupabaseBrowserClient();
@@ -190,6 +193,7 @@ export async function fetchTimelineEvents(nodeTypes: string[]): Promise<Timeline
       .select(
         "id,created_at,node_type,source,title,excerpt,fact,case_id,video_snapshot",
       )
+      .eq("user_id", userId.trim())
       .order("created_at", { ascending: false });
 
     if (nodeTypes.length === 1) {

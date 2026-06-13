@@ -22,6 +22,8 @@ const USER_SCOPED_TABLES = [
   "ai_daily_usage",
   "daily_image_generation_caps",
   "inbox_items",
+  "pronode_vault",
+  "event_table",
 ] as const;
 
 function isServerlessRuntime(): boolean {
@@ -185,7 +187,7 @@ export type DeleteUserAccountResult =
 
 /**
  * Permanently delete all persisted data for the signed-in user (and linked legacy OAuth id).
- * `pronode_vault` / `event_table` are not user-scoped in the current schema and are skipped.
+ * `pronode_vault_shares` cascade when vault rows are removed.
  */
 export async function deleteUserAccount(options: {
   userId: string;

@@ -6,10 +6,12 @@ import {
   filterTimelineByDate,
 } from "@/src/lib/proNode/timeline";
 import type { TimelineEvent } from "@/src/lib/proNode/types";
+import { usePersistenceUserId } from "@/src/hooks/usePersistenceUserId";
 
 export function useProTimeline(nodeTypes: string[], asOf: Date) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const persistenceUserId = usePersistenceUserId();
 
   const typesKey = nodeTypes.join("\0");
 
@@ -17,7 +19,7 @@ export function useProTimeline(nodeTypes: string[], asOf: Date) {
     let cancelled = false;
     setLoading(true);
 
-    void fetchTimelineEvents(nodeTypes).then((rows) => {
+    void fetchTimelineEvents(nodeTypes, persistenceUserId).then((rows) => {
       if (cancelled) return;
       setEvents(filterTimelineByDate(rows, asOf));
       setLoading(false);
@@ -26,7 +28,7 @@ export function useProTimeline(nodeTypes: string[], asOf: Date) {
     return () => {
       cancelled = true;
     };
-  }, [typesKey, asOf.getTime()]);
+  }, [typesKey, asOf.getTime(), persistenceUserId]);
 
   return { events, loading };
 }

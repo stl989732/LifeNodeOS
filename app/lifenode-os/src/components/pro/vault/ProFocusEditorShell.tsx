@@ -19,6 +19,7 @@ import {
   SHARES_TABLE,
   type PronodeVaultRow,
 } from "@/src/components/pro/vault/pronodeVaultTypes";
+import { usePersistenceUserId } from "@/src/hooks/usePersistenceUserId";
 
 type ShellMode = "open" | "fullscreen" | "minimized";
 
@@ -57,6 +58,7 @@ export default function ProFocusEditorShell({
   const [saving, setSaving] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const persistenceUserId = usePersistenceUserId();
 
   useEffect(() => {
     if (sessionOpen) {
@@ -121,12 +123,18 @@ export default function ProFocusEditorShell({
   }, [mode]);
 
   const handleSave = useCallback(async () => {
+    if (!persistenceUserId) {
+      setMessage("Sign in to save to your vault.");
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
     try {
       const supabase = getSupabaseBrowserClient();
       const payload = {
         id: vaultId,
+        user_id: persistenceUserId,
         title: title.trim() || "Untitled",
         node_type: nodeType || "General",
         content: editorRef.current?.getJSON() ?? content,
@@ -145,7 +153,7 @@ export default function ProFocusEditorShell({
     } finally {
       setSaving(false);
     }
-  }, [content, nodeType, title, vaultId, onSaved]);
+  }, [content, nodeType, persistenceUserId, title, vaultId, onSaved]);
 
   const handleShare = useCallback(async () => {
     setShareBusy(true);

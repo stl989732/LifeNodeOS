@@ -6,6 +6,7 @@ import { getSupabaseBrowserClient } from "@/src/lib/supabase/client";
 import type { PronodeVaultRow } from "@/src/components/pro/vault/pronodeVaultTypes";
 import { getVaultNodeTypesForProRole } from "@/src/lib/proNode/workspaceContext";
 import type { ProRoleId } from "@/src/lib/proNode/types";
+import { usePersistenceUserId } from "@/src/hooks/usePersistenceUserId";
 
 type Props = {
   onLoadDocument: (row: PronodeVaultRow) => void;
@@ -23,6 +24,7 @@ export default function ProSmartVault({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasLoadedOnceRef = useRef(false);
+  const persistenceUserId = usePersistenceUserId();
 
   const vaultNodeTypes = useMemo(
     () => getVaultNodeTypesForProRole(proRole),
@@ -32,6 +34,13 @@ export default function ProSmartVault({
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
+      if (!persistenceUserId) {
+        setRows([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
       const silent = opts?.silent && hasLoadedOnceRef.current;
       if (silent) {
         setRefreshing(true);
@@ -44,6 +53,7 @@ export default function ProSmartVault({
         let query = supabase
           .from("pronode_vault")
           .select("id,title,node_type,content,updated_at")
+          .eq("user_id", persistenceUserId)
           .order("updated_at", { ascending: false });
 
         if (vaultNodeTypes.length === 1) {
@@ -64,12 +74,12 @@ export default function ProSmartVault({
         setRefreshing(false);
       }
     },
-    [vaultNodeTypes],
+    [persistenceUserId, vaultNodeTypes],
   );
 
   useEffect(() => {
     void load({ silent: hasLoadedOnceRef.current });
-  }, [load, refreshKey, vaultFilterKey]);
+  }, [load, refreshKey, vaultFilterKey, persistenceUserId]);
 
   const showInitialLoading = loading && rows.length === 0;
   const showEmpty = !loading && !error && rows.length === 0;
