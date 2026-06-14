@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { toConnectedAppId } from "@/src/lib/integrations/appProviderMap";
 import {
+  listUserConnectedApps,
   upsertUserConnectedApp,
   type ConnectedAppStatus,
 } from "@/src/lib/integrations/userConnectedAppsDb";
@@ -10,6 +11,22 @@ export const runtime = "nodejs";
 
 function unauthorized() {
   return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+}
+
+/** GET — list connected app card states for the signed-in user (service role). */
+export async function GET() {
+  const session = await auth();
+  const userId = session?.user?.id?.trim();
+  if (!userId) return unauthorized();
+
+  try {
+    const apps = await listUserConnectedApps(userId);
+    return NextResponse.json({ apps });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Server error";
+    console.error("GET /api/integrations/connected-apps:", e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 /** POST — set syncing/connected state for a node app card (service role). */

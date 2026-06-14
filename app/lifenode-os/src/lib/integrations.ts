@@ -3,6 +3,12 @@ import {
   toConnectedAppId,
 } from "@/src/lib/integrations/appProviderMap";
 import { integrationRedirectPathSegment } from "@/src/lib/integrations/oauthProviders";
+import { CONNECTED_APPS_CHANGED_EVENT } from "@/src/lib/useConnectedApps";
+
+function notifyConnectedAppsChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(CONNECTED_APPS_CHANGED_EVENT));
+}
 
 async function markAppSyncing(
   nodeName: string,
@@ -27,6 +33,7 @@ async function markAppSyncing(
       );
       return false;
     }
+    notifyConnectedAppsChanged();
     return true;
   } catch (e) {
     console.error("Error syncing app card state:", e);

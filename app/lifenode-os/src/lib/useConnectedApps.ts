@@ -1,80 +1,86 @@
 import { useEffect, useState } from "react";
-import type { RealtimePostgresChangesPayload, SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseBrowserClient } from "@/src/lib/supabase/client";
+import {
+  connectedAppsToStateMap,
+  type ConnectedAppStatus,
+  type UserConnectedAppRow,
+} from "@/src/lib/integrations/userConnectedAppsDb";
 
-export interface ConnectedAppRecord {
-  app_id: string;
-  target_node: string;
-  connection_status: "connected" | "syncing" | "disconnected";
+export type ConnectedAppRecord = UserConnectedAppRow;
+
+/** Dispatch after connect/disconnect writes so hooks refetch without Supabase Realtime. */
+export const CONNECTED_APPS_CHANGED_EVENT = "lifenode:connected-apps-changed";
+
+const POLL_MS = 30_000;
+
+async function fetchConnectedAppsFromApi(): Promise<
+  Record<string, ConnectedAppStatus>
+> {
+  const res = await fetch("/api/integrations/connected-apps", {
+    credentials: "include",
+  });
+
+  if (res.status === 401) return {};
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      typeof data.error === "string" ? data.error : "Failed to load connected apps",
+    );
+  }
+
+  const data = (await res.json()) as { apps?: UserConnectedAppRow[] };
+  return connectedAppsToStateMap(Array.isArray(data.apps) ? data.apps : []);
 }
 
 export function useConnectedApps(userId: string) {
   const [connectedApps, setConnectedApps] = useState<
-    Record<string, "connected" | "syncing" | "disconnected">
+    Record<string, ConnectedAppStatus>
   >({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(userId));
 
   useEffect(() => {
-    if (!userId) return;
+    let cancelled = false;
 
-    let supabase: SupabaseClient;
-    try {
-      supabase = getSupabaseBrowserClient();
-    } catch {
-      setLoading(false);
-      return;
-    }
-
-    async function fetchInitialStates() {
-      const { data, error } = await supabase
-        .from("user_connected_apps")
-        .select("app_id, target_node, connection_status")
-        .eq("user_id", userId);
-
-      if (!error && data) {
-        const stateMap: Record<string, "connected" | "syncing" | "disconnected"> =
-          {};
-        data.forEach((row: ConnectedAppRecord) => {
-          const key = `${row.target_node.toLowerCase()}_${row.app_id.toLowerCase()}`;
-          stateMap[key] = row.connection_status;
-        });
-        setConnectedApps(stateMap);
+    async function load() {
+      if (!userId) {
+        setConnectedApps({});
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      setLoading(true);
+      try {
+        const stateMap = await fetchConnectedAppsFromApi();
+        if (!cancelled) setConnectedApps(stateMap);
+      } catch (err) {
+        console.error("[useConnectedApps] fetch failed:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
 
-    void fetchInitialStates();
+    void load();
 
-    const channel = supabase
-      .channel(`realtime-user-apps-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "user_connected_apps",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload: RealtimePostgresChangesPayload<ConnectedAppRecord>) => {
-          const updatedRow =
-            (payload.new as ConnectedAppRecord | undefined) ??
-            (payload.old as ConnectedAppRecord | undefined);
-          if (!updatedRow) return;
+    const onChanged = () => {
+      void load();
+    };
+    const onFocus = () => {
+      void load();
+    };
 
-          const key = `${updatedRow.target_node.toLowerCase()}_${updatedRow.app_id.toLowerCase()}`;
-          setConnectedApps((prev) => ({
-            ...prev,
-            [key]:
-              payload.eventType === "DELETE"
-                ? "disconnected"
-                : updatedRow.connection_status,
-          }));
-        },
-      )
-      .subscribe();
+    window.addEventListener(CONNECTED_APPS_CHANGED_EVENT, onChanged);
+    window.addEventListener("focus", onFocus);
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    }, POLL_MS);
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      window.removeEventListener(CONNECTED_APPS_CHANGED_EVENT, onChanged);
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(interval);
     };
   }, [userId]);
 
