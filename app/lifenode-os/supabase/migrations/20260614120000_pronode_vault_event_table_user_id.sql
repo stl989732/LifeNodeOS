@@ -37,7 +37,17 @@ begin
   end loop;
 end $$;
 
--- 2) Ensure user_id is text (NextAuth / credential ids are not always UUID-shaped).
+-- 2) Drop auth.users FKs before uuid → text (NextAuth ids are text, not Supabase auth.users).
+alter table public.pronode_vault
+  drop constraint if exists pronode_vault_user_id_fkey;
+
+alter table public.event_table
+  drop constraint if exists event_table_user_id_fkey;
+
+alter table public.pronode_vault_shares
+  drop constraint if exists pronode_vault_shares_user_id_fkey;
+
+-- 3) Ensure user_id is text (NextAuth / credential ids are not always UUID-shaped).
 alter table public.pronode_vault
   add column if not exists user_id text;
 
@@ -98,7 +108,7 @@ create index if not exists event_table_user_node_type_created_idx
 comment on column public.pronode_vault.user_id is 'NextAuth / credential_users persistence id; required for new rows.';
 comment on column public.event_table.user_id is 'NextAuth / credential_users persistence id; required for new rows.';
 
--- 3) NextAuth RLS (browser client uses anon + authenticated, not auth.uid())
+-- 4) NextAuth RLS (browser client uses anon + authenticated, not auth.uid())
 create policy "pronode_vault_select"
   on public.pronode_vault for select
   to anon, authenticated
