@@ -25,6 +25,16 @@ begin
   loop
     execute format('drop policy if exists %I on public.event_table', pol.policyname);
   end loop;
+
+  -- Shares policies often subquery pronode_vault.user_id (e.g. *_insert_own_*).
+  for pol in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'pronode_vault_shares'
+  loop
+    execute format('drop policy if exists %I on public.pronode_vault_shares', pol.policyname);
+  end loop;
 end $$;
 
 -- 2) Ensure user_id is text (NextAuth / credential ids are not always UUID-shaped).
@@ -60,6 +70,21 @@ begin
       and udt_name = 'uuid'
   ) then
     alter table public.event_table
+      alter column user_id type text using user_id::text;
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'pronode_vault_shares'
+      and column_name = 'user_id'
+      and udt_name = 'uuid'
+  ) then
+    alter table public.pronode_vault_shares
       alter column user_id type text using user_id::text;
   end if;
 end $$;
@@ -119,6 +144,24 @@ create policy "event_table_delete"
   using (true);
 
 grant select, insert, update, delete on table public.event_table to anon, authenticated;
+
+-- Share links: anon reads valid tokens; signed-in users create snapshots (no user_id on shares rows).
+create policy "pronode_vault_shares_select"
+  on public.pronode_vault_shares for select
+  to anon, authenticated
+  using (expires_at > now());
+
+create policy "pronode_vault_shares_insert"
+  on public.pronode_vault_shares for insert
+  to anon, authenticated
+  with check (true);
+
+create policy "pronode_vault_shares_delete"
+  on public.pronode_vault_shares for delete
+  to anon, authenticated
+  using (true);
+
+grant select, insert, delete on table public.pronode_vault_shares to anon, authenticated;
 
 -- Account deletion (POST /api/account/delete) uses service_role
 grant select, insert, update, delete on table public.pronode_vault to service_role;
