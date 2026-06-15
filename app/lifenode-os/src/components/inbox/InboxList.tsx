@@ -44,13 +44,13 @@ export default function InboxList({
 
   return (
     <div className="flex h-full min-w-0 flex-col border-r border-slate-200/80 bg-[#F8F8FF]/80">
-      <div className="flex flex-wrap gap-1 border-b border-slate-200/80 p-3">
+      <div className="flex flex-wrap gap-1 border-b border-slate-200/80 p-2 sm:p-3">
         {FILTERS.map((f) => (
           <button
             key={f.id}
             type="button"
             onClick={() => onSourceFilter(f.id)}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${
+            className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[11px] ${
               sourceFilter === f.id
                 ? "bg-slate-900 text-white"
                 : "bg-white text-slate-600 ring-1 ring-slate-200"
@@ -66,7 +66,7 @@ export default function InboxList({
 
       <ul className="min-h-0 flex-1 overflow-y-auto p-2">
         {filtered.length === 0 ? (
-          <li className="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+          <li className="rounded-xl border border-dashed border-slate-200 px-3 py-8 text-center text-xs text-slate-500 sm:px-4 sm:py-10 sm:text-sm">
             No items yet. Connect apps and sync.
           </li>
         ) : null}
@@ -88,7 +88,7 @@ export default function InboxList({
                   e.dataTransfer.effectAllowed = "move";
                 }}
                 onClick={() => onSelect(it.id)}
-                className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
+                className={`w-full rounded-xl border px-2.5 py-2 text-left transition sm:px-3 sm:py-2.5 ${
                   active
                     ? "border-sky-300 bg-white shadow-sm ring-1 ring-sky-200"
                     : "border-transparent bg-white/70 hover:border-slate-200 hover:bg-white"
