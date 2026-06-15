@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       sources: body.sources,
     });
 
-    const items = await listInboxItems(String(sessionUserId), { limit: 100 });
+    const items = await listInboxItems(String(sessionUserId), { limit: 150 });
 
     return NextResponse.json({
       ok: true,

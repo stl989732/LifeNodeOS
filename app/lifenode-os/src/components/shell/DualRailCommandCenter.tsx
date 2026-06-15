@@ -77,8 +77,8 @@ function LinosWatermark() {
 
 function NodeIconBadge({ Icon }: { Icon: LucideIcon }) {
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-white/80">
-      <Icon className="h-5 w-5 text-black" strokeWidth={1.75} />
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200/80 bg-white/80">
+      <Icon className="h-4 w-4 text-black" strokeWidth={1.75} />
     </span>
   );
 }
@@ -198,13 +198,18 @@ export default function DualRailCommandCenter({
         onToggleHat={(node) => toggleConfiguredHat(node)}
       />
 
-      {/* Desktop rail — nodes + feature dropdowns */}
+      {/* Desktop rail — fixed so it stays visible while the page scrolls */}
       <nav
-        className={`group/rail1 sticky top-0 z-[60] hidden h-[calc(100dvh-env(safe-area-inset-top,0px))] w-[60px] shrink-0 flex-col px-1.5 py-3 shadow-sm md:flex ${RAIL1_EASE} hover:w-[min(12.5vw,13.5rem)] ${RAIL_BG}`}
+        className={`group/rail1 fixed left-0 z-[60] hidden w-[52px] shrink-0 flex-col px-1 py-2 shadow-sm md:flex ${RAIL1_EASE} hover:w-[min(11.5vw,12rem)] ${RAIL_BG}`}
+        style={{
+          top: "calc(env(safe-area-inset-top, 0px) + var(--ln-node-nav-chrome-block))",
+          height:
+            "calc(100dvh - env(safe-area-inset-top, 0px) - var(--ln-node-nav-chrome-block))",
+        }}
         data-va-rail="1"
         aria-label="Node navigation"
       >
-        <div className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto overflow-x-hidden">
+        <div className="flex min-h-0 flex-1 flex-col items-center gap-0 overflow-y-auto overflow-x-hidden">
           {filteredNodeItems.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center px-1 py-4 text-center">
               <p className="text-[10px] font-semibold uppercase leading-relaxed tracking-wide text-slate-500">
@@ -226,12 +231,12 @@ export default function DualRailCommandCenter({
                     title={label}
                     aria-expanded={expanded}
                     aria-haspopup="menu"
-                    className={`relative flex min-h-[44px] w-full items-center justify-center rounded-xl py-2 transition-colors duration-200 group-hover/rail1:justify-start group-hover/rail1:gap-2 ${
+                    className={`relative flex min-h-[36px] w-full items-center justify-center rounded-lg py-1.5 transition-colors duration-200 group-hover/rail1:justify-start group-hover/rail1:gap-1.5 ${
                       active ? ACTIVE_NODE : "text-black hover:bg-slate-100"
-                    } px-0 group-hover/rail1:px-2`}
+                    } px-0 group-hover/rail1:px-1.5`}
                   >
                     <NodeIconBadge Icon={Icon} />
-                    <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-xs font-bold uppercase tracking-wider text-black transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[9rem]">
+                    <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wide text-black transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[8.5rem]">
                       {label}
                     </span>
                     <ChevronDown
@@ -300,10 +305,10 @@ export default function DualRailCommandCenter({
             onClick={() => setWhiteboardOpen(true)}
             aria-label="Open global whiteboard"
             title="Whiteboard"
-            className="group/wb flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-teal-600/40 bg-gradient-to-br from-teal-600 to-cyan-700 py-2 text-white shadow-md transition hover:from-teal-500 hover:to-cyan-600 group-hover/rail1:justify-start"
+            className="group/wb flex w-full min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-teal-600/40 bg-gradient-to-br from-teal-600 to-cyan-700 py-1.5 text-white shadow-md transition hover:from-teal-500 hover:to-cyan-600 group-hover/rail1:justify-start"
           >
-            <PenLine className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
-            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[9rem]">
+            <PenLine className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[9px] font-bold uppercase tracking-wide transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[8.5rem]">
               Whiteboard
             </span>
           </button>
@@ -316,10 +321,10 @@ export default function DualRailCommandCenter({
             }
             aria-label="Sign out"
             title="Sign out"
-            className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
+            className="flex w-full min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1.5 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
           >
-            <LogOut className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[9rem]">
+            <LogOut className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[9px] font-bold uppercase tracking-wide transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[8.5rem]">
               Sign out
             </span>
           </button>
@@ -328,10 +333,10 @@ export default function DualRailCommandCenter({
             onClick={() => setSettingsOpen(true)}
             aria-label="Open LifeNode OS settings"
             title="Settings"
-            className="flex w-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
+            className="flex w-full min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1.5 text-black transition hover:bg-slate-100 group-hover/rail1:justify-start"
           >
-            <Settings className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[10px] font-bold uppercase tracking-wider transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[9rem]">
+            <Settings className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+            <span className="hidden min-w-0 max-w-0 overflow-hidden text-left text-[9px] font-bold uppercase tracking-wide transition-[max-width,opacity] duration-300 ease-out group-hover/rail1:inline group-hover/rail1:max-w-[8.5rem]">
               Settings
             </span>
           </button>
@@ -339,7 +344,7 @@ export default function DualRailCommandCenter({
       </nav>
 
       <div
-        className="ln-node-stage relative z-0 min-w-0 flex-1 overflow-x-hidden pb-[var(--mobile-nav-pad,0px)] md:pb-0"
+        className="ln-node-stage relative z-0 min-w-0 flex-1 overflow-x-hidden pb-[var(--mobile-nav-pad,0px)] md:ml-[52px] md:pb-0"
         style={
           {
             "--mobile-nav-pad": MOBILE_NAV_HEIGHT,

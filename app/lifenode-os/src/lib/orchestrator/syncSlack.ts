@@ -91,7 +91,7 @@ export async function syncSlackInbox(
     throw new Error(listData.error ?? "Slack conversations.list failed");
   }
 
-  const channels = (listData.channels ?? []).slice(0, 12);
+  const channels = (listData.channels ?? []).slice(0, 20);
   const items: InboxItemUpsert[] = [];
 
   await Promise.all(
@@ -100,7 +100,7 @@ export async function syncSlackInbox(
       const history = await slackGet<SlackHistory>(
         accessToken,
         "conversations.history",
-        { channel: ch.id, limit: "8" },
+        { channel: ch.id, limit: "15" },
       );
       if (!history.ok || !history.messages) return;
 

@@ -33,32 +33,65 @@ export function rowToClientItem(row: InboxItemRow) {
 
 export type InboxClientItem = ReturnType<typeof rowToClientItem>;
 
+async function loadExistingInboxRows(
+  userId: string,
+  items: InboxItemUpsert[],
+): Promise<Map<string, InboxItemRow>> {
+  const supabase = createSupabaseAdminClient();
+  const keys = new Set(items.map((i) => `${i.source}:${i.external_id}`));
+  const sources = [...new Set(items.map((i) => i.source))];
+
+  const { data, error } = await supabase
+    .from("inbox_items")
+    .select("*")
+    .eq("user_id", userId)
+    .in("source", sources);
+
+  if (error || !data) return new Map();
+
+  const map = new Map<string, InboxItemRow>();
+  for (const row of data as InboxItemRow[]) {
+    const key = `${row.source}:${row.external_id}`;
+    if (keys.has(key)) map.set(key, row);
+  }
+  return map;
+}
+
 export async function upsertInboxItems(
   userId: string,
   items: InboxItemUpsert[],
 ): Promise<number> {
   if (items.length === 0) return 0;
 
+  const existingByKey = await loadExistingInboxRows(userId, items);
   const supabase = createSupabaseAdminClient();
   const syncedAt = nowIso();
-  const rows = items.map((item) => ({
-    user_id: userId,
-    source: item.source,
-    external_id: item.external_id,
-    kind: item.kind,
-    title: item.title,
-    snippet: item.snippet,
-    body: item.body,
-    from_label: item.from_label,
-    from_id: item.from_id,
-    received_at: item.received_at,
-    status: item.status ?? "inbox",
-    transfer_meta: item.transfer_meta ?? {},
-    provider_payload: item.provider_payload ?? {},
-    local_notes: item.local_notes ?? null,
-    synced_at: item.synced_at ?? syncedAt,
-    updated_at: syncedAt,
-  }));
+  const rows = items.map((item) => {
+    const existing = existingByKey.get(`${item.source}:${item.external_id}`);
+    const mergedPayload = {
+      ...(existing?.provider_payload ?? {}),
+      ...(item.provider_payload ?? {}),
+    };
+
+    return {
+      user_id: userId,
+      source: item.source,
+      external_id: item.external_id,
+      kind: item.kind,
+      title: item.title,
+      snippet: item.snippet,
+      body: item.body?.trim() ? item.body : (existing?.body ?? item.body ?? null),
+      from_label: item.from_label,
+      from_id: item.from_id,
+      received_at: item.received_at,
+      status: existing?.status ?? item.status ?? "inbox",
+      transfer_meta: existing?.transfer_meta ?? item.transfer_meta ?? {},
+      local_notes: existing?.local_notes ?? item.local_notes ?? null,
+      provider_payload: mergedPayload,
+      synced_at: item.synced_at ?? syncedAt,
+      updated_at: syncedAt,
+    };
+  });
 
   const { error } = await supabase.from("inbox_items").upsert(rows, {
     onConflict: "user_id,source,external_id",
@@ -141,6 +174,7 @@ export async function patchInboxItem(
     transfer_meta: Record<string, unknown>;
     local_notes: string | null;
     body: string | null;
+    provider_payload: Record<string, unknown>;
   }>,
 ): Promise<InboxItemRow | null> {
   const existing = await getInboxItem(userId, id);
@@ -151,6 +185,11 @@ export async function patchInboxItem(
       ? { ...(existing.transfer_meta ?? {}), ...patch.transfer_meta }
       : existing.transfer_meta;
 
+  const mergedPayload =
+    patch.provider_payload !== undefined
+      ? { ...(existing.provider_payload ?? {}), ...patch.provider_payload }
+      : existing.provider_payload;
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("inbox_items")
@@ -159,6 +198,7 @@ export async function patchInboxItem(
       ...(patch.local_notes !== undefined ? { local_notes: patch.local_notes } : {}),
       ...(patch.body !== undefined ? { body: patch.body } : {}),
       transfer_meta: mergedTransfer,
+      provider_payload: mergedPayload,
       updated_at: nowIso(),
     })
     .eq("user_id", userId)

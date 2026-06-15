@@ -49,11 +49,13 @@ function emailProviderKey(): string | null {
   );
 }
 
+const DEFAULT_FROM_ADDRESS = "LifeNode OS <support@lifenodeos.com>";
+
 function emailFromAddress(): string {
   return (
     process.env.LIFENODE_EMAIL_FROM?.trim() ||
     process.env.RESEND_FROM?.trim() ||
-    "LifeNode OS <onboarding@resend.dev>"
+    DEFAULT_FROM_ADDRESS
   );
 }
 
@@ -100,7 +102,7 @@ function escapeHtml(s: string): string {
  *   const { Resend } = await import("resend");
  *   const resend = new Resend(process.env.LIFENODE_EMAIL_PROVIDER_KEY);
  *   await resend.emails.send({
- *     from: "LifeNode OS <noreply@your-domain.com>",
+ *     from: "LifeNode OS <support@lifenodeos.com>",
  *     to: input.to,
  *     subject: input.subject,
  *     html: input.html,

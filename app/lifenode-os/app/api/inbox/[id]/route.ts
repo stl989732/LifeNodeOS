@@ -33,23 +33,40 @@ export async function GET(_request: Request, ctx: RouteCtx) {
     }
 
     let body = row.body;
-    if (!body?.trim()) {
+    let providerPayload = row.provider_payload ?? {};
+    const needsHydration =
+      row.source !== "gmail"
+        ? !body?.trim()
+        : !body?.trim() ||
+          typeof providerPayload.bodyHtml !== "string" ||
+          !providerPayload.bodyHtml.trim();
+
+    if (needsHydration) {
       const integrationUserId = await resolveIntegrationUserId(session);
       if (integrationUserId) {
-        body = await hydrateInboxBody(
+        const hydrated = await hydrateInboxBody(
           integrationUserId,
           row.source,
           row.external_id,
           row.body,
+          providerPayload,
         );
-        if (body && body !== row.body) {
-          await patchInboxItem(String(userId), id, { body });
+        body = hydrated.body;
+        providerPayload = hydrated.providerPayload;
+        if (
+          body !== row.body ||
+          JSON.stringify(providerPayload) !== JSON.stringify(row.provider_payload)
+        ) {
+          await patchInboxItem(String(userId), id, {
+            body,
+            provider_payload: providerPayload,
+          });
         }
       }
     }
 
     return NextResponse.json({
-      item: rowToClientItem({ ...row, body }),
+      item: rowToClientItem({ ...row, body, provider_payload: providerPayload }),
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "inbox_get_failed";

@@ -8,6 +8,7 @@ import { scoreLeadIntent, resolveTriageSourcePresentation } from "@/src/lib/bizN
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
 import { newScheduleItemId } from "@/src/lib/calendar/storage";
 import type { CalendarStore, ScheduleItem } from "@/src/lib/calendar/types";
+import { createKanbanBoard, normalizeKanbanStore } from "@/src/lib/kanban/storage";
 import type { KanbanStore } from "@/src/lib/kanban/types";
 import { getInboxItem, patchInboxItem } from "./inboxDb";
 import type { InboxItemRow, InboxTransferTarget } from "./types";
@@ -18,28 +19,6 @@ function todayDateKey(): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function defaultKanbanStore(): KanbanStore {
-  const now = new Date().toISOString();
-  const boardId = crypto.randomUUID();
-  const colId = crypto.randomUUID();
-  return {
-    boards: [
-      {
-        id: boardId,
-        name: "My board",
-        columns: [
-          { id: colId, label: "Backlog", order: 0 },
-          { id: crypto.randomUUID(), label: "To-do", order: 1 },
-        ],
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    cards: [],
-    activeBoardId: boardId,
-  };
 }
 
 function defaultCalendarStore(): CalendarStore {
@@ -78,7 +57,19 @@ async function transferToKanbanBacklog(
   item: InboxItemRow,
 ): Promise<{ ref: string }> {
   const existing = await getNodeWidget(userId, NODE_WIDGET_KEYS.shell.kanban);
-  const store = (existing?.payload as KanbanStore | undefined) ?? defaultKanbanStore();
+  let store = normalizeKanbanStore(
+    (existing?.payload as KanbanStore | undefined) ?? {
+      boards: [],
+      cards: [],
+      activeBoardId: null,
+    },
+  );
+
+  if (store.boards.length === 0) {
+    const board = createKanbanBoard("Inbox backlog");
+    store = { boards: [board], cards: [], activeBoardId: board.id };
+  }
+
   const board = store.boards.find((b) => b.id === store.activeBoardId) ?? store.boards[0];
   if (!board) throw new Error("No kanban board available");
 

@@ -177,12 +177,14 @@ export function SignInForm({ googleEnabled, githubEnabled }: Props) {
       )}
 
       <form onSubmit={onCredentials} className="space-y-4">
-        <label className="block">
+        <label className="block" htmlFor="signin-email">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">
             Email
           </span>
           <input
+            id="signin-email"
             type="email"
+            name="email"
             autoComplete="email"
             required
             value={email}
@@ -191,6 +193,7 @@ export function SignInForm({ googleEnabled, githubEnabled }: Props) {
           />
         </label>
         <PasswordField
+          id="signin-password"
           label="Password"
           value={password}
           onChange={setPassword}
@@ -214,7 +217,7 @@ export function SignInForm({ googleEnabled, githubEnabled }: Props) {
         {state.kind === "unverified" && (
           <div className="space-y-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs text-amber-100">
             <div className="flex items-start gap-2">
-              <MailWarning className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <MailWarning className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden />
               <div className="space-y-1">
                 <p className="font-semibold text-amber-50">
                   Activate your account to sign in

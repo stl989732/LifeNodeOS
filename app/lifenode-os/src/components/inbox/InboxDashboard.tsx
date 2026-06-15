@@ -7,9 +7,8 @@ import { useSession } from "next-auth/react";
 import type { InboxClientItem } from "@/src/lib/orchestrator/inboxDb";
 import type { InboxSource } from "@/src/lib/orchestrator/types";
 import { readInboxDrag } from "@/src/lib/orchestrator/inboxDrag";
-import InboxDetailPane from "./InboxDetailPane";
 import InboxList from "./InboxList";
-import InboxTransferPanel from "./InboxTransferPanel";
+import InboxMessageModal from "./InboxMessageModal";
 import IntegrationRail from "./IntegrationRail";
 
 export default function InboxDashboard() {
@@ -18,6 +17,7 @@ export default function InboxDashboard() {
   const feature = searchParams.get("ln-feature");
   const [items, setItems] = useState<InboxClientItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<InboxSource | "all">("all");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -111,8 +111,18 @@ export default function InboxDashboard() {
   }, [feature]);
 
   useEffect(() => {
-    if (selectedId) void loadDetail(selectedId);
-  }, [selectedId, loadDetail]);
+    if (selectedId && modalOpen) void loadDetail(selectedId);
+  }, [selectedId, modalOpen, loadDetail]);
+
+  const handleSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setModalOpen(true);
+    void loadDetail(id);
+  }, [loadDetail]);
+
+  const handleCloseModal = useCallback(() => {
+    setModalOpen(false);
+  }, []);
 
   const handleTransfer = useCallback(async (body: Record<string, unknown>) => {
     if (!selectedId) return;
@@ -141,7 +151,9 @@ export default function InboxDashboard() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!selectedId || e.target instanceof HTMLTextAreaElement) return;
+      if (!modalOpen || !selectedId || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
       if (e.key === "z" || e.key === "Z") {
         void handleTransfer({ type: "backlog" });
       }
@@ -151,7 +163,7 @@ export default function InboxDashboard() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, handleTransfer]);
+  }, [modalOpen, selectedId, handleTransfer]);
 
   async function handleArchive() {
     if (!selectedId) return;
@@ -163,6 +175,7 @@ export default function InboxDashboard() {
         body: JSON.stringify({ action: "archive" }),
       });
       setSelectedId(null);
+      setModalOpen(false);
       await load();
     } catch {
       setError("archive_failed");
@@ -190,6 +203,7 @@ export default function InboxDashboard() {
     const drag = readInboxDrag(e);
     if (drag?.inboxItemId) {
       setSelectedId(drag.inboxItemId);
+      setModalOpen(true);
       void handleTransfer(body);
     }
   }
@@ -242,39 +256,36 @@ export default function InboxDashboard() {
           <InboxList
             items={items}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={handleSelect}
             sourceFilter={sourceFilter}
             onSourceFilter={setSourceFilter}
           />
         </div>
 
         <div
-          className="min-w-0 flex-1"
+          className="hidden min-w-0 flex-1 items-center justify-center bg-slate-50/50 lg:flex"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => handleDropTransfer(e, { type: "today" })}
         >
-          <InboxDetailPane
-            item={selected}
-            loading={detailLoading}
-            onArchive={handleArchive}
-            onReply={handleReply}
-          />
-        </div>
-
-        <div
-          className="hidden w-56 shrink-0 lg:block xl:w-64"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => handleDropTransfer(e, { type: "backlog" })}
-        >
-          <InboxTransferPanel
-            item={selected}
-            busy={transferBusy}
-            onTransfer={handleTransfer}
-          />
+          <p className="max-w-sm px-6 text-center text-sm text-slate-500">
+            Select a message to open it in a full view. Drag items to schedule or
+            transfer.
+          </p>
         </div>
 
         <IntegrationRail />
       </div>
+
+      <InboxMessageModal
+        item={selected}
+        open={modalOpen && !!selected}
+        loading={detailLoading}
+        transferBusy={transferBusy}
+        onClose={handleCloseModal}
+        onArchive={handleArchive}
+        onReply={handleReply}
+        onTransfer={handleTransfer}
+      />
 
       {!session?.user?.id ? null : (
         <p className="sr-only" aria-live="polite">

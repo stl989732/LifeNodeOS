@@ -1,6 +1,6 @@
 import { getValidAccessToken } from "@/src/lib/integrations/tokenManager";
 import { getInboxItem } from "./inboxDb";
-import { fetchGmailMessageBody } from "./syncGmail";
+import { fetchGmailMessageContent } from "./syncGmail";
 import { postSlackReply } from "./syncSlack";
 
 export async function sendGmailReply(
@@ -155,14 +155,36 @@ export async function insertGoogleCalendarBlock(
   return data.id ?? "";
 }
 
-/** Lazy-load full Gmail body for detail view. */
+/** Lazy-load full Gmail body (and HTML) for detail view. */
 export async function hydrateInboxBody(
   integrationUserId: string,
   source: string,
   externalId: string,
   existingBody: string | null,
-): Promise<string | null> {
-  if (existingBody?.trim()) return existingBody;
-  if (source !== "gmail") return existingBody;
-  return fetchGmailMessageBody(integrationUserId, externalId);
+  existingPayload: Record<string, unknown>,
+): Promise<{ body: string | null; providerPayload: Record<string, unknown> }> {
+  const hasHtml =
+    typeof existingPayload.bodyHtml === "string" &&
+    existingPayload.bodyHtml.trim().length > 0;
+
+  if (existingBody?.trim() && hasHtml) {
+    return { body: existingBody, providerPayload: existingPayload };
+  }
+
+  if (source !== "gmail") {
+    return { body: existingBody, providerPayload: existingPayload };
+  }
+
+  const { plain, html } = await fetchGmailMessageContent(
+    integrationUserId,
+    externalId,
+  );
+
+  return {
+    body: plain ?? existingBody,
+    providerPayload: {
+      ...existingPayload,
+      ...(html ? { bodyHtml: html } : {}),
+    },
+  };
 }

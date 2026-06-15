@@ -52,6 +52,7 @@ import {
 import {
   kanbanStorageKey,
   loadKanbanStore,
+  normalizeKanbanStore,
   saveKanbanStore,
 } from "@/src/lib/kanban/storage";
 import type { KanbanStore } from "@/src/lib/kanban/types";
@@ -152,7 +153,7 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [kindFilters, setKindFilters] = useState<Set<ScheduleItemKind>>(
-    () => new Set(ALL_KINDS),
+    () => new Set(),
   );
   const [filterOpen, setFilterOpen] = useState(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
@@ -213,14 +214,14 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
           const p = payload as Partial<KanbanStore>;
           const boards = Array.isArray(p.boards) ? p.boards : localKan.boards;
           const cards = Array.isArray(p.cards) ? p.cards : localKan.cards;
-          return {
+          return normalizeKanbanStore({
             boards,
             cards,
             activeBoardId:
               typeof p.activeBoardId === "string"
                 ? p.activeBoardId
                 : localKan.activeBoardId,
-          };
+          });
         },
         hasMeaningfulLocal: (store) => store.cards.length > 0,
         remoteHasData: (payload) => {
@@ -570,7 +571,6 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
       const next = new Set(prev);
       if (next.has(k)) next.delete(k);
       else next.add(k);
-      if (next.size === 0) return new Set(ALL_KINDS);
       return next;
     });
   }

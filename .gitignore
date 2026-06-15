@@ -28,3 +28,4 @@ lifenodeos-key.json
 # OS/editor
 .DS_Store
 Thumbs.db
+.cursor/mcp.json

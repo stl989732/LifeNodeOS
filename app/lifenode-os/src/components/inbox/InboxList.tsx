@@ -1,6 +1,7 @@
 "use client";
 
-import { Mail, MessageSquare, CalendarRange } from "lucide-react";
+import IntegrationLogo from "./IntegrationLogo";
+import InboxLabelChips, { readLabelNames } from "./InboxLabelChips";
 import type { InboxClientItem } from "@/src/lib/orchestrator/inboxDb";
 import type { InboxSource } from "@/src/lib/orchestrator/types";
 import { encodeInboxDrag, INBOX_DRAG_MIME } from "@/src/lib/orchestrator/inboxDrag";
@@ -12,13 +13,6 @@ type Props = {
   sourceFilter: InboxSource | "all";
   onSourceFilter: (f: InboxSource | "all") => void;
 };
-
-function SourceIcon({ source }: { source: string }) {
-  if (source === "gmail") return <Mail className="h-3.5 w-3.5 text-rose-500" />;
-  if (source === "slack")
-    return <MessageSquare className="h-3.5 w-3.5 text-violet-500" />;
-  return <CalendarRange className="h-3.5 w-3.5 text-sky-600" />;
-}
 
 function formatWhen(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -56,12 +50,15 @@ export default function InboxList({
             key={f.id}
             type="button"
             onClick={() => onSourceFilter(f.id)}
-            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${
               sourceFilter === f.id
                 ? "bg-slate-900 text-white"
                 : "bg-white text-slate-600 ring-1 ring-slate-200"
             }`}
           >
+            {f.id !== "all" ? (
+              <IntegrationLogo source={f.id} size={14} />
+            ) : null}
             {f.label}
           </button>
         ))}
@@ -75,6 +72,7 @@ export default function InboxList({
         ) : null}
         {filtered.map((it) => {
           const active = it.id === selectedId;
+          const labels = readLabelNames(it.providerPayload);
           return (
             <li key={it.id} className="mb-1">
               <button
@@ -97,7 +95,7 @@ export default function InboxList({
                 }`}
               >
                 <div className="flex items-start gap-2">
-                  <SourceIcon source={it.source} />
+                  <IntegrationLogo source={it.source} size={18} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-slate-900">
                       {it.title}
@@ -108,6 +106,9 @@ export default function InboxList({
                     <p className="mt-1 line-clamp-2 text-xs text-slate-600">
                       {it.snippet}
                     </p>
+                    {labels.length > 0 ? (
+                      <InboxLabelChips labels={labels.slice(0, 2)} className="mt-1.5" />
+                    ) : null}
                     <div className="mt-1 text-[10px] text-slate-400">
                       {formatWhen(it.receivedAt)}
                     </div>

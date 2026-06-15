@@ -1,21 +1,22 @@
 "use client";
 
-import { Mail, MessageSquare, CalendarRange, Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useCallback, useState } from "react";
 import { startOAuthConnect } from "@/src/lib/integrations";
 import { useConnectedApps } from "@/src/lib/useConnectedApps";
+import IntegrationLogo from "./IntegrationLogo";
+import type { InboxSource } from "@/src/lib/orchestrator/types";
 
-const INBOX_APPS = [
-  { id: "gmail", label: "Gmail", Icon: Mail, provider: "gmail" },
-  { id: "slack", label: "Slack", Icon: MessageSquare, provider: "slack" },
+const INBOX_APPS: { id: InboxSource; label: string; provider: string }[] = [
+  { id: "gmail", label: "Gmail", provider: "gmail" },
+  { id: "slack", label: "Slack", provider: "slack" },
   {
     id: "google_calendar",
     label: "Calendar",
-    Icon: CalendarRange,
     provider: "google_calendar",
   },
-] as const;
+];
 
 export default function IntegrationRail({
   className = "",
@@ -57,7 +58,7 @@ export default function IntegrationRail({
       className={`flex w-14 shrink-0 flex-col items-center gap-3 border-l border-slate-200/80 bg-[#F8F8FF] py-4 ${className}`}
       aria-label="Connected apps"
     >
-      {INBOX_APPS.map(({ id, label, Icon }) => {
+      {INBOX_APPS.map(({ id, label }) => {
         const connected = isConnected(id);
         const busy = connecting === id;
         return (
@@ -69,14 +70,14 @@ export default function IntegrationRail({
             disabled={busy || loading}
             className={`relative flex h-10 w-10 items-center justify-center rounded-xl border transition ${
               connected
-                ? "border-emerald-300/80 bg-emerald-50 text-emerald-800"
-                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                ? "border-emerald-300/80 bg-emerald-50"
+                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
             }`}
           >
             {busy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
             ) : (
-              <Icon className="h-4 w-4" strokeWidth={1.75} />
+              <IntegrationLogo source={id} size={22} />
             )}
             {connected ? (
               <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-[#F8F8FF]" />
