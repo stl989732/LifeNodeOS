@@ -17,7 +17,11 @@ const INBOX_APPS = [
   },
 ] as const;
 
-export default function IntegrationRail() {
+export default function IntegrationRail({
+  className = "",
+}: {
+  className?: string;
+}) {
   const { data: session } = useSession();
   const userId = session?.user?.id ?? "";
   const { connectedApps, loading } = useConnectedApps(userId);
@@ -50,7 +54,7 @@ export default function IntegrationRail() {
 
   return (
     <aside
-      className="flex w-14 shrink-0 flex-col items-center gap-3 border-l border-slate-200/80 bg-[#F8F8FF] py-4"
+      className={`flex w-14 shrink-0 flex-col items-center gap-3 border-l border-slate-200/80 bg-[#F8F8FF] py-4 ${className}`}
       aria-label="Connected apps"
     >
       {INBOX_APPS.map(({ id, label, Icon }) => {

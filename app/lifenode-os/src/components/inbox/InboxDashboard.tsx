@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { InboxClientItem } from "@/src/lib/orchestrator/inboxDb";
 import type { InboxSource } from "@/src/lib/orchestrator/types";
@@ -13,6 +14,8 @@ import IntegrationRail from "./IntegrationRail";
 
 export default function InboxDashboard() {
   const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
+  const feature = searchParams.get("ln-feature");
   const [items, setItems] = useState<InboxClientItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<InboxSource | "all">("all");
@@ -98,6 +101,14 @@ export default function InboxDashboard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (feature === "gmail" || feature === "slack" || feature === "google_calendar") {
+      setSourceFilter(feature);
+    } else if (feature === "overview" || !feature) {
+      setSourceFilter("all");
+    }
+  }, [feature]);
 
   useEffect(() => {
     if (selectedId) void loadDetail(selectedId);

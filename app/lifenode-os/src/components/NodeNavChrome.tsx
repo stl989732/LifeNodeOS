@@ -9,6 +9,7 @@ export const LIFENODE_CHROME_BACK = "lifenode:chrome-back";
 
 const NODE_ROUTE_PREFIXES = [
   "/calendar",
+  "/inbox",
   "/work",
   "/home",
   "/pulse",
@@ -49,6 +50,7 @@ export default function NodeNavChrome() {
     (theme === "mint-cream" ||
       theme === "grainy-dawn" ||
       pathname.startsWith("/calendar") ||
+      pathname.startsWith("/inbox") ||
       pathname.startsWith("/pulse"));
 
   return (

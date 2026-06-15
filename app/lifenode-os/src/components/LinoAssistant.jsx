@@ -22,7 +22,15 @@ import LinosSparkIcon from "@/src/components/linos/LinosSparkIcon";
 import { linosChatStorageKey } from "@/src/lib/linos/linosChatStorage";
 import { assistantPrefsStorageKey } from "@/src/lib/sessionClientIsolation";
 import ReactMarkdown from "react-markdown";
-import { getSupabaseBrowserClient } from "@/src/lib/supabase/client";
+import {
+  createLinosChat,
+  fetchLinosMessages,
+  insertLinosMessage,
+  listLinosChats,
+  resolveLinosChatId,
+  uploadLinosAttachment,
+  verifyLinosChat,
+} from "@/src/lib/linos/linosApiClient";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { useLinoIntelligence } from "@/src/hooks/useLinoIntelligence";
 import { LINOS_APP_KNOWLEDGE } from "@/src/data/linosAppKnowledge";
@@ -34,7 +42,6 @@ import {
   LINOS_FILE_INPUT_ACCEPT,
   readFileAsDataUrl,
   readTextFileUtf8,
-  sanitizeStorageFileName,
 } from "@/src/lib/linos/linosAttachments";
 
 const NODE_CONFIG = {
@@ -257,37 +264,18 @@ export default function LinoAssistant() {
 
     (async () => {
       try {
-        const supabase = getSupabaseBrowserClient();
         const storageKey = linosChatStorageKey(userId);
         const stored = window.localStorage.getItem(storageKey);
-
-        if (stored) {
-          const { data: owned } = await supabase
-            .from("linos_chats")
-            .select("id")
-            .eq("id", stored)
-            .eq("user_id", userId)
-            .maybeSingle();
-          if (cancelled) return;
-          if (owned?.id) {
-            setChatId(owned.id);
-            return;
-          }
-          clearChatIdForUser(userId);
-        }
-
-        const { data: latest } = await supabase
-          .from("linos_chats")
-          .select("id")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const resolved = await resolveLinosChatId(stored);
         if (cancelled) return;
-        if (latest?.id) {
-          setChatId(latest.id);
-          persistChatIdForUser(userId, latest.id);
+        if (resolved) {
+          setChatId(resolved);
+          if (resolved !== stored) {
+            persistChatIdForUser(userId, resolved);
+          }
+          return;
         }
+        if (stored) clearChatIdForUser(userId);
       } catch {
         if (!cancelled) clearChatIdForUser(userId);
       }
@@ -417,15 +405,9 @@ export default function LinoAssistant() {
     setChatHydrating(true);
     setChatError(null);
     try {
-      const supabase = getSupabaseBrowserClient();
-      const { data, error } = await supabase
-        .from("linos_messages")
-        .select("id,role,content,attachments,created_at")
-        .eq("chat_id", effectiveId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
+      const data = await fetchLinosMessages(effectiveId);
       setThreadMessages(
-        (data ?? []).filter((r) => r.role === "user" || r.role === "assistant"),
+        data.filter((r) => r.role === "user" || r.role === "assistant"),
       );
     } catch (e) {
       setChatError(e instanceof Error ? e.message : "Could not load chat history.");
@@ -438,32 +420,7 @@ export default function LinoAssistant() {
     if (sessionStatus !== "authenticated" || !session?.user?.id) return;
     setPastChatsLoading(true);
     try {
-      const supabase = getSupabaseBrowserClient();
-      const { data: chats, error: chatsErr } = await supabase
-        .from("linos_chats")
-        .select("id, node_type, created_at")
-        .eq("user_id", String(session.user.id))
-        .order("created_at", { ascending: false })
-        .limit(PAST_CHATS_LIMIT);
-      if (chatsErr) throw chatsErr;
-
-      const withPreview = await Promise.all(
-        (chats ?? []).map(async (c) => {
-          const { data: msg } = await supabase
-            .from("linos_messages")
-            .select("content")
-            .eq("chat_id", c.id)
-            .eq("role", "user")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const preview =
-            typeof msg?.content === "string" && msg.content.trim()
-              ? msg.content.trim().slice(0, 72)
-              : "New conversation";
-          return { ...c, preview };
-        }),
-      );
+      const withPreview = await listLinosChats(PAST_CHATS_LIMIT);
       setPastChats(withPreview);
     } catch {
       setPastChats([]);
@@ -483,17 +440,9 @@ export default function LinoAssistant() {
     }
     setChatError(null);
     setSplashBanner(null);
-    const supabase = getSupabaseBrowserClient();
-    const { data: created, error: chatErr } = await supabase
-      .from("linos_chats")
-      .insert({
-        user_id: String(session.user.id),
-        node_type: activeNode,
-      })
-      .select("id")
-      .single();
-    if (chatErr || !created?.id) {
-      setChatError(chatErr?.message ?? "Could not start a new chat.");
+    const created = await createLinosChat(activeNode);
+    if (!created?.id) {
+      setChatError("Could not start a new chat.");
       return;
     }
     setChatId(created.id);
@@ -514,14 +463,8 @@ export default function LinoAssistant() {
         return;
       }
       const userId = String(session.user.id);
-      const supabase = getSupabaseBrowserClient();
-      const { data: owned, error } = await supabase
-        .from("linos_chats")
-        .select("id")
-        .eq("id", id)
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (error || !owned?.id) {
+      const owned = await verifyLinosChat(id);
+      if (!owned) {
         setChatError("That chat belongs to another account or no longer exists.");
         return;
       }
@@ -778,18 +721,11 @@ export default function LinoAssistant() {
       setSplashBanner(null);
       setChatError(null);
 
-      const supabase = getSupabaseBrowserClient();
-
       /** @type {string} */
       let activeChatId = chatId;
       if (activeChatId) {
-        const { data: existingChat } = await supabase
-          .from("linos_chats")
-          .select("id")
-          .eq("id", activeChatId)
-          .eq("user_id", String(session.user.id))
-          .maybeSingle();
-        if (!existingChat?.id) {
+        const stillOwned = await verifyLinosChat(activeChatId);
+        if (!stillOwned) {
           clearChatIdForUser(String(session.user.id));
           activeChatId = "";
           setChatId("");
@@ -797,22 +733,9 @@ export default function LinoAssistant() {
       }
 
       if (!activeChatId) {
-        const { data: created, error: chatErr } = await supabase
-          .from("linos_chats")
-          .insert({
-            user_id: String(session.user.id),
-            node_type: activeNode,
-          })
-          .select("id")
-          .single();
-
-        if (chatErr || !created?.id) {
-          const raw = chatErr?.message ?? "Could not create chat session.";
-          let msg = raw;
-          if (/linos_chats_user_id_fkey|violates foreign key/i.test(raw)) {
-            msg = `${raw} LifeNode signs in with NextAuth, so user IDs are not guaranteed to exist in Supabase auth.users. In the Supabase SQL editor, run migration 20260517150000_linos_chats_drop_auth_users_fkey.sql (drops that FK and stores user_id as text).`;
-          }
-          setChatError(msg);
+        const created = await createLinosChat(activeNode);
+        if (!created?.id) {
+          setChatError("Could not create chat session.");
           isSendingRef.current = false;
           setIsSending(false);
           return;
@@ -837,26 +760,15 @@ export default function LinoAssistant() {
           setIsSending(false);
           return;
         }
-        const path = `${activeChatId}/${Date.now()}_${i}_${sanitizeStorageFileName(f.name)}`;
-        const { error: upErr } = await supabase.storage.from("linos-attachments").upload(path, f, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: f.type || "application/octet-stream",
-        });
-        if (upErr) {
-          setChatError(upErr.message);
+        try {
+          const attachment = await uploadLinosAttachment(activeChatId, f, i);
+          attachmentRecords.push(attachment);
+        } catch (upErr) {
+          setChatError(upErr instanceof Error ? upErr.message : "Upload failed.");
           isSendingRef.current = false;
           setIsSending(false);
           return;
         }
-        const { data: pub } = supabase.storage.from("linos-attachments").getPublicUrl(path);
-        attachmentRecords.push({
-          bucket: "linos-attachments",
-          path,
-          publicUrl: pub.publicUrl,
-          name: f.name,
-          mime: f.type || "application/octet-stream",
-        });
 
         const mime = f.type || "";
         if (mime.startsWith("text/plain")) {
@@ -887,14 +799,16 @@ export default function LinoAssistant() {
         userContent = `Please review the attached file(s): ${snap.map((x) => x.name).join(", ")}`;
       }
 
-      const { error: userInsErr } = await supabase.from("linos_messages").insert({
-        chat_id: activeChatId,
-        role: "user",
-        content: userContent || "(attachment)",
-        attachments: attachmentRecords,
-      });
-      if (userInsErr) {
-        setChatError(userInsErr.message);
+      try {
+        await insertLinosMessage(activeChatId, {
+          role: "user",
+          content: userContent || "(attachment)",
+          attachments: attachmentRecords,
+        });
+      } catch (userInsErr) {
+        setChatError(
+          userInsErr instanceof Error ? userInsErr.message : "Could not save message.",
+        );
         isSendingRef.current = false;
         setIsSending(false);
         return;
@@ -905,22 +819,26 @@ export default function LinoAssistant() {
       });
       setStagedAttachments([]);
 
-      const { data: rows, error: reloadErr } = await supabase
-        .from("linos_messages")
-        .select("id,role,content,attachments,created_at")
-        .eq("chat_id", activeChatId)
-        .order("created_at", { ascending: true });
+      let rows = [];
+      let reloadErr = null;
+      try {
+        rows = await fetchLinosMessages(activeChatId);
+      } catch (e) {
+        reloadErr = e;
+      }
 
       if (reloadErr) {
-        setChatError(reloadErr.message);
+        setChatError(
+          reloadErr instanceof Error ? reloadErr.message : "Could not reload chat.",
+        );
       } else {
         setThreadMessages(
-          (rows ?? []).filter((r) => r.role === "user" || r.role === "assistant"),
+          rows.filter((r) => r.role === "user" || r.role === "assistant"),
         );
       }
 
       const system = buildSystemPrompt();
-      const fromDb = (rows ?? []).filter((r) => r.role === "user" || r.role === "assistant");
+      const fromDb = rows.filter((r) => r.role === "user" || r.role === "assistant");
       const linear =
         !reloadErr && fromDb.length > 0
           ? fromDb
@@ -980,13 +898,17 @@ export default function LinoAssistant() {
           }
         }
 
-        const { error: asstErr } = await supabase.from("linos_messages").insert({
-          chat_id: activeChatId,
-          role: "assistant",
-          content: reply,
-          attachments: [],
-        });
-        if (asstErr) setChatError(asstErr.message);
+        try {
+          await insertLinosMessage(activeChatId, {
+            role: "assistant",
+            content: reply,
+            attachments: [],
+          });
+        } catch (asstErr) {
+          setChatError(
+            asstErr instanceof Error ? asstErr.message : "Could not save reply.",
+          );
+        }
 
         await loadThread(activeChatId);
       } catch {
@@ -995,12 +917,15 @@ export default function LinoAssistant() {
           userHats,
           pathname,
         });
-        await supabase.from("linos_messages").insert({
-          chat_id: activeChatId,
-          role: "assistant",
-          content: reply,
-          attachments: [],
-        });
+        try {
+          await insertLinosMessage(activeChatId, {
+            role: "assistant",
+            content: reply,
+            attachments: [],
+          });
+        } catch {
+          /* ignore persistence error on fallback path */
+        }
         await loadThread(activeChatId);
       } finally {
         isSendingRef.current = false;
