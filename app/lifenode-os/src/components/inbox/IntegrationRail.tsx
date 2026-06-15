@@ -67,9 +67,9 @@ export default function IntegrationRail({
         aria-label={connected ? `${label} connected` : `Connect ${label}`}
         onClick={() => void handleConnect(id)}
         disabled={busy || loading}
-        className={`relative flex shrink-0 items-center justify-center rounded-xl border transition ${
+        className={`relative flex shrink-0 items-center justify-center rounded-lg border transition ${
           variant === "bar"
-            ? "h-9 w-9"
+            ? "h-8 w-8"
             : "h-10 w-10"
         } ${
           connected
@@ -80,7 +80,7 @@ export default function IntegrationRail({
         {busy ? (
           <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
         ) : (
-          <IntegrationLogo source={id} size={variant === "bar" ? 20 : 22} />
+          <IntegrationLogo source={id} size={variant === "bar" ? 18 : 22} />
         )}
         {connected ? (
           <span
@@ -98,7 +98,7 @@ export default function IntegrationRail({
   if (variant === "bar") {
     return (
       <div
-        className={`flex items-center gap-1.5 ${className}`}
+        className={`flex items-center gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
         aria-label="Connected apps"
         role="group"
       >
@@ -109,7 +109,7 @@ export default function IntegrationRail({
 
   return (
     <aside
-      className={`hidden w-14 shrink-0 flex-col items-center gap-3 border-l border-slate-200/80 bg-[#F8F8FF] py-4 md:flex ${className}`}
+      className={`w-14 shrink-0 flex-col items-center gap-3 border-l border-slate-200/80 bg-[#F8F8FF] py-4 ${className}`}
       aria-label="Connected apps"
     >
       {buttons}

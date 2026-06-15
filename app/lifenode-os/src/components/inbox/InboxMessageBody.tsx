@@ -116,7 +116,7 @@ export default function InboxMessageBody({ item, loading }: Props) {
   if (item.source === "gmail" && sanitizedHtml) {
     return (
       <div
-        className="inbox-email-body max-w-none text-sm leading-relaxed text-slate-800 sm:text-base [&_a]:break-all [&_a]:text-sky-600 [&_a]:underline [&_img]:max-w-full [&_p]:mb-3 [&_table]:max-w-full"
+        className="inbox-email-body max-w-none text-xs leading-relaxed text-slate-800 md:text-sm [&_a]:break-all [&_a]:text-sky-600 [&_a]:underline [&_img]:max-w-full [&_p]:mb-2 [&_table]:max-w-full [&_table]:text-xs"
         dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       />
     );
@@ -124,7 +124,7 @@ export default function InboxMessageBody({ item, loading }: Props) {
 
   if (item.source === "slack" && item.body?.trim()) {
     return (
-      <div className="text-sm leading-relaxed text-slate-800 sm:text-base">
+      <div className="text-xs leading-relaxed text-slate-800 md:text-sm">
         {renderSlackMrkdwn(item.body)}
       </div>
     );
@@ -132,7 +132,7 @@ export default function InboxMessageBody({ item, loading }: Props) {
 
   const plain = item.body?.trim() || item.snippet || "No content.";
   return (
-    <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 sm:text-base">
+    <div className="whitespace-pre-wrap text-xs leading-relaxed text-slate-800 md:text-sm">
       {plain}
     </div>
   );
