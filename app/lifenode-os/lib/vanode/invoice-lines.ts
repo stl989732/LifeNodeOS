@@ -11,6 +11,20 @@ export function countsTowardInvoiceTotal(unit: InvoiceLineUnit): boolean {
   return unit === "currency";
 }
 
+type InvoiceLineLike = {
+  description: string;
+  amount: number;
+  unit?: InvoiceLineUnit;
+};
+
+/** Sum only currency line items — excludes hours, days, and quantity-style rows. */
+export function invoiceCurrencyTotal(lines: InvoiceLineLike[]): number {
+  return lines.reduce((sum, line) => {
+    const unit = line.unit ?? lineUnitForDescription(line.description);
+    return countsTowardInvoiceTotal(unit) ? sum + line.amount : sum;
+  }, 0);
+}
+
 export function formatInvoiceLineAmount(
   description: string,
   amount: number,

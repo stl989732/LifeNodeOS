@@ -1,6 +1,6 @@
 import type { Invoice } from "./types";
 import {
-  countsTowardInvoiceTotal,
+  invoiceCurrencyTotal,
   formatInvoiceLineAmount,
   lineUnitForDescription,
 } from "./invoice-lines";
@@ -26,10 +26,7 @@ function escapeAttr(s: string) {
 }
 
 function buildInvoicePrintHtml(inv: Invoice): string {
-  const total = inv.lineItems.reduce((s, l) => {
-    const u = l.unit ?? lineUnitForDescription(l.description);
-    return countsTowardInvoiceTotal(u) ? s + l.amount : s;
-  }, 0);
+  const total = invoiceCurrencyTotal(inv.lineItems);
   const rows = inv.lineItems
     .map((l) => {
       const u = l.unit ?? lineUnitForDescription(l.description);
@@ -65,9 +62,10 @@ function buildInvoicePrintHtml(inv: Invoice): string {
   .badge { font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #0f766e; margin: 0 0 8px; }
   h1 { font-size: 28px; margin: 0 0 4px; font-weight: 800; }
   .biz { font-size: 14px; font-weight: 700; margin: 4px 0 0; }
-  .owner { font-size: 14px; color: #475569; margin: 2px 0 0; }
-  .meta { margin-top: 12px; font-size: 14px; color: #475569; line-height: 1.5; }
-  .meta strong { color: #0f172a; }
+  .party-row { display: flex; justify-content: space-between; gap: 24px; margin-top: 16px; font-size: 14px; color: #475569; line-height: 1.5; }
+  .party-left, .party-right { flex: 1; min-width: 0; }
+  .party-right { text-align: right; }
+  .party-row strong { color: #0f172a; }
   table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 14px; }
   th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; border-bottom: 1px solid #e2e8f0; padding: 10px 8px; }
   th:last-child { text-align: right; }
@@ -87,13 +85,16 @@ function buildInvoicePrintHtml(inv: Invoice): string {
   }
 </style></head><body>
   <div class="card">
-    <p class="badge">Preview</p>
     <h1>Invoice</h1>
     ${biz ? `<p class="biz">${escapeHtml(biz)}</p>` : ""}
-    ${owner ? `<p class="owner">${escapeHtml(owner)}</p>` : ""}
-    <div class="meta">
-      <div><strong>Bill to:</strong> ${escapeHtml(inv.clientName)}</div>
-      <div><strong>Due:</strong> ${escapeHtml(inv.dueDate)}</div>
+    <div class="party-row">
+      <div class="party-left">
+        <div><strong>Bill to:</strong> ${escapeHtml(inv.clientName)}</div>
+        <div><strong>Due:</strong> ${escapeHtml(inv.dueDate)}</div>
+      </div>
+      <div class="party-right">
+        ${owner ? `<div><strong>Billed by:</strong> ${escapeHtml(owner)}</div>` : ""}
+      </div>
     </div>
     <table>
       <thead><tr><th>Description</th><th>Amount</th></tr></thead>

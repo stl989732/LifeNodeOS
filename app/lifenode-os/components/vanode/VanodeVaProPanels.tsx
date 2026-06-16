@@ -23,6 +23,7 @@ import { isTranscribableMeetingUrl } from "@/lib/vanode/meetingUrls";
 import { countOverlapHours, overlapWorkHourFlags } from "@/lib/vanode/time-bridge";
 import { userTimezone } from "@/lib/vanode/outsource";
 import { toTitleCase } from "@/lib/vanode/title-case";
+import { CopyTextButton } from "./CopyTextButton";
 import type { ClientProfile, ValueMetrics, LiveTranscriptSession, VanodePersisted } from "@/lib/vanode/types";
 import { COMMON_TIMEZONES } from "@/lib/vanode/constants";
 
@@ -866,6 +867,12 @@ export function LiveMeetingCaptureCard({
       ) : null}
 
       <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/60 p-3 text-sm leading-relaxed text-slate-800">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            Transcript
+          </span>
+          <CopyTextButton text={displayTranscript} iconOnly label="Copy transcript" />
+        </div>
         {displayTranscript.trim() ? (
           <p className="whitespace-pre-wrap">{displayTranscript}</p>
         ) : live.isCapturing ? (
@@ -877,9 +884,12 @@ export function LiveMeetingCaptureCard({
 
       {summary && (
         <div className="mt-4 rounded-xl border border-violet-200/70 bg-violet-50/60 p-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase text-violet-900">
-            <Sparkles className="h-3.5 w-3.5" />
-            AI recap
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase text-violet-900">
+              <Sparkles className="h-3.5 w-3.5" />
+              AI recap
+            </div>
+            <CopyTextButton text={summary} iconOnly label="Copy AI recap" />
           </div>
           <p className="mt-2 whitespace-pre-wrap text-sm text-violet-950">{summary}</p>
         </div>

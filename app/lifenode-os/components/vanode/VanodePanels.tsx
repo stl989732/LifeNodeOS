@@ -42,13 +42,19 @@ import {
 } from "@/lib/vanode/clientWorkHours";
 import { isTranscribableMeetingUrl } from "@/lib/vanode/meetingUrls";
 import { VaultNoteBody } from "./VaultNoteBody";
+import { CopyTextButton } from "./CopyTextButton";
+import { VanodeInboxEmbed } from "./VanodeInboxEmbed";
 import { ScreenRecordingRefreshContext } from "./ScreenRecordingRoot";
 import {
-  countsTowardInvoiceTotal,
   formatInvoiceLineAmount,
+  invoiceCurrencyTotal,
   lineUnitForDescription,
   type InvoiceLineUnit,
 } from "@/lib/vanode/invoice-lines";
+import {
+  buildInvoiceShareText,
+  invoiceShareLinks,
+} from "@/lib/vanode/invoice-share";
 import { toTitleCase } from "@/lib/vanode/title-case";
 import type {
   ClientProfile,
@@ -426,8 +432,11 @@ export function EodReporterCard({
 
       {linosDraft && (
         <div className="mt-4 rounded-2xl border border-violet-200/60 bg-violet-50/40 p-4">
-          <div className="mb-2 text-xs font-bold uppercase text-violet-900">
-            Linos draft · copy into email or Slack
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="text-xs font-bold uppercase text-violet-900">
+              Linos draft · copy into email or Slack
+            </div>
+            <CopyTextButton text={linosDraft} iconOnly label="Copy Linos draft" />
           </div>
           <textarea
             readOnly
@@ -726,6 +735,11 @@ export function SmartVaultCard({
                 </div>
               </div>
               <div className="flex gap-1">
+                <CopyTextButton
+                  text={`${n.title}\n\n${n.body}`}
+                  iconOnly
+                  label="Copy note"
+                />
                 <button
                   type="button"
                   onClick={() => startEdit(n)}
@@ -1088,13 +1102,19 @@ export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
         </label>
         <div className="space-y-4">
           <div>
-            <div className="text-sm font-medium text-slate-700">Summary</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-medium text-slate-700">Summary</div>
+              <CopyTextButton text={summary} iconOnly label="Copy summary" />
+            </div>
             <p className="mt-1.5 min-h-[88px] rounded-xl border border-slate-200/80 bg-white/60 p-3 text-sm text-slate-800">
               {summary || "—"}
             </p>
           </div>
           <div>
-            <div className="text-sm font-medium text-slate-700">Draft reply</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-medium text-slate-700">Draft reply</div>
+              <CopyTextButton text={draft} iconOnly label="Copy draft reply" />
+            </div>
             <p className="mt-1.5 min-h-[88px] whitespace-pre-wrap rounded-xl border border-slate-200/80 bg-white/60 p-3 text-sm text-slate-800">
               {draft || "—"}
             </p>
@@ -1151,9 +1171,14 @@ export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
           </button>
         </div>
         {sopPreview && (
-          <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs text-slate-800">
-            {sopPreview}
-          </pre>
+          <div className="relative mt-3">
+            <div className="absolute right-2 top-2 z-10">
+              <CopyTextButton text={sopPreview} iconOnly label="Copy SOP" />
+            </div>
+            <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 pr-12 text-xs text-slate-800">
+              {sopPreview}
+            </pre>
+          </div>
         )}
         {toastLocal && (
           <p className="mt-2 text-sm text-teal-800">{toastLocal}</p>
@@ -1253,169 +1278,19 @@ type WaitProps = {
   onRemove: (id: string) => void;
 };
 
-type UnifiedFeedItem = {
-  id: string;
-  from: string;
-  subj: string;
-  snippet: string;
-};
-
-function buildAutoDraftReply(it: UnifiedFeedItem): string {
-  return [
-    "Hi,",
-    "",
-    `Thanks for your message on "${it.subj}" (${it.from}).`,
-    "",
-    `Context: ${it.snippet}`,
-    "",
-    "I'll review and follow up shortly. Let me know if you need anything else on this thread.",
-    "",
-    "Best,",
-  ].join("\n");
-}
 
 export function UnifiedFeedCard({
-  onSaveDraftToVault,
+  onSaveDraftToVault: _onSaveDraftToVault,
 }: {
   onSaveDraftToVault?: (n: Omit<Note, "id" | "updatedAt">) => void;
 } = {}) {
-  const items = useMemo<UnifiedFeedItem[]>(() => [], []);
-
-  const [active, setActive] = useState<UnifiedFeedItem | null>(null);
-  const [draft, setDraft] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const openDraft = (it: UnifiedFeedItem) => {
-    setActive(it);
-    setDraft(buildAutoDraftReply(it));
-    setCopied(false);
-  };
-
-  const closeDraft = () => {
-    setActive(null);
-    setDraft("");
-    setCopied(false);
-  };
-
-  const copyDraft = async () => {
-    try {
-      await navigator.clipboard.writeText(draft);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   return (
-    <section className="relative flex h-full flex-col rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.05)] p-5 shadow-xl shadow-slate-900/[0.04] backdrop-blur-[12px] md:p-6">
-      <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-900">
+    <section className="relative flex h-full min-h-[min(52vh,28rem)] flex-col rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.05)] p-5 shadow-xl shadow-slate-900/[0.04] backdrop-blur-[12px] md:p-6">
+      <h2 className="mb-3 flex shrink-0 items-center gap-2 text-base font-bold text-slate-900">
         <FileText className="h-5 w-5 text-sky-600" strokeWidth={1.75} />
         {toTitleCase("Unified feed")}
       </h2>
-      <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
-        {items.length === 0 ? (
-          <li className="rounded-xl border border-dashed border-white/15 bg-white/10 px-4 py-8 text-center text-sm text-slate-600">
-            Unified feed lives in the shell Inbox.{" "}
-            <a
-              href="/inbox"
-              className="font-semibold text-teal-800 underline underline-offset-2 hover:text-teal-950"
-            >
-              Open Inbox
-            </a>{" "}
-            to connect Gmail, Slack, and Calendar.
-          </li>
-        ) : null}
-        {items.map((it) => (
-          <li
-            key={it.id}
-            className="relative z-0 rounded-xl border border-white/10 bg-white/30 px-3 py-2.5 text-sm transition hover:border-[#00ffc8]/35 hover:shadow-[0_0_12px_rgba(0,255,200,0.08)]"
-          >
-            <div className="font-semibold text-slate-900">{it.subj}</div>
-            <div className="text-xs text-slate-500">{it.from}</div>
-            <p className="mt-1 line-clamp-2 text-slate-600">{it.snippet}</p>
-            <button
-              type="button"
-              onClick={() => openDraft(it)}
-              className="relative z-10 mt-2 w-full cursor-pointer rounded-lg border border-[#00ffc8]/35 bg-[#00ffc8]/15 py-2 text-[10px] font-bold uppercase tracking-wider text-teal-950 shadow-sm transition hover:bg-[#00ffc8]/25 active:scale-[0.99]"
-            >
-              Auto-draft reply
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      {active && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[7000] flex items-end justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:items-center sm:p-6"
-              role="dialog"
-              aria-modal
-              aria-labelledby="unified-feed-draft-title"
-              onClick={(e) => {
-                if (e.target === e.currentTarget) closeDraft();
-              }}
-            >
-              <div
-                className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/15 bg-white shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
-                  <h3
-                    id="unified-feed-draft-title"
-                    className="min-w-0 truncate text-sm font-bold text-slate-900"
-                  >
-                    Draft · {active.subj}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={closeDraft}
-                    className="shrink-0 rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Close
-                  </button>
-                </div>
-                <textarea
-                  className="min-h-[200px] flex-1 resize-none border-0 px-4 py-3 text-sm text-slate-800 outline-none focus:ring-0"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                />
-                <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => void copyDraft()}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 sm:flex-none"
-                  >
-                    {copied ? (
-                      <Check className="h-3.5 w-3.5 text-emerald-600" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                  {onSaveDraftToVault ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSaveDraftToVault({
-                          title: `Draft: ${active.subj}`,
-                          body: draft,
-                          clientId: null,
-                          labels: ["unified-feed", "draft-reply"],
-                        });
-                        closeDraft();
-                      }}
-                      className="flex-1 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800 sm:flex-none"
-                    >
-                      Save to vault
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      <VanodeInboxEmbed />
     </section>
   );
 }
@@ -2185,6 +2060,8 @@ export function InvoicingSuiteCard({
   const [sigDesignation, setSigDesignation] = useState("");
   const [sigImageDataUrl, setSigImageDataUrl] = useState<string | null>(null);
   const [confirmPrintOpen, setConfirmPrintOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareText, setShareText] = useState("");
 
   const visibleInvoices = useMemo(
     () =>
@@ -2209,15 +2086,15 @@ export function InvoicingSuiteCard({
     );
     const overdue = visibleInvoices.filter((i) => i.status === "overdue");
     const earned = paid.reduce(
-      (s, i) => s + i.lineItems.reduce((a, l) => a + l.amount, 0),
+      (s, i) => s + invoiceCurrencyTotal(i.lineItems),
       0,
     );
     const upcomingAmt = upcoming.reduce(
-      (s, i) => s + i.lineItems.reduce((a, l) => a + l.amount, 0),
+      (s, i) => s + invoiceCurrencyTotal(i.lineItems),
       0,
     );
     const overdueAmt = overdue.reduce(
-      (s, i) => s + i.lineItems.reduce((a, l) => a + l.amount, 0),
+      (s, i) => s + invoiceCurrencyTotal(i.lineItems),
       0,
     );
     return { earned, upcomingAmt, overdueAmt, overdueCount: overdue.length };
@@ -2299,6 +2176,15 @@ export function InvoicingSuiteCard({
         sigMode === "upload" && sigImageDataUrl ? sigImageDataUrl : undefined,
       signatureDesignation: sigDesignation.trim() || undefined,
     });
+    const savedForShare = {
+      clientName: cName.trim(),
+      dueDate: due || new Date().toISOString().slice(0, 10),
+      lineItems,
+      businessAgencyName: businessAgencyName.trim() || undefined,
+      ownerFullName: ownerFullName.trim() || undefined,
+    };
+    setShareText(buildInvoiceShareText(savedForShare));
+    setShareOpen(true);
     setOpen(false);
     setPickedEod([]);
     setLineRows([...DEFAULT_MANUAL_INVOICE_LINES]);
@@ -2351,12 +2237,13 @@ export function InvoicingSuiteCard({
   }, [clientName]);
 
   const previewTotal = useMemo(
-    () =>
-      previewLines.reduce((s, l) => {
-        const u = l.unit ?? lineUnitForDescription(l.description);
-        return countsTowardInvoiceTotal(u) ? s + l.amount : s;
-      }, 0),
+    () => invoiceCurrencyTotal(previewLines),
     [previewLines],
+  );
+
+  const shareLinks = useMemo(
+    () => (shareText ? invoiceShareLinks(shareText) : null),
+    [shareText],
   );
 
   const openPrintReview = () => setConfirmPrintOpen(true);
@@ -2449,7 +2336,7 @@ export function InvoicingSuiteCard({
               <div className="font-semibold text-slate-900">{inv.clientName}</div>
               <div className="text-xs text-slate-500">
                 Due {inv.dueDate} ·{" "}
-                {inv.lineItems.reduce((s, l) => s + l.amount, 0).toFixed(2)} USD
+                {invoiceCurrencyTotal(inv.lineItems).toFixed(2)} USD
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -2561,12 +2448,6 @@ export function InvoicingSuiteCard({
                     placeholder="Business / agency name"
                     value={businessAgencyName}
                     onChange={(e) => setBusinessAgencyName(e.target.value)}
-                  />
-                  <input
-                    className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
-                    placeholder="Your full name (owner)"
-                    value={ownerFullName}
-                    onChange={(e) => setOwnerFullName(e.target.value)}
                   />
                   <input
                     className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
@@ -2733,6 +2614,18 @@ export function InvoicingSuiteCard({
               )}
 
               <div className="mt-4 rounded-xl border border-white/10 bg-slate-900/30 p-3">
+                <label className="block text-xs font-medium text-slate-300">
+                  Billed by
+                  <input
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                    placeholder="Your name"
+                    value={ownerFullName}
+                    onChange={(e) => setOwnerFullName(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-white/10 bg-slate-900/30 p-3">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                   Signature
                 </div>
@@ -2830,10 +2723,7 @@ export function InvoicingSuiteCard({
                 id={confirmPrintOpen ? undefined : "printable-invoice"}
                 className="invoice-preview-card flex h-full flex-col rounded-2xl border border-teal-200/60 bg-white p-6 shadow-inner"
               >
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-700">
-                  Preview
-                </p>
-                <h4 className="mt-2 font-[family-name:var(--font-outfit)] text-2xl font-bold text-slate-900">
+                <h4 className="font-[family-name:var(--font-outfit)] text-2xl font-bold text-slate-900">
                   Invoice
                 </h4>
                 {businessAgencyName.trim() ? (
@@ -2841,16 +2731,24 @@ export function InvoicingSuiteCard({
                     {businessAgencyName.trim()}
                   </p>
                 ) : null}
-                {ownerFullName.trim() ? (
-                  <p className="text-sm text-slate-600">{ownerFullName.trim()}</p>
-                ) : null}
-                <p className="mt-1 text-sm text-slate-600">
-                  <strong>Bill to:</strong> {previewClientLabel}
-                </p>
-                <p className="text-sm text-slate-600">
-                  <strong>Due:</strong>{" "}
-                  {due || new Date().toISOString().slice(0, 10)}
-                </p>
+                <div className="mt-3 flex justify-between gap-4 text-sm text-slate-600">
+                  <div>
+                    <p>
+                      <strong>Bill to:</strong> {previewClientLabel}
+                    </p>
+                    <p>
+                      <strong>Due:</strong>{" "}
+                      {due || new Date().toISOString().slice(0, 10)}
+                    </p>
+                  </div>
+                  {ownerFullName.trim() ? (
+                    <div className="text-right">
+                      <p>
+                        <strong>Billed by:</strong> {ownerFullName.trim()}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
                 <table className="mt-6 w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -2932,10 +2830,7 @@ export function InvoicingSuiteCard({
               id="printable-invoice"
               className="invoice-preview-card flex flex-col rounded-2xl border border-teal-200/60 bg-white p-6 shadow-inner"
             >
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-700">
-                Preview
-              </p>
-              <h4 className="mt-2 font-[family-name:var(--font-outfit)] text-2xl font-bold text-slate-900">
+              <h4 className="font-[family-name:var(--font-outfit)] text-2xl font-bold text-slate-900">
                 Invoice
               </h4>
               {businessAgencyName.trim() ? (
@@ -2943,16 +2838,24 @@ export function InvoicingSuiteCard({
                   {businessAgencyName.trim()}
                 </p>
               ) : null}
-              {ownerFullName.trim() ? (
-                <p className="text-sm text-slate-600">{ownerFullName.trim()}</p>
-              ) : null}
-              <p className="mt-1 text-sm text-slate-600">
-                <strong>Bill to:</strong> {previewClientLabel}
-              </p>
-              <p className="text-sm text-slate-600">
-                <strong>Due:</strong>{" "}
-                {due || new Date().toISOString().slice(0, 10)}
-              </p>
+              <div className="mt-3 flex justify-between gap-4 text-sm text-slate-600">
+                <div>
+                  <p>
+                    <strong>Bill to:</strong> {previewClientLabel}
+                  </p>
+                  <p>
+                    <strong>Due:</strong>{" "}
+                    {due || new Date().toISOString().slice(0, 10)}
+                  </p>
+                </div>
+                {ownerFullName.trim() ? (
+                  <div className="text-right">
+                    <p>
+                      <strong>Billed by:</strong> {ownerFullName.trim()}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
               <table className="mt-6 w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -3028,6 +2931,52 @@ export function InvoicingSuiteCard({
                 Confirm &amp; print
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {shareOpen && shareLinks ? (
+        <div className="fixed inset-0 z-[450] flex items-center justify-center bg-black/55 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-white p-6 shadow-2xl">
+            <h3 className="text-sm font-bold text-slate-900">Invoice saved locally</h3>
+            <p className="mt-1 text-xs text-slate-600">
+              Share the summary with your client via email, WhatsApp, or Messenger.
+            </p>
+            <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+              {shareText}
+            </pre>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a
+                href={shareLinks.email}
+                className="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800 sm:flex-none"
+              >
+                Email
+              </a>
+              <a
+                href={shareLinks.whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex flex-1 items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100 sm:flex-none"
+              >
+                WhatsApp
+              </a>
+              <a
+                href={shareLinks.messenger}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex flex-1 items-center justify-center rounded-xl border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs font-bold text-sky-900 hover:bg-sky-100 sm:flex-none"
+              >
+                Messenger
+              </a>
+              <CopyTextButton text={shareText} label="Copy summary" />
+            </div>
+            <button
+              type="button"
+              className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() => setShareOpen(false)}
+            >
+              Done
+            </button>
           </div>
         </div>
       ) : null}
