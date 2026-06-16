@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   AlertTriangle,
   Camera,
@@ -52,7 +53,8 @@ import {
 import KitchenRecipeTabBar from "@/src/components/home-kitchen/KitchenRecipeTabBar";
 import KitchenScanModal from "@/src/components/home-kitchen/KitchenScanModal";
 import KitchenVaultToast from "@/src/components/home-kitchen/KitchenVaultToast";
-import { appendRecipeToVault, RECIPE_VAULT_KEY } from "@/src/lib/recipeVaultStorage";
+import { appendRecipeToVault, readRecipeVault, RECIPE_VAULT_KEY } from "@/src/lib/recipeVaultStorage";
+import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
 import { FLARE_MODE_CHANGED, readFlareMode } from "@/src/lib/flareModeBridge";
 import {
   KITCHEN_BTN_GLASS,
@@ -64,11 +66,9 @@ import {
 const FLARE_HEALING_RE =
   /salmon|greens|spinach|yogurt|berry|soup|ginger|turmeric|anti.?inflam|healing|light|bowl/i;
 
-function readVaultRecipesForSuggestions() {
+function readVaultRecipesForSuggestions(storageKey = RECIPE_VAULT_KEY) {
   try {
-    const raw = window.localStorage.getItem("lifenode.homenode.recipe-vault.v1");
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
+    const parsed = readRecipeVault(storageKey);
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((row) => typeof row?.title === "string" && row.title.trim())
@@ -569,6 +569,16 @@ function KitchenRecipeFocusModal({
 }
 
 export default function KitchenDashboard({ items, enabledStorage, onReset, onItemsChange }) {
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
+  const recipeVaultKey = useMemo(
+    () =>
+      userId
+        ? userScopedStorageKey(RECIPE_VAULT_KEY, userId)
+        : RECIPE_VAULT_KEY,
+    [userId],
+  );
+
   const [activeStorage, setActiveStorage] = useState(enabledStorage[0] || "refrigerator");
   const [focus, setFocus] = useState(null);
   const [pantryRows, setPantryRows] = useState([]);
@@ -607,9 +617,9 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
   useEffect(() => {
     setPantryRows(readLabelList(PANTRY_KEY));
     setMealPlanRows(readLabelList(MEAL_PLAN_KEY));
-    setVaultRecipeCount(readVaultRecipesForSuggestions().length);
+    setVaultRecipeCount(readVaultRecipesForSuggestions(recipeVaultKey).length);
     setLabelListsReady(true);
-  }, []);
+  }, [recipeVaultKey]);
 
   useEffect(() => {
     if (!mealPlanShowAi) {
@@ -753,7 +763,7 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
   }, [items]);
 
   const recipeCatalog = useMemo(() => {
-    const vault = readVaultRecipesForSuggestions();
+    const vault = readVaultRecipesForSuggestions(recipeVaultKey);
     const seen = new Set();
     const merged = [];
     for (const recipe of [...vault, ...DEMO_RECIPES]) {
@@ -763,7 +773,7 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
       merged.push(recipe);
     }
     return merged;
-  }, [vaultRecipeCount]);
+  }, [vaultRecipeCount, recipeVaultKey]);
 
   const intelligence = useMemo(() => buildIntelligence(items, recipeCatalog), [items, recipeCatalog]);
   const lowStock = useMemo(() => lowStockItems(items), [items]);
@@ -1004,14 +1014,14 @@ export default function KitchenDashboard({ items, enabledStorage, onReset, onIte
     if (!tab?.recipe?.title) return;
     const entry = buildVaultEntryFromKitchenRecipe(tab.recipe, tab.imageDataUrl);
     if (!entry) return;
-    appendRecipeToVault(entry);
-    setVaultRecipeCount(readVaultRecipesForSuggestions().length);
+    appendRecipeToVault(entry, recipeVaultKey);
+    setVaultRecipeCount(readVaultRecipesForSuggestions(recipeVaultKey).length);
     setKitchenRecipeTabs((tabs) =>
       tabs.map((t) => (t.id === tab.id ? { ...t, vaultSaved: true } : t)),
     );
     setKitchenVaultToast("Recipe Saved Successfully");
     window.setTimeout(() => setKitchenVaultToast(null), 4200);
-  }, [activeKitchenTab]);
+  }, [activeKitchenTab, recipeVaultKey]);
 
   function handleIntelligenceAction(msg) {
     const kind = msg.actionKind;

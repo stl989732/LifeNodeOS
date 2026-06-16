@@ -10,8 +10,12 @@ import {
 import {
   NODE_WIDGET_KEYS,
   hydrateWidgetsFromServer,
+  readLocalWidgetUpdatedAt,
   scheduleNodeWidgetSave,
+  touchLocalWidgetUpdatedAt,
 } from "@/src/lib/nodeWidgetSync";
+import { CLOUD_SYNC_COMPLETE_EVENT } from "@/src/lib/crossDeviceSync";
+import { WIDGET_LOCAL_STORAGE_BRIDGES } from "@/src/lib/widgetLocalStorageBridge";
 import DualRailCommandCenter from "@/src/components/shell/DualRailCommandCenter";
 import { useLnFeatureParam } from "@/src/hooks/useLnFeatureParam";
 import AppCategoryRequestFooter from "@/src/components/AppCategoryRequestFooter";
@@ -46,7 +50,7 @@ import HomeCommandDeckPreview, {
   formatScheduleTime,
 } from "@/src/components/home/HomeCommandDeckPreview";
 import DateTimeField from "@/src/components/ui/DateTimeField";
-import { appendRecipeToVault, RECIPE_VAULT_KEY } from "@/src/lib/recipeVaultStorage";
+import { RECIPE_VAULT_KEY } from "@/src/lib/recipeVaultStorage";
 import {
   clearFlareTaskFlags,
   deactivateFlareMode,
@@ -284,6 +288,7 @@ export default function HomeNode() {
   const [showMoreApps, setShowMoreApps] = useState(false);
   const [loginPromptApp, setLoginPromptApp] = useState("");
   const [nativeGroceryList, setNativeGroceryList] = useState([]);
+  const [groceryDraft, setGroceryDraft] = useState("");
   const [savedNotes, setSavedNotes] = useState([]);
   const [noteLabel, setNoteLabel] = useState("General");
   const [noteColor, setNoteColor] = useState("#84A59D");
@@ -402,7 +407,19 @@ export default function HomeNode() {
       const saved = readScopedLocalStorage(scopedKeys.setup);
       const savedNotes = readScopedLocalStorage(scopedKeys.notes);
       const savedNotesList = readScopedLocalStorage(scopedKeys.savedNotes);
-      const rawVault = readScopedLocalStorage(scopedKeys.recipeVault);
+      let rawVault = readScopedLocalStorage(scopedKeys.recipeVault);
+      if (!rawVault && typeof window !== "undefined") {
+        const legacyVault = window.localStorage.getItem(RECIPE_VAULT_KEY);
+        if (legacyVault) {
+          rawVault = legacyVault;
+          try {
+            window.localStorage.setItem(scopedKeys.recipeVault, legacyVault);
+            window.localStorage.removeItem(RECIPE_VAULT_KEY);
+          } catch {
+            /* quota */
+          }
+        }
+      }
       const rawBudget = readScopedLocalStorage(scopedKeys.budget);
       const rawChores = readScopedLocalStorage(scopedKeys.chores);
       const rawPrep = readScopedLocalStorage(scopedKeys.prep);
@@ -543,9 +560,19 @@ export default function HomeNode() {
           [NODE_WIDGET_KEYS.home.nativeGrocery]: g,
         };
 
+        const localUpdatedAtByKey = {};
+        for (const key of Object.values(NODE_WIDGET_KEYS.home)) {
+          const bridge = WIDGET_LOCAL_STORAGE_BRIDGES[key];
+          const storageKey = bridge?.storageKey?.(userId);
+          if (storageKey) {
+            localUpdatedAtByKey[key] = readLocalWidgetUpdatedAt(storageKey);
+          }
+        }
+
         const merged = await hydrateWidgetsFromServer(
           Object.values(NODE_WIDGET_KEYS.home),
           localPayload,
+          localUpdatedAtByKey,
         );
         if (cancelled) return;
 
@@ -596,6 +623,26 @@ export default function HomeNode() {
       cancelled = true;
     };
   }, [userId, scopedKeys]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const onCloudSync = () => {
+      try {
+        const raw = readScopedLocalStorage(scopedKeys.recipeVault);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          setRecipeVault(parsed);
+        }
+        const grocery = readNativeGroceryList(scopedKeys.nativeGrocery);
+        if (grocery.length) setNativeGroceryList(grocery);
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener(CLOUD_SYNC_COMPLETE_EVENT, onCloudSync);
+    return () => window.removeEventListener(CLOUD_SYNC_COMPLETE_EVENT, onCloudSync);
+  }, [userId, scopedKeys.recipeVault, scopedKeys.nativeGrocery]);
 
   useEffect(() => {
     if (!userId) return;
@@ -678,13 +725,15 @@ export default function HomeNode() {
   useEffect(() => {
     if (!userId) return;
     writeNativeGroceryList(nativeGroceryList, scopedKeys.nativeGrocery);
+    touchLocalWidgetUpdatedAt(scopedKeys.nativeGrocery);
     scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.nativeGrocery, nativeGroceryList);
   }, [nativeGroceryList, userId, scopedKeys.nativeGrocery]);
 
   useEffect(() => {
+    if (!userId) return;
     function syncGroceryFromStore() {
       setNativeGroceryList((prev) => {
-        const next = readNativeGroceryList();
+        const next = readNativeGroceryList(scopedKeys.nativeGrocery);
         if (
           prev.length === next.length &&
           prev.every((v, i) => v === next[i])
@@ -696,14 +745,14 @@ export default function HomeNode() {
     }
     window.addEventListener(NATIVE_GROCERY_CHANGED, syncGroceryFromStore);
     function onStorage(e) {
-      if (e.key === NATIVE_GROCERY_STORAGE_KEY) syncGroceryFromStore();
+      if (e.key === scopedKeys.nativeGrocery) syncGroceryFromStore();
     }
     window.addEventListener("storage", onStorage);
     return () => {
       window.removeEventListener(NATIVE_GROCERY_CHANGED, syncGroceryFromStore);
       window.removeEventListener("storage", onStorage);
     };
-  }, []);
+  }, [userId, scopedKeys.nativeGrocery]);
 
   useEffect(() => {
     if (!isInitialized || recipeVault.length > 0 || chefTipFetchedRef.current) return;
@@ -750,6 +799,7 @@ export default function HomeNode() {
     if (!userId) return;
     const payload = { currency: budgetCurrency, rows: budgetRows };
     window.localStorage.setItem(scopedKeys.budget, JSON.stringify(payload));
+    touchLocalWidgetUpdatedAt(scopedKeys.budget);
     scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.budget, payload);
   }, [budgetRows, budgetCurrency, userId, scopedKeys.budget]);
 
@@ -762,6 +812,7 @@ export default function HomeNode() {
   useEffect(() => {
     if (!userId) return;
     window.localStorage.setItem(scopedKeys.recipeVault, JSON.stringify(recipeVault));
+    touchLocalWidgetUpdatedAt(scopedKeys.recipeVault);
     scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.recipeVault, recipeVault);
   }, [recipeVault, userId, scopedKeys.recipeVault]);
 
@@ -1688,8 +1739,8 @@ export default function HomeNode() {
       caloriesPerServing: cals,
       createdAt: new Date().toISOString(),
     };
-    const nextVault = appendRecipeToVault(entry);
-    if (nextVault) setRecipeVault(nextVault);
+    const nextVault = [entry, ...recipeVault];
+    setRecipeVault(nextVault);
     setKitchenRecipeTabs((tabs) =>
       tabs.map((t) => (t.id === tab.id ? { ...t, vaultSaved: true } : t)),
     );
@@ -2003,13 +2054,32 @@ export default function HomeNode() {
     const item = value?.trim();
     if (!item) return;
     if (target === "grocery") {
-      setNativeGroceryList((prev) => [...prev, item]);
+      setNativeGroceryList((prev) => {
+        const lower = item.toLowerCase();
+        if (prev.some((x) => x.trim().toLowerCase() === lower)) return prev;
+        return [...prev, item];
+      });
       return;
     }
     setActivityPrepItems((prev) => [
       ...prev,
       { ...createEmptyActivityPrepRow(), title: item },
     ]);
+  }
+
+  function addGroceryDraftItem() {
+    const item = groceryDraft.trim();
+    if (!item) return;
+    setNativeGroceryList((prev) => {
+      const lower = item.toLowerCase();
+      if (prev.some((x) => x.trim().toLowerCase() === lower)) return prev;
+      return [...prev, item];
+    });
+    setGroceryDraft("");
+  }
+
+  function removeGroceryItem(label) {
+    setNativeGroceryList((prev) => prev.filter((x) => x !== label));
   }
 
   return (
@@ -2329,27 +2399,58 @@ export default function HomeNode() {
                 <ShoppingCart size={18} className={KITCHEN_TEXT.icon} /> Smart Cart
               </h2>
               <div className={KITCHEN_INNER_PANEL}>
-                <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                   <p className="text-xs uppercase tracking-widest text-slate-400">Source</p>
+                  <p className="text-sm font-semibold text-[#1E293B]">{smartCartSource}</p>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={groceryDraft}
+                    onChange={(e) => setGroceryDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addGroceryDraftItem();
+                      }
+                    }}
+                    placeholder="Add grocery item…"
+                    className="min-w-[10rem] flex-1 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm text-[#1E293B] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                    aria-label="Grocery item name"
+                  />
                   <button
-                    onClick={() => handleAddListItem("grocery")}
-                    className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[#1E293B]"
+                    type="button"
+                    onClick={addGroceryDraftItem}
+                    className="inline-flex items-center gap-1 rounded-lg bg-[#84A59D] px-3 py-2 text-xs font-semibold text-white hover:bg-[#6d8f88]"
                   >
-                    Add list
+                    <Plus size={14} />
+                    Add item
                   </button>
                 </div>
-                <p className="text-sm font-semibold text-[#1E293B]">{smartCartSource}</p>
-                {useNativeTools ? (
+                {nativeGroceryList.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {nativeGroceryList.map((item) => (
-                      <span key={item} className="text-xs px-2 py-1 rounded-full bg-slate-100 text-[#1E293B]">
+                      <span
+                        key={item}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-100 text-[#1E293B]"
+                      >
                         {item}
+                        <button
+                          type="button"
+                          onClick={() => removeGroceryItem(item)}
+                          className="rounded-full p-0.5 text-slate-400 hover:text-red-600"
+                          aria-label={`Remove ${item}`}
+                        >
+                          <X size={12} />
+                        </button>
                       </span>
                     ))}
                   </div>
                 ) : (
                   <p className="text-xs text-[#475569] mt-2">
-                    Connected apps can auto-populate grocery actions.
+                    {useNativeTools
+                      ? "Your list syncs across web and mobile when signed in."
+                      : "Add items here, or connect a grocery app to auto-populate."}
                   </p>
                 )}
               </div>
@@ -2549,15 +2650,17 @@ export default function HomeNode() {
 
                     {homeDeck.budget ? (
             <section className="glass-card p-6 lg:col-span-6">
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
+                <div className="flex items-center gap-2 shrink-0 min-w-0">
                   <Calculator size={16} className={KITCHEN_TEXT.icon} />
-                  <h2 className={`font-semibold ${KITCHEN_TEXT.title}`}>Monthly Budget Tracker</h2>
+                  <h2 className={`font-semibold whitespace-nowrap ${KITCHEN_TEXT.title}`}>
+                    Monthly Budget Tracker
+                  </h2>
                 </div>
                 <select
                   value={budgetCurrency}
                   onChange={(e) => setBudgetCurrency(e.target.value)}
-                  className="mx-auto min-w-[10rem] rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-[#475569] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                  className="min-w-[9rem] rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-[#475569] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
                   aria-label="Budget currency"
                 >
                   {BUDGET_CURRENCIES.map((c) => (
@@ -2566,33 +2669,33 @@ export default function HomeNode() {
                     </option>
                   ))}
                 </select>
-                <div className="flex flex-wrap items-center gap-2 ml-auto">
-                  <button
-                    type="button"
-                    onClick={addBudgetCategory}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#84A59D]/15 hover:bg-[#84A59D]/25 text-[#3F5E58] text-xs font-semibold px-3 py-1.5"
-                  >
-                    <Plus size={14} />
-                    Add Category
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBudgetCollapsed((v) => !v)}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-100 text-[#475569] hover:bg-[#84A59D]/20 hover:text-[#3F5E58] transition-colors"
-                  >
-                    Focus {budgetCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={addBudgetCategory}
+                  className="inline-flex items-center gap-1 rounded-full bg-[#84A59D]/15 hover:bg-[#84A59D]/25 text-[#3F5E58] text-xs font-semibold px-3 py-1.5"
+                >
+                  <Plus size={14} />
+                  Add Category
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBudgetCollapsed((v) => !v)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-100 text-[#475569] hover:bg-[#84A59D]/20 hover:text-[#3F5E58] transition-colors ml-auto"
+                >
+                  Focus {budgetCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                </button>
               </div>
               {budgetCollapsed ? (
-                <div className="rounded-[20px] bg-white/40 backdrop-blur-xl border border-white/60 px-4 py-6 text-center shadow-inner">
-                  <p className="text-lg font-semibold text-[#1E293B]">
-                    Total Remaining:{" "}
-                    <span className="text-[#3F5E58]">
-                      {formatBudgetAmount(totalBudgetRemaining(), budgetCurrency)}
-                    </span>
-                  </p>
-                </div>
+                <p className="text-sm font-medium text-[#1E293B] tracking-tight rounded-[20px] bg-white/40 backdrop-blur-xl border border-white/60 px-4 py-4 text-center shadow-inner">
+                  Total Remaining:{" "}
+                  <span className="text-[#3F5E58] font-semibold">
+                    {formatBudgetAmount(totalBudgetRemaining(), budgetCurrency)}
+                  </span>
+                  <span className="mx-2 text-slate-300">·</span>
+                  <span className="text-[#475569]">
+                    Keep spending visible — rebalance categories before week-end surprises.
+                  </span>
+                </p>
               ) : (
                 <>
                   <div className="space-y-2 mb-4">
@@ -3297,9 +3400,15 @@ export default function HomeNode() {
                 }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <Sparkles size={16} className={KITCHEN_TEXT.icon} />
                     <h2 className={`font-semibold ${KITCHEN_TEXT.title}`}>Recipe Vault</h2>
+                    {vaultCollapsed ? (
+                      <span className="text-sm text-[#475569]">
+                        · {recipeVault.length} saved recipe
+                        {recipeVault.length === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -3309,11 +3418,7 @@ export default function HomeNode() {
                     Focus {vaultCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                   </button>
                 </div>
-                {vaultCollapsed ? (
-                  <p className="text-sm text-[#475569] text-center py-6 rounded-[20px] bg-white/35 backdrop-blur-md border border-white/50">
-                    {recipeVault.length} saved recipe{recipeVault.length === 1 ? "" : "s"}
-                  </p>
-                ) : (
+                {vaultCollapsed ? null : (
                   <>
                     <div className="flex flex-wrap gap-1.5 mb-3">
                       {["All", ...RECIPE_CATEGORIES].map((cat) => (

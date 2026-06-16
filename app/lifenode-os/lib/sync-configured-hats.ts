@@ -1,6 +1,39 @@
 import { isShellHatKey, type ShellHatKey } from "@/lib/node-mappings";
+import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
 
 export const PENDING_SHELL_HATS_KEY = "lifenode_pending_shell_hats";
+
+const CONFIGURED_HATS_BACKUP_BASE = "lifenode.configured-hats.backup.v1";
+
+export function saveConfiguredHatsBackup(
+  userId: string,
+  hats: ShellHatKey[],
+): void {
+  if (typeof window === "undefined" || !userId.trim() || !hats.length) return;
+  try {
+    window.localStorage.setItem(
+      userScopedStorageKey(CONFIGURED_HATS_BACKUP_BASE, userId.trim()),
+      JSON.stringify(hats),
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function readConfiguredHatsBackup(userId: string): ShellHatKey[] {
+  if (typeof window === "undefined" || !userId.trim()) return [];
+  try {
+    const raw = window.localStorage.getItem(
+      userScopedStorageKey(CONFIGURED_HATS_BACKUP_BASE, userId.trim()),
+    );
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isShellHatKey);
+  } catch {
+    return [];
+  }
+}
 
 /** Persist landing-quiz hat picks until they are saved to user state. */
 export function savePendingShellHats(hats: string[]): void {
@@ -86,7 +119,9 @@ export async function persistConfiguredHatsToApi(
 }
 
 /** Load hats from API, fall back to pending local picks, and flush pending when possible. */
-export async function hydrateConfiguredHatKeys(): Promise<ShellHatKey[]> {
+export async function hydrateConfiguredHatKeys(
+  userId?: string,
+): Promise<ShellHatKey[]> {
   let serverHats: ShellHatKey[] = [];
   try {
     const res = await fetch("/api/user-state", {
@@ -104,7 +139,16 @@ export async function hydrateConfiguredHatKeys(): Promise<ShellHatKey[]> {
   }
 
   const pending = readPendingShellHats();
-  const merged = mergeConfiguredHatKeys(serverHats, pending);
+  const backup =
+    userId?.trim() ? readConfiguredHatsBackup(userId.trim()) : [];
+  const merged = mergeConfiguredHatKeys(
+    mergeConfiguredHatKeys(serverHats, pending),
+    backup,
+  );
+
+  if (merged.length && userId?.trim()) {
+    saveConfiguredHatsBackup(userId.trim(), merged);
+  }
 
   if (merged.length && (pending.length || serverHats.length === 0)) {
     void persistConfiguredHatsToApi(merged);

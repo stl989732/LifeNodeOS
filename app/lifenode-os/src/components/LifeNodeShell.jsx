@@ -178,12 +178,14 @@ export default function LifeNodeShell() {
 
     (async () => {
       try {
-        const hats = (await hydrateConfiguredHatKeys()).filter((h) =>
+        const userId = session?.user?.id?.trim();
+        const hats = (await hydrateConfiguredHatKeys(userId)).filter((h) =>
           HAT_KEYS.includes(h),
         );
         if (cancelled) return;
 
         let displayName = sessionFallbackName;
+        let lastActiveNode = null;
         try {
           const res = await fetch("/api/user-state", {
             cache: "no-store",
@@ -194,6 +196,12 @@ export default function LifeNodeShell() {
             displayName =
               (typeof state?.displayName === "string" && state.displayName) ||
               sessionFallbackName;
+            if (
+              typeof state?.lastActiveNode === "string" &&
+              Object.values(HAT_TO_NODE).includes(state.lastActiveNode)
+            ) {
+              lastActiveNode = state.lastActiveNode;
+            }
           }
         } catch {
           /* offline */
@@ -202,9 +210,21 @@ export default function LifeNodeShell() {
         setDisplayName(displayName);
         if (hats.length) {
           setSelectedHats(hats);
-          setSwitchHat(hats[0]);
+          const activeNodes = hats
+            .map((h) => HAT_TO_NODE[h])
+            .filter(Boolean);
+          const preferred =
+            lastActiveNode && activeNodes.includes(lastActiveNode)
+              ? Object.entries(HAT_TO_NODE).find(
+                  ([, node]) => node === lastActiveNode,
+                )?.[0]
+              : hats[0];
+          setSwitchHat(preferred ?? hats[0]);
           setConfiguredHatsFromShellKeys(hats);
           setPersistedHats(hats);
+          if (lastActiveNode && activeNodes.includes(lastActiveNode)) {
+            setActiveNode(lastActiveNode);
+          }
         } else {
           setPersistedHats([]);
           setConfiguredHatsFromShellKeys([]);

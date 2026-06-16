@@ -58,7 +58,7 @@ export default function SessionPersistenceBootstrap({ children }: Props) {
       if (cancelled) return;
 
       ranForUser.current = canonicalUserId;
-      await hydrateConfiguredHatKeys();
+      await hydrateConfiguredHatKeys(canonicalUserId);
       if (!cancelled) setSyncReady(true);
     })();
 

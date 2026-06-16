@@ -14,8 +14,10 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
 import {
+  clearPendingShellHats,
   hydrateConfiguredHatKeys,
   notifyConfiguredHatsUpdated,
+  saveConfiguredHatsBackup,
   savePendingShellHats,
 } from "@/lib/sync-configured-hats";
 import type { ShellHatKey } from "@/lib/node-mappings";
@@ -701,16 +703,20 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ configuredHats: shellKeys }),
         });
         if (res.ok) {
-          savePendingShellHats(shellKeys as ShellHatKey[]);
+          clearPendingShellHats();
+          if (session?.user?.id) {
+            saveConfiguredHatsBackup(session.user.id, shellKeys as ShellHatKey[]);
+          }
           notifyConfiguredHatsUpdated(shellKeys as ShellHatKey[]);
         } else {
+          savePendingShellHats(shellKeys as ShellHatKey[]);
           console.error("[LifeNodeContext] hat save failed:", res.status);
         }
       } catch {
         /* offline / guest */
       }
     })();
-  }, []);
+  }, [session?.user?.id]);
 
   const updateConfiguredHats = useCallback(
     (nodes: ActiveNode[]) => {
@@ -767,8 +773,10 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
 
+    if (status === "loading") return;
+
     if (status !== "authenticated" || !session?.user?.id) {
-      setConfiguredHats([]);
+      if (status === "unauthenticated") setConfiguredHats([]);
       return;
     }
 
@@ -794,7 +802,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     window.addEventListener("lifenode:session:cleared", onSessionCleared);
 
     void (async () => {
-      const hats = await hydrateConfiguredHatKeys();
+      const hats = await hydrateConfiguredHatKeys(session.user.id);
       applyHats(hats);
     })();
 
@@ -804,6 +812,41 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("lifenode:session:cleared", onSessionCleared);
     };
   }, [status, session?.user?.id, setConfiguredHatsFromShellKeys]);
+
+  /** Restore last-open node after sign-in when it is still in the user's hat set. */
+  useEffect(() => {
+    if (DEV_FRESH_SESSION || status !== "authenticated" || !session?.user?.id) {
+      return;
+    }
+    if (!configuredHats.length) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/user-state", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          state?: { lastActiveNode?: string | null };
+        };
+        const last = data.state?.lastActiveNode;
+        if (
+          typeof last === "string" &&
+          configuredHats.includes(last as ActiveNode)
+        ) {
+          setActiveNode(last as ActiveNode);
+        }
+      } catch {
+        /* offline */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [status, session?.user?.id, configuredHats]);
 
   /** Linos Alerts fire only after the user finished onboarding for every enabled hat. */
   useEffect(() => {

@@ -2,20 +2,45 @@
 export const RECIPE_VAULT_KEY = "lifenode.homenode.recipe-vault.v1";
 
 /**
+ * @param {string} [storageKey]
+ * @returns {object[]}
+ */
+export function readRecipeVault(storageKey = RECIPE_VAULT_KEY) {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * @param {object[]} items
+ * @param {string} [storageKey]
+ */
+export function writeRecipeVault(items, storageKey = RECIPE_VAULT_KEY) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(items));
+  } catch {
+    /* quota */
+  }
+}
+
+/**
  * @param {object} entry — same shape HomeNode uses (id, title, instructions, ingredients, steps, category, imageUrl, caloriesPerServing, createdAt)
+ * @param {string} [storageKey] — pass user-scoped key from HomeNode / Kitchen
  * @returns {object[]|null} New vault array written to storage, or null on failure.
  */
-export function appendRecipeToVault(entry) {
+export function appendRecipeToVault(entry, storageKey = RECIPE_VAULT_KEY) {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(RECIPE_VAULT_KEY);
-    let prev = [];
-    if (raw) {
-      const p = JSON.parse(raw);
-      if (Array.isArray(p)) prev = p;
-    }
+    const prev = readRecipeVault(storageKey);
     const next = [entry, ...prev];
-    window.localStorage.setItem(RECIPE_VAULT_KEY, JSON.stringify(next));
+    writeRecipeVault(next, storageKey);
     return next;
   } catch {
     return null;

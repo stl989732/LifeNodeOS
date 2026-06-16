@@ -20,7 +20,11 @@ import {
 import { useActiveClient } from "./ActiveClientContext";
 import { useLiveCapture } from "./LiveCaptureContext";
 import { isTranscribableMeetingUrl } from "@/lib/vanode/meetingUrls";
-import { countOverlapHours, overlapWorkHourFlags } from "@/lib/vanode/time-bridge";
+import {
+  DEFAULT_WORK_END,
+  DEFAULT_WORK_START,
+  overlapFlagsWithSchedule,
+} from "@/lib/vanode/clientWorkHours";
 import { userTimezone } from "@/lib/vanode/outsource";
 import { toTitleCase } from "@/lib/vanode/title-case";
 import { CopyTextButton } from "./CopyTextButton";
@@ -493,16 +497,37 @@ export function ClientRoiCard({ metrics, onPatchMetrics }: RoiProps) {
   );
 }
 
-export function TimezoneBridgeCard({ client }: { client: ClientProfile | null }) {
+export function TimezoneBridgeCard({
+  clients,
+  selectedClientId,
+  onSelectClientId,
+}: {
+  clients: ClientProfile[];
+  selectedClientId: string | null;
+  onSelectClientId: (id: string) => void;
+}) {
   const vaTz = userTimezone();
+  const client =
+    clients.find((c) => c.id === selectedClientId) ?? clients[0] ?? null;
   const clientTz = client?.timezone ?? "America/New_York";
-  const overlap = useMemo(
-    () => countOverlapHours(vaTz, clientTz),
-    [vaTz, clientTz],
-  );
+  const clientStart = client?.workStart ?? DEFAULT_WORK_START;
+  const clientEnd = client?.workEnd ?? DEFAULT_WORK_END;
+
   const hourFlags = useMemo(
-    () => overlapWorkHourFlags(vaTz, clientTz),
-    [vaTz, clientTz],
+    () =>
+      overlapFlagsWithSchedule(
+        vaTz,
+        clientTz,
+        DEFAULT_WORK_START,
+        DEFAULT_WORK_END,
+        clientStart,
+        clientEnd,
+      ),
+    [vaTz, clientTz, clientStart, clientEnd],
+  );
+  const overlap = useMemo(
+    () => hourFlags.filter(Boolean).length,
+    [hourFlags],
   );
 
   return (
@@ -512,8 +537,26 @@ export function TimezoneBridgeCard({ client }: { client: ClientProfile | null })
         {toTitleCase("Timezone bridge")}
       </h2>
       <p className="mb-3 text-xs text-slate-600">
-        Next 24h — teal blocks are recommended work overlap (9–17 local each).
+        Next 24h — teal blocks are overlap when you and the selected client are
+        both in local work hours.
       </p>
+      {clients.length > 1 ? (
+        <label className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-slate-500 shrink-0">Compare with</span>
+          <select
+            value={client?.id ?? ""}
+            onChange={(e) => onSelectClientId(e.target.value)}
+            className="min-w-[12rem] flex-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm font-medium text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+            aria-label="Select client for timezone comparison"
+          >
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <div className="grid gap-2 text-sm">
         <div className="flex justify-between rounded-xl bg-white/60 px-3 py-2">
           <span className="text-slate-500">You (VA)</span>
@@ -521,8 +564,9 @@ export function TimezoneBridgeCard({ client }: { client: ClientProfile | null })
         </div>
         <div className="flex justify-between rounded-xl bg-teal-50/60 px-3 py-2">
           <span className="text-teal-900/80">Client</span>
-          <span className="font-mono font-semibold text-slate-900">
-            {client?.name ?? "Pick a client"} · {clientTz}
+          <span className="font-mono text-right font-semibold text-slate-900">
+            {client?.name ?? "Add a client"} · {clientTz}
+            {client ? ` · ${clientStart}–${clientEnd}` : ""}
           </span>
         </div>
         <div

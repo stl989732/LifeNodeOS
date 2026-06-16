@@ -248,10 +248,22 @@ export function VANodeDashboard() {
   }, [store.data.eodLogs, proofClientId]);
 
   const nt = store.data.nativeTools;
-  const bridgeClient =
-    store.data.clients.find((c) => c.id === store.data.activeClientId) ??
-    store.data.clients[0] ??
-    null;
+  const [bridgeClientId, setBridgeClientId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fallback =
+      store.data.activeClientId ?? store.data.clients[0]?.id ?? null;
+    if (!fallback) {
+      setBridgeClientId(null);
+      return;
+    }
+    setBridgeClientId((current) => {
+      if (current && store.data.clients.some((c) => c.id === current)) {
+        return current;
+      }
+      return fallback;
+    });
+  }, [store.data.activeClientId, store.data.clients]);
 
   const featureNav = useMemo((): ShellFeatureItem[] => {
     const items: ShellFeatureItem[] = [
@@ -441,7 +453,11 @@ export function VANodeDashboard() {
           )}
 
           <VaFocusShell title="Timezone bridge">
-            <TimezoneBridgeCard client={bridgeClient} />
+            <TimezoneBridgeCard
+              clients={store.data.clients}
+              selectedClientId={bridgeClientId}
+              onSelectClientId={setBridgeClientId}
+            />
           </VaFocusShell>
 
           <VaFocusShell title="Unified feed">
@@ -584,7 +600,11 @@ export function VANodeDashboard() {
               Enable the chaos calculator in discovery to unlock this card.
             </p>
           )}
-          <TimezoneBridgeCard client={bridgeClient} />
+          <TimezoneBridgeCard
+            clients={store.data.clients}
+            selectedClientId={bridgeClientId}
+            onSelectClientId={setBridgeClientId}
+          />
         </div>
       </div>
     ) : activeStage === "meeting" ? (
