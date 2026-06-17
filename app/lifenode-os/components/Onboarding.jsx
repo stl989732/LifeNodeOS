@@ -241,7 +241,7 @@ function FeaturePreviewCard({ variant }) {
 
 function LandingFeatureSections() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-24 md:py-32">
+    <div className="mx-auto w-full max-w-6xl px-4 pt-[3px] pb-20 md:pt-[3px] md:pb-20">
       <div className="space-y-24 md:space-y-32">
         {LANDING_FEATURES.map((feature) => (
           <section
@@ -541,7 +541,7 @@ export default function Onboarding() {
             </button>
 
             <p className="mt-5 text-[11px] font-medium tracking-wide text-[#90A1B9] md:text-xs">
-              Join 500+ busy parents orchestrating their household logistics.
+              Join 200+ busy parents orchestrating their household logistics.
             </p>
 
             <div className="mt-10 w-full max-w-6xl overflow-hidden relative opacity-40 grayscale before:absolute before:left-0 before:top-0 before:w-32 before:h-full before:bg-gradient-to-r before:from-[#FDFDFD] before:to-transparent before:z-10 after:absolute after:right-0 after:top-0 after:w-32 after:h-full after:bg-gradient-to-l after:from-[#FDFDFD] after:to-transparent after:z-10">

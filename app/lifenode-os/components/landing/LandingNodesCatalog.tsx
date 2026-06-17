@@ -78,7 +78,7 @@ function CatalogGrid({
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#90A1B9]">
+        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#677589]">
           {title}
         </p>
         <p className="mt-2 max-w-2xl text-sm text-slate-400">{subtitle}</p>
@@ -96,7 +96,7 @@ export default function LandingNodesCatalog() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-8 md:pb-32">
       <div className="mb-14 text-center md:mb-16">
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#90A1B9]">
+        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#677589]">
           Full catalog
         </p>
         <h2
