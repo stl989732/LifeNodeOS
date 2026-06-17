@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
+import LandingNodesCatalog from "@/components/landing/LandingNodesCatalog";
 import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
 import {
   savePendingShellHats,
@@ -563,6 +564,7 @@ export default function Onboarding() {
               <LandingProductMock />
             </div>
             <LandingFeatureSections />
+            <LandingNodesCatalog />
           </section>
         </>
       )}
@@ -825,6 +827,12 @@ export default function Onboarding() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 sm:flex-row">
           <div>&copy; {new Date().getFullYear()} LifeNode OS. All rights reserved.</div>
           <div className="flex items-center gap-6">
+            <Link
+              href="/docs"
+              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
+            >
+              User Guide
+            </Link>
             <Link
               href="/terms"
               className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
