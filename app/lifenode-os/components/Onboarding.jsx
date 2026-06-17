@@ -513,7 +513,7 @@ export default function Onboarding() {
 
       {step === 0 && (
         <>
-          <div className="flex flex-col items-center p-6 text-center z-10 fade-in pt-28 pb-16 md:pt-32">
+          <div className="flex flex-col items-center p-6 text-center z-10 fade-in pt-[50px] pb-16 md:pt-[50px]">
             <div className="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-8 border border-slate-200 shadow-sm">
               Meet LifeNode OS
             </div>
