@@ -3,9 +3,12 @@
 import { usePathname } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { useLifeNode } from "@/src/context/LifeNodeContext";
+import { shouldHideLinosOnPath } from "@/src/lib/publicAppPaths";
 
-/** Hide on marketing landing + shell picker; show on node dashboards and `/dashboard`. */
-const HIDDEN_PATHS = ["/", "/shell"];
+/** Hide on marketing, legal, shell picker, and support pages. */
+function isLinoAlertHidden(pathname) {
+  return shouldHideLinosOnPath(pathname);
+}
 
 /**
  * Add a warm "Linos here!" opener to bridge messages so the alert feels like
@@ -36,8 +39,7 @@ export default function LinoAlert() {
     switchNode,
   } = useLifeNode();
 
-  if (HIDDEN_PATHS.includes(pathname) || pathname.startsWith("/auth"))
-    return null;
+  if (isLinoAlertHidden(pathname)) return null;
 
   const primary = activeLogicBridgeAlerts[0];
   if (!primary && !linoMessage) return null;

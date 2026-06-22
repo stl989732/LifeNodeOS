@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Mic, Radio, Square } from "lucide-react";
+import { useDraggableFloatingPosition } from "@/src/components/vanode/useDraggableFloatingPosition";
 
 type LiveCaptureState = {
   isCapturing: boolean;
@@ -47,16 +48,30 @@ function LiveCaptureFloatingCard({
   title: string;
   onStop: () => void;
 }) {
+  const { style, dragHandleProps } = useDraggableFloatingPosition(
+    "lifenode.vanode.live-capture-card",
+    { width: 440, height: 200 },
+  );
+
   if (!isCapturing || typeof document === "undefined") return null;
 
   return createPortal(
     <div
-      className="pointer-events-auto fixed bottom-5 right-5 z-[99990] w-[min(440px,calc(100vw-2rem))] rounded-2xl border border-teal-400/40 bg-slate-900/88 px-4 py-3 text-white shadow-[0_12px_48px_rgba(0,0,0,0.45)] backdrop-blur-md"
+      className="pointer-events-auto fixed z-[99990] w-[min(440px,calc(100vw-2rem))] rounded-2xl border border-teal-400/40 bg-slate-900/88 px-4 py-3 text-white shadow-[0_12px_48px_rgba(0,0,0,0.45)] backdrop-blur-md"
+      style={{ left: style.left, top: style.top }}
       role="status"
       aria-live="polite"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold">
+          <button
+            type="button"
+            className="cursor-grab rounded-lg p-1 text-white/40 hover:bg-white/10 active:cursor-grabbing"
+            aria-label="Drag to move"
+            {...dragHandleProps}
+          >
+            <span className="block h-4 w-1 rounded-full bg-white/50" />
+          </button>
           <span className="relative flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />

@@ -12,6 +12,8 @@ import {
 import { createPortal } from "react-dom";
 import { Circle, Mic, MicOff, Square } from "lucide-react";
 import { readActiveClientSession } from "@/lib/vanode/activeClientSession";
+import { PostRecordReviewCard } from "@/components/vanode/PostRecordReviewCard";
+import { useDraggableFloatingPosition } from "@/src/components/vanode/useDraggableFloatingPosition";
 import {
   pickScreenRecorderMime,
   saveScreenCapture,
@@ -54,14 +56,28 @@ function ScreenRecordingFloatingPill({
   includeMic: boolean;
   onStop: () => void;
 }) {
+  const { style, dragHandleProps } = useDraggableFloatingPosition(
+    "lifenode.vanode.screen-record-pill",
+    { width: 340, height: 56 },
+  );
+
   if (!active || typeof document === "undefined") return null;
 
   return createPortal(
     <div
-      className="pointer-events-auto fixed bottom-24 right-5 z-[5100] flex items-center gap-3 rounded-2xl border border-white/30 bg-slate-900/78 px-4 py-3 text-white shadow-2xl backdrop-blur-xl"
+      className="pointer-events-auto fixed z-[5100] flex items-center gap-3 rounded-2xl border border-white/30 bg-slate-900/78 px-4 py-3 text-white shadow-2xl backdrop-blur-xl"
+      style={{ left: style.left, top: style.top }}
       role="status"
       aria-live="polite"
     >
+      <button
+        type="button"
+        className="cursor-grab rounded-lg p-1 text-white/40 hover:bg-white/10 active:cursor-grabbing"
+        aria-label="Drag to move"
+        {...dragHandleProps}
+      >
+        <span className="block h-4 w-1 rounded-full bg-white/50" />
+      </button>
       <span className="relative flex h-3 w-3">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-60" />
         <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
@@ -161,6 +177,7 @@ export function ScreenRecordingProvider({
   const [saving, setSaving] = useState(false);
   const [includeMic, setIncludeMic] = useState(true);
   const [lastSavedId, setLastSavedId] = useState<string | null>(null);
+  const [reviewCaptureId, setReviewCaptureId] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -256,6 +273,7 @@ export function ScreenRecordingProvider({
             clientId: readActiveClientSession(),
           });
           setLastSavedId(record.id);
+          setReviewCaptureId(record.id);
           onSaved?.(record);
         } catch (e) {
           const msg =
@@ -310,6 +328,10 @@ export function ScreenRecordingProvider({
         seconds={seconds}
         includeMic={includeMic}
         onStop={stopRecording}
+      />
+      <PostRecordReviewCard
+        captureId={reviewCaptureId}
+        onClose={() => setReviewCaptureId(null)}
       />
     </ScreenRecordingContext.Provider>
   );

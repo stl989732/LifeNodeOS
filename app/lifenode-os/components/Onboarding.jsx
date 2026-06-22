@@ -4,9 +4,11 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
+import DashboardReturnNav from "@/src/components/DashboardReturnNav";
 import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
 import LandingNodesCatalog from "@/components/landing/LandingNodesCatalog";
+import PricingPlansSection from "@/src/components/billing/PricingPlansSection";
 import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
 import {
   savePendingShellHats,
@@ -464,7 +466,7 @@ export default function Onboarding() {
       `}</style>
 
       <nav className="absolute top-0 w-full p-6 flex justify-between items-center z-50">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 shrink-0">
           <Image
             src="/lifenode-os-logo.png"
             alt="LifeNode OS"
@@ -478,21 +480,50 @@ export default function Onboarding() {
             LifeNode <span className="font-light text-slate-400">OS</span>
           </span>
         </div>
+        <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-6 text-sm font-semibold">
+          <Link
+            href="/pricing"
+            className="text-slate-600 transition hover:text-slate-900"
+          >
+            Pricing
+          </Link>
+          <Link
+            href="/catalog"
+            className="text-slate-600 transition hover:text-slate-900"
+          >
+            Full Catalog
+          </Link>
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-3 text-sm font-semibold">
           {session?.user ? (
-            <button
-              type="button"
-              onClick={() =>
-                void signOutWithClientCleanup(session?.user?.id, {
-                  callbackUrl: "/",
-                })
-              }
-              className="text-slate-600 transition hover:text-slate-900"
-            >
-              Sign out
-            </button>
+            <>
+              <DashboardReturnNav />
+              <button
+                type="button"
+                onClick={() =>
+                  void signOutWithClientCleanup(session?.user?.id, {
+                    callbackUrl: "/",
+                  })
+                }
+                className="text-slate-600 transition hover:text-slate-900"
+              >
+                Sign out
+              </button>
+            </>
           ) : (
             <>
+              <Link
+                href="/pricing"
+                className="md:hidden text-slate-600 transition hover:text-slate-900"
+              >
+                Pricing
+              </Link>
+              <Link
+                href="/catalog"
+                className="md:hidden text-slate-600 transition hover:text-slate-900"
+              >
+                Full Catalog
+              </Link>
               <Link
                 href="/auth/signin"
                 className="text-slate-600 transition hover:text-slate-900"
@@ -564,6 +595,9 @@ export default function Onboarding() {
               <LandingProductMock />
             </div>
             <LandingFeatureSections />
+            <section className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-12 pt-8 md:px-6">
+              <PricingPlansSection variant="dark" />
+            </section>
             <LandingNodesCatalog />
           </section>
         </>
@@ -832,6 +866,18 @@ export default function Onboarding() {
               className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
             >
               User Guide
+            </Link>
+            <Link
+              href="/catalog"
+              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
+            >
+              Full Catalog
+            </Link>
+            <Link
+              href="/pricing"
+              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
+            >
+              Pricing
             </Link>
             <Link
               href="/terms"

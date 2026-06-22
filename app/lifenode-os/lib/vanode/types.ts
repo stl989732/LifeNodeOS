@@ -89,6 +89,10 @@ export type Invoice = {
   signatureTypedName?: string;
   signatureImageDataUrl?: string | null;
   signatureDesignation?: string;
+  /** Client acceptance signature (left on print). */
+  clientSignatureMode?: "type" | "upload";
+  clientSignatureTypedName?: string;
+  clientSignatureImageDataUrl?: string | null;
 };
 
 export type NativeToolKey = "aiTask" | "eod" | "chaosCalc" | "smartNotes";

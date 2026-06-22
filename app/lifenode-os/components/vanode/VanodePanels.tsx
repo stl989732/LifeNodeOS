@@ -2024,6 +2024,86 @@ export function ClientCommandCard({
   );
 }
 
+const INVOICE_SIG_FONT =
+  '"Brush Script MT", "Segoe Script", "Apple Chancery", cursive';
+
+function InvoiceDualSignaturesPreview({
+  clientMode,
+  clientTyped,
+  clientImage,
+  userMode,
+  userTyped,
+  userImage,
+  userDesignation,
+}: {
+  clientMode: "type" | "upload";
+  clientTyped: string;
+  clientImage: string | null;
+  userMode: "type" | "upload";
+  userTyped: string;
+  userImage: string | null;
+  userDesignation: string;
+}) {
+  const clientDisplay = clientTyped.trim();
+  const userDisplay = userTyped.trim();
+
+  return (
+    <div className="mt-8 grid grid-cols-1 gap-6 border-t border-slate-200 pt-4 sm:grid-cols-2">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          Client signature
+        </p>
+        {clientMode === "type" && clientDisplay ? (
+          <p
+            className="mt-2 text-3xl text-slate-900"
+            style={{ fontFamily: INVOICE_SIG_FONT }}
+          >
+            {clientDisplay}
+          </p>
+        ) : null}
+        {clientMode === "upload" && clientImage ? (
+          <img
+            src={clientImage}
+            alt="Client signature"
+            className="mt-2 max-h-20 object-contain"
+          />
+        ) : null}
+        {!clientDisplay && !clientImage ? (
+          <p className="mt-2 text-xs text-slate-400">No client signature.</p>
+        ) : null}
+      </div>
+      <div className="sm:text-right">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          Your signature
+        </p>
+        {userMode === "type" && userDisplay ? (
+          <p
+            className="mt-2 text-3xl text-slate-900 sm:ml-auto"
+            style={{ fontFamily: INVOICE_SIG_FONT }}
+          >
+            {userDisplay}
+          </p>
+        ) : null}
+        {userDesignation.trim() ? (
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            {userDesignation.trim()}
+          </p>
+        ) : null}
+        {userMode === "upload" && userImage ? (
+          <img
+            src={userImage}
+            alt="Your signature"
+            className="mt-2 max-h-20 object-contain sm:ml-auto"
+          />
+        ) : null}
+        {!userDisplay && !userImage ? (
+          <p className="mt-2 text-xs text-slate-400">No signature provided.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 type InvProps = {
   invoices: Invoice[];
   eodLogs: EodLog[];
@@ -2059,6 +2139,11 @@ export function InvoicingSuiteCard({
   const [sigTypedName, setSigTypedName] = useState("");
   const [sigDesignation, setSigDesignation] = useState("");
   const [sigImageDataUrl, setSigImageDataUrl] = useState<string | null>(null);
+  const [clientSigMode, setClientSigMode] = useState<"type" | "upload">("type");
+  const [clientSigTypedName, setClientSigTypedName] = useState("");
+  const [clientSigImageDataUrl, setClientSigImageDataUrl] = useState<string | null>(
+    null,
+  );
   const [confirmPrintOpen, setConfirmPrintOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareText, setShareText] = useState("");
@@ -2175,6 +2260,15 @@ export function InvoicingSuiteCard({
       signatureImageDataUrl:
         sigMode === "upload" && sigImageDataUrl ? sigImageDataUrl : undefined,
       signatureDesignation: sigDesignation.trim() || undefined,
+      clientSignatureMode: clientSigMode,
+      clientSignatureTypedName:
+        clientSigMode === "type"
+          ? clientSigTypedName.trim() || previewClientLabel
+          : undefined,
+      clientSignatureImageDataUrl:
+        clientSigMode === "upload" && clientSigImageDataUrl
+          ? clientSigImageDataUrl
+          : undefined,
     });
     const savedForShare = {
       clientName: cName.trim(),
@@ -2231,10 +2325,8 @@ export function InvoicingSuiteCard({
     );
   }, [mode, eodLogs, pickedEod, amount, lineRows]);
 
-  const previewClientLabel = useMemo(() => {
-    if (clientName.trim()) return clientName.trim();
-    return "Client";
-  }, [clientName]);
+  const previewClientLabel = clientName.trim() || "Client";
+  const previewClientSigLabel = clientSigTypedName.trim() || previewClientLabel;
 
   const previewTotal = useMemo(
     () => invoiceCurrencyTotal(previewLines),
@@ -2266,6 +2358,15 @@ export function InvoicingSuiteCard({
       signatureImageDataUrl:
         sigMode === "upload" && sigImageDataUrl ? sigImageDataUrl : undefined,
       signatureDesignation: sigDesignation.trim() || undefined,
+      clientSignatureMode: clientSigMode,
+      clientSignatureTypedName:
+        clientSigMode === "type"
+          ? clientSigTypedName.trim() || previewClientLabel
+          : undefined,
+      clientSignatureImageDataUrl:
+        clientSigMode === "upload" && clientSigImageDataUrl
+          ? clientSigImageDataUrl
+          : undefined,
     };
     openInvoicePrint(draftInv);
     setConfirmPrintOpen(false);
@@ -2625,64 +2726,116 @@ export function InvoicingSuiteCard({
                 </label>
               </div>
 
-              <div className="mt-4 rounded-xl border border-white/10 bg-slate-900/30 p-3">
-                <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  Signature
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-slate-900/30 p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    Client signature
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setClientSigMode("type")}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                        clientSigMode === "type"
+                          ? "bg-[#00ffc8]/25 text-[#00ffc8] ring-1 ring-[#00ffc8]/50"
+                          : "text-slate-300 hover:bg-white/10"
+                      }`}
+                    >
+                      Type signature
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientSigMode("upload")}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                        clientSigMode === "upload"
+                          ? "bg-[#00ffc8]/25 text-[#00ffc8] ring-1 ring-[#00ffc8]/50"
+                          : "text-slate-300 hover:bg-white/10"
+                      }`}
+                    >
+                      Upload signature
+                    </button>
+                  </div>
+                  {clientSigMode === "type" ? (
+                    <input
+                      className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                      placeholder={`Client name (${previewClientLabel})`}
+                      value={clientSigTypedName}
+                      onChange={(e) => setClientSigTypedName(e.target.value)}
+                    />
+                  ) : (
+                    <input
+                      type="file"
+                      accept="image/png"
+                      className="mt-2 w-full text-xs text-slate-200"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const r = new FileReader();
+                        r.onload = () =>
+                          setClientSigImageDataUrl(String(r.result ?? ""));
+                        r.readAsDataURL(f);
+                      }}
+                    />
+                  )}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSigMode("type")}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
-                      sigMode === "type"
-                        ? "bg-[#00ffc8]/25 text-[#00ffc8] ring-1 ring-[#00ffc8]/50"
-                        : "text-slate-300 hover:bg-white/10"
-                    }`}
-                  >
-                    Type signature
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSigMode("upload")}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
-                      sigMode === "upload"
-                        ? "bg-[#00ffc8]/25 text-[#00ffc8] ring-1 ring-[#00ffc8]/50"
-                        : "text-slate-300 hover:bg-white/10"
-                    }`}
-                  >
-                    Upload signature
-                  </button>
-                </div>
-                {sigMode === "type" ? (
-                  <>
+
+                <div className="rounded-xl border border-white/10 bg-slate-900/30 p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    Your signature
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSigMode("type")}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                        sigMode === "type"
+                          ? "bg-[#00ffc8]/25 text-[#00ffc8] ring-1 ring-[#00ffc8]/50"
+                          : "text-slate-300 hover:bg-white/10"
+                      }`}
+                    >
+                      Type signature
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSigMode("upload")}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                        sigMode === "upload"
+                          ? "bg-[#00ffc8]/25 text-[#00ffc8] ring-1 ring-[#00ffc8]/50"
+                          : "text-slate-300 hover:bg-white/10"
+                      }`}
+                    >
+                      Upload signature
+                    </button>
+                  </div>
+                  {sigMode === "type" ? (
                     <input
                       className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
                       placeholder="Sign as typed name"
                       value={sigTypedName}
                       onChange={(e) => setSigTypedName(e.target.value)}
                     />
-                  </>
-                ) : (
+                  ) : (
+                    <input
+                      type="file"
+                      accept="image/png"
+                      className="mt-2 w-full text-xs text-slate-200"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const r = new FileReader();
+                        r.onload = () =>
+                          setSigImageDataUrl(String(r.result ?? ""));
+                        r.readAsDataURL(f);
+                      }}
+                    />
+                  )}
                   <input
-                    type="file"
-                    accept="image/png"
-                    className="mt-2 w-full text-xs text-slate-200"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      const r = new FileReader();
-                      r.onload = () =>
-                        setSigImageDataUrl(String(r.result ?? ""));
-                      r.readAsDataURL(f);
-                    }}
+                    className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                    placeholder="Designation (e.g. Automation Specialist, VA, Accountant)"
+                    value={sigDesignation}
+                    onChange={(e) => setSigDesignation(e.target.value)}
                   />
-                )}
-                <input
-                  className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
-                  placeholder="Designation (e.g. Automation Specialist, VA, Accountant)"
-                  value={sigDesignation}
-                  onChange={(e) => setSigDesignation(e.target.value)}
-                />
+                </div>
               </div>
 
               <label className="mt-4 block text-xs font-medium text-slate-300">
@@ -2773,37 +2926,15 @@ export function InvoicingSuiteCard({
                     ))}
                   </tbody>
                 </table>
-                <div className="mt-8 border-t border-slate-200 pt-4">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Signature
-                  </p>
-                  {sigMode === "type" && sigTypedName.trim() ? (
-                    <p
-                      className="mt-2 text-3xl text-slate-900"
-                      style={{
-                        fontFamily:
-                          '"Brush Script MT", "Segoe Script", "Apple Chancery", cursive',
-                      }}
-                    >
-                      {sigTypedName.trim()}
-                    </p>
-                  ) : null}
-                  {sigDesignation.trim() ? (
-                    <p className="mt-1 text-sm font-semibold text-slate-600">
-                      {sigDesignation.trim()}
-                    </p>
-                  ) : null}
-                  {sigMode === "upload" && sigImageDataUrl ? (
-                    <img
-                      src={sigImageDataUrl}
-                      alt="Signature"
-                      className="mt-2 max-h-20 object-contain"
-                    />
-                  ) : null}
-                  {!sigTypedName.trim() && !sigImageDataUrl ? (
-                    <p className="mt-2 text-xs text-slate-400">No signature provided.</p>
-                  ) : null}
-                </div>
+                <InvoiceDualSignaturesPreview
+                  clientMode={clientSigMode}
+                  clientTyped={previewClientSigLabel}
+                  clientImage={clientSigImageDataUrl}
+                  userMode={sigMode}
+                  userTyped={sigTypedName}
+                  userImage={sigImageDataUrl}
+                  userDesignation={sigDesignation}
+                />
                 <div className="mt-auto border-t border-teal-100 pt-4 text-right text-lg font-bold text-teal-900">
                   Total ${previewTotal.toFixed(2)}
                 </div>
@@ -2880,37 +3011,15 @@ export function InvoicingSuiteCard({
                   ))}
                 </tbody>
               </table>
-              <div className="mt-8 border-t border-slate-200 pt-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Signature
-                </p>
-                {sigMode === "type" && sigTypedName.trim() ? (
-                  <p
-                    className="mt-2 text-3xl text-slate-900"
-                    style={{
-                      fontFamily:
-                        '"Brush Script MT", "Segoe Script", "Apple Chancery", cursive',
-                    }}
-                  >
-                    {sigTypedName.trim()}
-                  </p>
-                ) : null}
-                {sigDesignation.trim() ? (
-                  <p className="mt-1 text-sm font-semibold text-slate-600">
-                    {sigDesignation.trim()}
-                  </p>
-                ) : null}
-                {sigMode === "upload" && sigImageDataUrl ? (
-                  <img
-                    src={sigImageDataUrl}
-                    alt="Signature"
-                    className="mt-2 max-h-20 object-contain"
-                  />
-                ) : null}
-                {!sigTypedName.trim() && !sigImageDataUrl ? (
-                  <p className="mt-2 text-xs text-slate-400">No signature provided.</p>
-                ) : null}
-              </div>
+              <InvoiceDualSignaturesPreview
+                clientMode={clientSigMode}
+                clientTyped={previewClientSigLabel}
+                clientImage={clientSigImageDataUrl}
+                userMode={sigMode}
+                userTyped={sigTypedName}
+                userImage={sigImageDataUrl}
+                userDesignation={sigDesignation}
+              />
               <div className="mt-6 border-t border-teal-100 pt-4 text-right text-lg font-bold text-teal-900">
                 Total ${previewTotal.toFixed(2)}
               </div>

@@ -88,9 +88,10 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
     }
     const result = await shareScreenCapture(blob, row.filename);
     if (result === "shared") onToast?.("Shared via your device.");
-    else if (result === "unsupported")
-      onToast?.("Sharing not supported here — use Download instead.");
-    else onToast?.("Share cancelled.");
+    else if (result === "downloaded")
+      onToast?.("Share not supported here — download started instead.");
+    else if (result === "cancelled") onToast?.("Share cancelled.");
+    else onToast?.("Could not share — try Download.");
   };
 
   const handleDelete = async (row: ScreenCaptureRecord) => {

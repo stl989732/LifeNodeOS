@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
+import LegalPageShellBackLink from "@/src/components/legal/LegalPageShellBackLink";
 
 type Props = {
   children: ReactNode;
@@ -16,15 +17,7 @@ export default function LegalPageShell({
   return (
     <div className="min-h-screen bg-[#0B0F19] font-sans text-slate-200 selection:bg-cyan-500/30 px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
-        <Link
-          href={backHref}
-          className="group mb-8 inline-flex items-center text-sm text-slate-400 transition-colors hover:text-white"
-        >
-          <span className="mr-2 transition-transform group-hover:-translate-x-1">
-            ←
-          </span>{" "}
-          {backLabel}
-        </Link>
+        <LegalPageShellBackLink backHref={backHref} backLabel={backLabel} />
 
         {children}
 

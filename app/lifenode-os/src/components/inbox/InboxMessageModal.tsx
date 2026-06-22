@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Archive,
@@ -36,15 +36,52 @@ type ReplyProps = {
 function InboxReplyComposer({ onReply }: ReplyProps) {
   const [draft, setDraft] = useState("");
   const [replying, setReplying] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(72);
+  const resizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const onResizePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    resizeRef.current = { startY: e.clientY, startHeight: composerHeight };
+  }, [composerHeight]);
+
+  const onResizePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!resizeRef.current) return;
+    const delta = resizeRef.current.startY - e.clientY;
+    const next = Math.min(320, Math.max(72, resizeRef.current.startHeight + delta));
+    setComposerHeight(next);
+  }, []);
+
+  const onResizePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!resizeRef.current) return;
+    resizeRef.current = null;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   return (
     <footer className="shrink-0 border-t border-slate-200 p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:p-4 md:pb-4">
+      <div
+        role="separator"
+        aria-label="Drag to resize reply box"
+        className="mx-auto mb-1.5 flex h-3 w-14 cursor-ns-resize items-center justify-center rounded-full hover:bg-slate-100"
+        onPointerDown={onResizePointerDown}
+        onPointerMove={onResizePointerMove}
+        onPointerUp={onResizePointerUp}
+        onPointerCancel={onResizePointerUp}
+      >
+        <span className="h-1 w-8 rounded-full bg-slate-300" />
+      </div>
       <textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Draft a reply…"
-        rows={2}
-        className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-[#0C121A] outline-none placeholder:text-slate-400 focus:border-sky-400 md:rounded-xl md:px-3 md:py-2 md:text-sm"
+        style={{ height: composerHeight }}
+        className="w-full resize-none overflow-y-auto rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-[#0C121A] outline-none placeholder:text-slate-400 focus:border-sky-400 md:rounded-xl md:px-3 md:py-2 md:text-sm"
       />
       <button
         type="button"

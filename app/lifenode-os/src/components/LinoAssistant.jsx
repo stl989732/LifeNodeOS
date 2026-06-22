@@ -43,6 +43,7 @@ import {
   readFileAsDataUrl,
   readTextFileUtf8,
 } from "@/src/lib/linos/linosAttachments";
+import { shouldHideLinosOnPath } from "@/src/lib/publicAppPaths";
 
 const NODE_CONFIG = {
   VANode: {
@@ -200,7 +201,7 @@ function localFallbackReply(text, ctx) {
 }
 
 function shouldHideAssistantPath(p) {
-  return p === "/" || p === "/dashboard" || p === "/shell" || p.startsWith("/auth");
+  return shouldHideLinosOnPath(p);
 }
 
 export default function LinoAssistant() {
@@ -228,6 +229,11 @@ export default function LinoAssistant() {
    * Active `linos_chats.id` — only set after a row exists in Supabase (or restored from localStorage if still valid).
    */
   const [chatId, setChatId] = useState("");
+
+  /** @type {[Array<{ id: string; role: string; content: string; attachments?: unknown[]; created_at?: string }>, Function]} */
+  const [threadMessages, setThreadMessages] = useState([]);
+  const [chatHydrating, setChatHydrating] = useState(false);
+  const [chatError, setChatError] = useState(null);
 
   const persistChatIdForUser = useCallback((userId, id) => {
     if (typeof window === "undefined" || !userId || !id) return;
@@ -285,11 +291,6 @@ export default function LinoAssistant() {
       cancelled = true;
     };
   }, [sessionStatus, session?.user?.id, clearChatIdForUser, persistChatIdForUser]);
-
-  /** @type {[Array<{ id: string; role: string; content: string; attachments?: unknown[]; created_at?: string }>, Function]} */
-  const [threadMessages, setThreadMessages] = useState([]);
-  const [chatHydrating, setChatHydrating] = useState(false);
-  const [chatError, setChatError] = useState(null);
 
   /** Staged multimodal payloads before send */
   /** @type {[{ localId: string; name: string; mime: string; previewUrl?: string; file?: File | null }, ...]} */
@@ -414,7 +415,7 @@ export default function LinoAssistant() {
     } finally {
       setChatHydrating(false);
     }
-  }, [chatId]);
+  }, [chatId, setChatError, setChatHydrating, setThreadMessages]);
 
   const loadPastChats = useCallback(async () => {
     if (sessionStatus !== "authenticated" || !session?.user?.id) return;
@@ -450,7 +451,7 @@ export default function LinoAssistant() {
     persistChatIdForUser(String(session.user.id), created.id);
     setPastChatsOpen(false);
     void loadPastChats();
-  }, [activeNode, loadPastChats, persistChatIdForUser, session?.user?.id, sessionStatus]);
+  }, [activeNode, loadPastChats, persistChatIdForUser, session, sessionStatus, setChatError, setChatId, setPastChatsOpen, setSplashBanner, setThreadMessages]);
 
   const switchToChat = useCallback(
     async (id) => {
@@ -474,7 +475,7 @@ export default function LinoAssistant() {
       setChatError(null);
       await loadThread(id);
     },
-    [chatId, loadThread, persistChatIdForUser, session?.user?.id, sessionStatus],
+    [chatId, loadThread, persistChatIdForUser, session, sessionStatus, setChatError, setChatId, setPastChatsOpen],
   );
 
   useEffect(() => {

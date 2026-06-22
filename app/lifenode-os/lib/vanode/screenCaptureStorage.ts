@@ -154,9 +154,10 @@ export function downloadScreenCapture(blob: Blob, filename: string) {
 export async function shareScreenCapture(
   blob: Blob,
   filename: string,
-): Promise<"shared" | "unsupported" | "failed"> {
+): Promise<"shared" | "downloaded" | "unsupported" | "failed" | "cancelled"> {
   if (typeof navigator === "undefined" || !navigator.share) {
-    return "unsupported";
+    downloadScreenCapture(blob, filename);
+    return "downloaded";
   }
   try {
     const file = new File([blob], filename, { type: blob.type || "video/webm" });
@@ -168,12 +169,16 @@ export async function shareScreenCapture(
       return "shared";
     }
     const url = URL.createObjectURL(blob);
-    await navigator.share({ title: filename, url });
-    URL.revokeObjectURL(url);
-    return "shared";
+    try {
+      await navigator.share({ title: filename, text: filename, url });
+      return "shared";
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") return "failed";
-    return "failed";
+    if (e instanceof DOMException && e.name === "AbortError") return "cancelled";
+    downloadScreenCapture(blob, filename);
+    return "downloaded";
   }
 }
 
