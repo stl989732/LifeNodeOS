@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import DashboardReturnNav from "@/src/components/DashboardReturnNav";
 import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
-import LandingNodesCatalog from "@/components/landing/LandingNodesCatalog";
+import LandingCatalogTeaser from "@/components/landing/LandingCatalogTeaser";
 import LandingFeatureSections from "@/components/landing/LandingFeatureSections";
 import PricingPlansSection from "@/src/components/billing/PricingPlansSection";
 import LandingFaqSection from "@/components/landing/LandingFaqSection";
@@ -363,6 +363,12 @@ export default function Onboarding() {
             Pricing
           </Link>
           <Link
+            href="/#faq"
+            className="text-slate-600 transition hover:text-slate-900"
+          >
+            FAQ
+          </Link>
+          <Link
             href="/catalog"
             className="text-slate-600 transition hover:text-slate-900"
           >
@@ -392,6 +398,12 @@ export default function Onboarding() {
                 className="md:hidden text-slate-600 transition hover:text-slate-900"
               >
                 Pricing
+              </Link>
+              <Link
+                href="/#faq"
+                className="md:hidden text-slate-600 transition hover:text-slate-900"
+              >
+                FAQ
               </Link>
               <Link
                 href="/catalog"
@@ -474,7 +486,7 @@ export default function Onboarding() {
               <PricingPlansSection variant="dark" />
             </section>
             <LandingFaqSection />
-            <LandingNodesCatalog />
+            <LandingCatalogTeaser />
           </section>
         </>
       )}
@@ -754,6 +766,12 @@ export default function Onboarding() {
               className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
             >
               Pricing
+            </Link>
+            <Link
+              href="/#faq"
+              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
+            >
+              FAQ
             </Link>
             <Link
               href="/terms"

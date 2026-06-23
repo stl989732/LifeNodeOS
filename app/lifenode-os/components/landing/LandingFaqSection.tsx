@@ -19,15 +19,14 @@ const CATEGORY_ORDER = [
 
 export default function LandingFaqSection() {
   const [openId, setOpenId] = useState<string | null>(LANDING_FAQ_ITEMS[0]?.id ?? null);
-  const [activeCategory, setActiveCategory] = useState<string>("All");
+  const [activeCategory, setActiveCategory] = useState<string>("Nodes");
 
   const categories = useMemo(() => {
     const fromData = [...new Set(LANDING_FAQ_ITEMS.map((item) => item.category))];
-    return ["All", ...CATEGORY_ORDER.filter((c) => fromData.includes(c))];
+    return CATEGORY_ORDER.filter((c) => fromData.includes(c));
   }, []);
 
   const visibleItems = useMemo(() => {
-    if (activeCategory === "All") return LANDING_FAQ_ITEMS;
     return LANDING_FAQ_ITEMS.filter((item) => item.category === activeCategory);
   }, [activeCategory]);
 
@@ -46,7 +45,7 @@ export default function LandingFaqSection() {
       >
         Answers before you commit
       </h2>
-      <p className="mx-auto mt-4 max-w-2xl text-center text-sm text-[#90A1B9] md:text-base">
+      <p className="mx-auto mt-4 max-w-2xl text-center text-sm text-[#76808F] md:text-base">
         Nodes, integrations, billing, and support — including why some mobile apps
         cannot connect yet.
       </p>
@@ -64,7 +63,13 @@ export default function LandingFaqSection() {
               type="button"
               role="tab"
               aria-selected={selected}
-              onClick={() => setActiveCategory(category)}
+              onClick={() => {
+                setActiveCategory(category);
+                const firstInCategory = LANDING_FAQ_ITEMS.find(
+                  (item) => item.category === category,
+                );
+                setOpenId(firstInCategory?.id ?? null);
+              }}
               className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
                 selected
                   ? "bg-[#00ffc8]/20 text-[#00ffc8] ring-1 ring-[#00ffc8]/40"
