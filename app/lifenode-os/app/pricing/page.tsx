@@ -2,6 +2,8 @@
 
 import PricingPlansSection from "@/src/components/billing/PricingPlansSection";
 import DashboardReturnNav from "@/src/components/DashboardReturnNav";
+import LandingFeatureSections from "@/components/landing/LandingFeatureSections";
+import LandingNodesCatalog from "@/components/landing/LandingNodesCatalog";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -44,6 +46,11 @@ export default function PricingPage() {
       <div className="mx-auto max-w-5xl">
         <PricingPlansSection variant="dark" />
       </div>
+
+      <section className="relative z-10 mx-auto mt-16 w-full max-w-6xl">
+        <LandingFeatureSections />
+        <LandingNodesCatalog />
+      </section>
     </main>
   );
 }

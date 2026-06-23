@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Share2, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Cloud, Download, Play, Share2, Trash2, X } from "lucide-react";
 import { useActiveClientOptional } from "./ActiveClientContext";
 import {
   deleteScreenCapture,
@@ -27,6 +28,9 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const activeClientId = active?.activeClientId ?? null;
   const [rows, setRows] = useState<ScreenCaptureRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [playingRow, setPlayingRow] = useState<ScreenCaptureRecord | null>(null);
+  const [playUrl, setPlayUrl] = useState<string | null>(null);
+  const [playLoading, setPlayLoading] = useState(false);
 
   const visibleRows = useMemo(() => {
     if (!activeClientId) return rows;
@@ -45,6 +49,41 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   useEffect(() => {
     void reload();
   }, [reload, refreshKey]);
+
+  useEffect(() => {
+    if (!playingRow) {
+      setPlayUrl(null);
+      return;
+    }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setPlayLoading(true);
+    void getScreenCaptureBlob(playingRow.id).then((blob) => {
+      if (cancelled) return;
+      if (!blob) {
+        onToast?.("Video file missing — try downloading instead.");
+        setPlayingRow(null);
+        setPlayLoading(false);
+        return;
+      }
+      objectUrl = URL.createObjectURL(blob);
+      setPlayUrl(objectUrl);
+      setPlayLoading(false);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [onToast, playingRow]);
+
+  const handlePlay = (row: ScreenCaptureRecord) => {
+    setPlayingRow(row);
+  };
+
+  const closePlayer = () => {
+    setPlayingRow(null);
+    setPlayUrl(null);
+  };
 
   const handleDownload = async (
     row: ScreenCaptureRecord,
@@ -116,6 +155,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   }
 
   return (
+    <>
     <ul className="space-y-2">
       {visibleRows.map((row) => {
         const isMp4 =
@@ -126,7 +166,12 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
             key={row.id}
             className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/70 bg-white/60 px-3 py-2"
           >
-            <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => handlePlay(row)}
+              className="min-w-0 flex-1 text-left hover:opacity-90"
+              title="Watch capture"
+            >
               <p className="truncate text-sm font-medium text-slate-800">
                 {row.filename}
               </p>
@@ -138,9 +183,23 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
                   : `${row.durationSec}s`}
                 {row.includeMic ? " · mic" : ""} ·{" "}
                 {isMp4 ? "MP4" : "WebM"}
+                {row.cloudSynced ? (
+                  <span className="ml-1 inline-flex items-center gap-0.5 text-teal-700">
+                    <Cloud className="inline h-3 w-3" />
+                    cloud
+                  </span>
+                ) : null}
               </p>
-            </div>
+            </button>
             <div className="flex shrink-0 flex-wrap items-center gap-1">
+              <button
+                type="button"
+                title="Watch"
+                onClick={() => handlePlay(row)}
+                className="rounded-lg border border-teal-200 px-2 py-1 text-[10px] font-bold text-teal-800 hover:bg-teal-50"
+              >
+                <Play className="h-3.5 w-3.5" />
+              </button>
               <button
                 type="button"
                 title="Download WebM"
@@ -191,5 +250,46 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
         );
       })}
     </ul>
+    {playingRow && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[5300] flex items-center justify-center bg-black/70 p-4"
+            role="dialog"
+            aria-label="Watch screen capture"
+            onClick={closePlayer}
+          >
+            <div
+              className="relative w-full max-w-3xl rounded-2xl border border-white/20 bg-slate-900 p-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={closePlayer}
+                className="absolute right-3 top-3 rounded-lg p-1.5 text-white/70 hover:bg-white/10"
+                aria-label="Close player"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <p className="mb-3 truncate pr-10 text-sm font-semibold text-white">
+                {playingRow.filename}
+              </p>
+              {playLoading || !playUrl ? (
+                <p className="py-12 text-center text-sm text-white/60">
+                  Loading video…
+                </p>
+              ) : (
+                <video
+                  src={playUrl}
+                  controls
+                  autoPlay
+                  className="max-h-[70vh] w-full rounded-xl bg-black"
+                />
+              )}
+            </div>
+          </div>,
+          document.body,
+        )
+      : null}
+    </>
   );
 }

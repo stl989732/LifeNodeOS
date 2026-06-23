@@ -45,6 +45,7 @@ import { VaultNoteBody } from "./VaultNoteBody";
 import { CopyTextButton } from "./CopyTextButton";
 import { VanodeInboxEmbed } from "./VanodeInboxEmbed";
 import { ScreenRecordingRefreshContext } from "./ScreenRecordingRoot";
+import { setScreenCaptureCloudSync } from "@/lib/vanode/screenCaptureStorage";
 import {
   formatInvoiceLineAmount,
   invoiceCurrencyTotal,
@@ -193,9 +194,19 @@ export function EodReporterCard({
   const [linosDraft, setLinosDraft] = useState("");
   const [scratchpad, setScratchpad] = useState("");
   const [includeCompletedTasks, setIncludeCompletedTasks] = useState(true);
+  const [generatingEmail, setGeneratingEmail] = useState(false);
 
   const shareBase =
     typeof window !== "undefined" ? window.location.origin : "";
+
+  const resolvedClient = useMemo(() => {
+    const id = activeClientId ?? clientId;
+    return clients.find((c) => c.id === id) ?? null;
+  }, [activeClientId, clientId, clients]);
+
+  useEffect(() => {
+    setScreenCaptureCloudSync(cloudSyncRecording);
+  }, [cloudSyncRecording]);
 
   const submit = () => {
     const token = attach ? crypto.randomUUID() : null;
@@ -371,62 +382,92 @@ export function EodReporterCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
+          disabled={generatingEmail}
           onClick={() => {
-            const body = [
-              "Subject: EOD recap — quick wins",
-              "",
-              accomplishments || "(add accomplishments)",
-              scratchpad ? `\n\nScratchpad:\n${scratchpad}` : "",
-              "",
-              "Time on desk:",
-              timeSpent || "—",
-              "",
-              "Blockers / asks:",
-              blockers || "None.",
-              "",
-              "— Linos (drafted from your EOD form)",
-            ].join("\n");
-            setLinosDraft(body);
-            setToast("Linos drafted a client-ready recap.");
-            setTimeout(() => setToast(null), 2800);
+            void (async () => {
+              setGeneratingEmail(true);
+              try {
+                const res = await fetch("/api/vanode/ai", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    mode: "eod_client_email",
+                    clientName: resolvedClient?.name ?? "your team",
+                    accomplishments: [scratchpad, accomplishments]
+                      .filter(Boolean)
+                      .join("\n\n"),
+                    timeSpent,
+                    blockers,
+                  }),
+                });
+                const data = (await res.json()) as { draft?: string; error?: string };
+                if (res.ok && typeof data.draft === "string" && data.draft.trim()) {
+                  setLinosDraft(data.draft.trim());
+                  setToast("Linos drafted a personalized client email.");
+                } else {
+                  setToast(data.error ?? "Could not generate email — try again.");
+                }
+              } catch {
+                setToast("Could not reach Linos — check your connection.");
+              } finally {
+                setGeneratingEmail(false);
+                setTimeout(() => setToast(null), 3200);
+              }
+            })();
           }}
-          className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-2 text-xs font-bold uppercase tracking-wide text-violet-900 hover:bg-violet-100/90"
+          className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-2 text-xs font-bold uppercase tracking-wide text-violet-900 hover:bg-violet-100/90 disabled:opacity-50"
         >
           <Sparkles className="h-3.5 w-3.5" />
-          Generate EOD (client email)
+          {generatingEmail ? "Drafting…" : "Generate EOD (client email)"}
         </button>
         <button
           type="button"
+          disabled={generatingEmail}
           onClick={() => {
-            const since = Date.now() - 7 * 24 * 3600 * 1000;
-            const slice = eodLogs.filter((l) => {
-              const t = new Date(l.createdAt).getTime();
-              if (t < since) return false;
-              if (activeClientId && l.clientId !== activeClientId) return false;
-              if (!includeCompletedTasks && !l.accomplishments.trim()) return false;
-              return true;
-            });
-            const recap = slice
-              .map(
-                (l, i) =>
-                  `${i + 1}. ${l.accomplishments.slice(0, 120)}${l.accomplishments.length > 120 ? "…" : ""}`,
-              )
-              .join("\n");
-            const weekly = [
-              "Weekly digest (Linos)",
-              "",
-              recap || "No logs in the last 7 days for this filter.",
-              "",
-              "Highlights pulled from Accomplishments + Time spent cards.",
-            ].join("\n");
-            setLinosDraft(weekly);
-            setToast("Weekly digest generated.");
-            setTimeout(() => setToast(null), 2800);
+            void (async () => {
+              setGeneratingEmail(true);
+              try {
+                const since = Date.now() - 7 * 24 * 3600 * 1000;
+                const slice = eodLogs.filter((l) => {
+                  const t = new Date(l.createdAt).getTime();
+                  if (t < since) return false;
+                  if (activeClientId && l.clientId !== activeClientId) return false;
+                  if (!includeCompletedTasks && !l.accomplishments.trim()) return false;
+                  return true;
+                });
+                const res = await fetch("/api/vanode/ai", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    mode: "eod_weekly_digest",
+                    clientName: resolvedClient?.name ?? "portfolio",
+                    logs: slice.map((l) => ({
+                      date: l.createdAt,
+                      accomplishments: l.accomplishments,
+                      timeSpent: l.timeSpent,
+                      blockers: l.blockers,
+                    })),
+                  }),
+                });
+                const data = (await res.json()) as { draft?: string; error?: string };
+                if (res.ok && typeof data.draft === "string" && data.draft.trim()) {
+                  setLinosDraft(data.draft.trim());
+                  setToast("Weekly digest generated.");
+                } else {
+                  setToast(data.error ?? "Could not generate digest — try again.");
+                }
+              } catch {
+                setToast("Could not reach Linos — check your connection.");
+              } finally {
+                setGeneratingEmail(false);
+                setTimeout(() => setToast(null), 3200);
+              }
+            })();
           }}
-          className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/80 px-4 py-2 text-xs font-bold uppercase tracking-wide text-teal-900 hover:bg-teal-100/90"
+          className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/80 px-4 py-2 text-xs font-bold uppercase tracking-wide text-teal-900 hover:bg-teal-100/90 disabled:opacity-50"
         >
           <Sparkles className="h-3.5 w-3.5" />
-          Weekly EOD (Linos)
+          {generatingEmail ? "Drafting…" : "Weekly EOD (Linos)"}
         </button>
       </div>
 

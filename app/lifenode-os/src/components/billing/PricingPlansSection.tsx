@@ -181,7 +181,8 @@ export default function PricingPlansSection({
           dark ? "text-slate-500" : "text-slate-500"
         }`}
       >
-        Prices in USD. Taxes at checkout.{" "}
+        Prices in USD. Taxes at checkout. Paid subscriptions are non-refundable;
+        cancel anytime and keep access through your billing period.{" "}
         <Link
           href="/terms"
           className={`underline ${dark ? "hover:text-slate-300" : ""}`}

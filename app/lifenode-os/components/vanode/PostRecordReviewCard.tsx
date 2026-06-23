@@ -125,16 +125,19 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
       role="dialog"
       aria-label="Recording review"
     >
-      <div
-        className="flex cursor-grab items-center justify-between gap-2 border-b border-white/10 px-3 py-2 active:cursor-grabbing"
-        {...dragHandleProps}
-      >
-        <p className="truncate text-xs font-bold uppercase tracking-wide text-teal-200">
-          Recording saved
-        </p>
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+        <div
+          className="flex min-w-0 flex-1 cursor-grab items-center gap-2 active:cursor-grabbing"
+          {...dragHandleProps}
+        >
+          <p className="truncate text-xs font-bold uppercase tracking-wide text-teal-200">
+            Recording saved
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={() => setMinimized((m) => !m)}
             className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
             aria-label={minimized ? "Expand" : "Minimize"}
@@ -143,6 +146,7 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
           </button>
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={onClose}
             className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
             aria-label="Close"

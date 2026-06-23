@@ -13,6 +13,11 @@ import {
 export type { ScreenCaptureRecord } from "./screenCaptureSync";
 
 let captureUserScope: string | undefined;
+let cloudSyncOptIn = false;
+
+export function setScreenCaptureCloudSync(enabled: boolean) {
+  cloudSyncOptIn = enabled;
+}
 
 export function setScreenCaptureUserScope(userId: string | undefined) {
   captureUserScope = userId?.trim() || undefined;
@@ -108,7 +113,15 @@ export async function saveScreenCapture(
 
   const next = [record, ...readManifest()];
   writeManifest(next);
-  void uploadScreenCaptureToCloud(record, blob);
+  if (cloudSyncOptIn) {
+    void uploadScreenCaptureToCloud(record, blob).then((ok) => {
+      if (!ok) return;
+      const synced = next.map((r) =>
+        r.id === record.id ? { ...r, cloudSynced: true } : r,
+      );
+      writeManifest(synced);
+    });
+  }
   return record;
 }
 

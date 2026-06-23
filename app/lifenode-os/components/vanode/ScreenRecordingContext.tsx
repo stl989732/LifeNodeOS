@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Circle, Mic, MicOff, Square } from "lucide-react";
+import { Pause, Play, Square } from "lucide-react";
 import { readActiveClientSession } from "@/lib/vanode/activeClientSession";
 import { PostRecordReviewCard } from "@/components/vanode/PostRecordReviewCard";
 import { useDraggableFloatingPosition } from "@/src/components/vanode/useDraggableFloatingPosition";
@@ -22,12 +22,14 @@ import {
 
 type ScreenRecordingState = {
   active: boolean;
+  paused: boolean;
   seconds: number;
   saving: boolean;
   includeMic: boolean;
   setIncludeMic: (v: boolean) => void;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
+  togglePause: () => void;
   lastSavedId: string | null;
 };
 
@@ -47,13 +49,17 @@ export function useScreenRecordingOptional() {
 
 function ScreenRecordingFloatingPill({
   active,
+  paused,
   seconds,
   includeMic,
+  onTogglePause,
   onStop,
 }: {
   active: boolean;
+  paused: boolean;
   seconds: number;
   includeMic: boolean;
+  onTogglePause: () => void;
   onStop: () => void;
 }) {
   const { style, dragHandleProps } = useDraggableFloatingPosition(
@@ -93,9 +99,25 @@ function ScreenRecordingFloatingPill({
       </div>
       <span className="text-xs text-white/50">
         {includeMic ? "Screen + mic" : "Screen"} · stays on all tabs
+        {paused ? " · paused" : ""}
       </span>
       <button
         type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onTogglePause}
+        className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1 text-xs font-bold hover:bg-white/20"
+        aria-label={paused ? "Resume recording" : "Pause recording"}
+      >
+        {paused ? (
+          <Play className="h-3 w-3 fill-current" />
+        ) : (
+          <Pause className="h-3 w-3" />
+        )}
+        {paused ? "Resume" : "Pause"}
+      </button>
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={onStop}
         className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold hover:bg-white/25"
       >
@@ -173,6 +195,7 @@ export function ScreenRecordingProvider({
   onError?: (message: string) => void;
 }) {
   const [active, setActive] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
   const [includeMic, setIncludeMic] = useState(true);
@@ -205,6 +228,7 @@ export function ScreenRecordingProvider({
   const stopRecording = useCallback(() => {
     if (tickRef.current) clearInterval(tickRef.current);
     tickRef.current = null;
+    setPaused(false);
     const rec = mediaRecorderRef.current;
     if (rec && rec.state !== "inactive") {
       try {
@@ -216,6 +240,37 @@ export function ScreenRecordingProvider({
     } else {
       setActive(false);
       setSeconds(0);
+    }
+  }, []);
+
+  const togglePause = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state === "inactive") return;
+    if (rec.state === "recording") {
+      try {
+        rec.pause();
+        setPaused(true);
+        if (tickRef.current) clearInterval(tickRef.current);
+        tickRef.current = null;
+      } catch {
+        /* ignore */
+      }
+    } else if (rec.state === "paused") {
+      try {
+        rec.resume();
+        setPaused(false);
+        if (!tickRef.current) {
+          tickRef.current = setInterval(() => {
+            setSeconds((s) => {
+              const next = s + 1;
+              durationRef.current = next;
+              return next;
+            });
+          }, 1000);
+        }
+      } catch {
+        /* ignore */
+      }
     }
   }, []);
 
@@ -294,6 +349,7 @@ export function ScreenRecordingProvider({
 
       rec.start(1000);
       setActive(true);
+      setPaused(false);
       setSeconds(0);
       durationRef.current = 0;
       tickRef.current = setInterval(() => {
@@ -313,20 +369,24 @@ export function ScreenRecordingProvider({
     <ScreenRecordingContext.Provider
       value={{
         active,
+        paused,
         seconds,
         saving,
         includeMic,
         setIncludeMic,
         startRecording,
         stopRecording,
+        togglePause,
         lastSavedId,
       }}
     >
       {children}
       <ScreenRecordingFloatingPill
         active={active}
+        paused={paused}
         seconds={seconds}
         includeMic={includeMic}
+        onTogglePause={togglePause}
         onStop={stopRecording}
       />
       <PostRecordReviewCard

@@ -14,7 +14,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-type VanodeAiMode = "email_assist" | "video_sop" | "live_summary";
+type VanodeAiMode =
+  | "email_assist"
+  | "video_sop"
+  | "live_summary"
+  | "eod_client_email"
+  | "eod_weekly_digest";
 
 async function callGeminiText(prompt: string, timeoutMs = 28_000): Promise<string> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim();
@@ -104,6 +109,16 @@ export async function POST(request: Request) {
       videoUrl?: string;
       transcript?: string;
       sessionTitle?: string;
+      clientName?: string;
+      accomplishments?: string;
+      timeSpent?: string;
+      blockers?: string;
+      logs?: Array<{
+        date: string;
+        accomplishments: string;
+        timeSpent: string;
+        blockers: string;
+      }>;
     };
 
     const mode = body.mode;
@@ -125,10 +140,21 @@ export async function POST(request: Request) {
     if (mode === "live_summary" && !transcript) {
       return NextResponse.json({ error: "Missing transcript." }, { status: 400 });
     }
+    if (mode === "eod_client_email") {
+      const accomplishments = (body.accomplishments ?? "").trim();
+      if (!accomplishments && !(body.timeSpent ?? "").trim()) {
+        return NextResponse.json(
+          { error: "Add accomplishments or time spent first." },
+          { status: 400 },
+        );
+      }
+    }
     if (
       mode !== "email_assist" &&
       mode !== "video_sop" &&
-      mode !== "live_summary"
+      mode !== "live_summary" &&
+      mode !== "eod_client_email" &&
+      mode !== "eod_weekly_digest"
     ) {
       return NextResponse.json({ error: "Invalid mode." }, { status: 400 });
     }
@@ -237,6 +263,96 @@ Follow-ups`,
       );
 
       return NextResponse.json({ summary: text || "No summary generated." });
+    }
+
+    if (mode === "eod_client_email") {
+      const clientName = (body.clientName ?? "the client").trim();
+      const accomplishments = (body.accomplishments ?? "").trim();
+      const timeSpent = (body.timeSpent ?? "").trim();
+      const blockers = (body.blockers ?? "").trim();
+      const text = await callGeminiText(
+        `You are Linos, an executive assistant drafting an end-of-day client email on behalf of a virtual assistant.
+
+Client: ${clientName}
+
+Today's work notes:
+"""
+${accomplishments.slice(0, 8000)}
+"""
+
+Time spent today:
+${timeSpent || "Not specified"}
+
+Blockers / asks:
+${blockers || "None reported"}
+
+Write a complete, send-ready email that:
+- Opens with a warm, professional greeting using the client name when natural
+- Highlights specific wins and deliverables (not generic summaries)
+- Mentions time investment only when it adds context
+- Surfaces blockers as clear asks with suggested next steps
+- Closes with confidence and a concrete next touchpoint
+- Sounds human-written, not like a bullet dump or AI template
+
+Return ONLY valid JSON:
+{
+  "draft": "Full email with Subject: line at the top, then blank line, then body"
+}`,
+        32_000,
+      );
+      const parsed = parseJsonLoose(text);
+      const draft = typeof parsed?.draft === "string" ? parsed.draft.trim() : text.trim();
+      if (!draft) {
+        return NextResponse.json(
+          { error: "Could not parse email draft.", raw: text },
+          { status: 422 },
+        );
+      }
+      return NextResponse.json({ draft });
+    }
+
+    if (mode === "eod_weekly_digest") {
+      const clientName = (body.clientName ?? "clients").trim();
+      const logs = Array.isArray(body.logs) ? body.logs : [];
+      const logText =
+        logs.length > 0
+          ? logs
+              .map(
+                (l, i) =>
+                  `Day ${i + 1} (${l.date}):\nAccomplishments: ${l.accomplishments}\nTime: ${l.timeSpent}\nBlockers: ${l.blockers}`,
+              )
+              .join("\n\n")
+          : "No EOD logs in the selected window.";
+      const text = await callGeminiText(
+        `You are Linos, drafting a weekly EOD digest for a VA to send internally or to ${clientName}.
+
+EOD logs (last 7 days):
+"""
+${logText.slice(0, 12000)}
+"""
+
+Write a polished weekly recap that:
+- Opens with a one-line week theme tied to real work in the logs
+- Groups wins by theme (delivery, ops, comms) with specific references
+- Calls out patterns, risks, and carry-over items
+- Ends with priorities for next week
+- Professional tone — executive briefing, not a truncated list
+
+Return ONLY valid JSON:
+{
+  "draft": "Full digest text ready to paste into email or Slack"
+}`,
+        32_000,
+      );
+      const parsed = parseJsonLoose(text);
+      const draft = typeof parsed?.draft === "string" ? parsed.draft.trim() : text.trim();
+      if (!draft) {
+        return NextResponse.json(
+          { error: "Could not parse weekly digest.", raw: text },
+          { status: 422 },
+        );
+      }
+      return NextResponse.json({ draft });
     }
   } catch (e) {
     Sentry.captureException(e, { tags: { feature: "vanode-ai" } });

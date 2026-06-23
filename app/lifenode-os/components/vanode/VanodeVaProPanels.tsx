@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Copy,
@@ -642,10 +642,65 @@ export function LiveMeetingCaptureCard({
   const [cloud, setCloud] = useState(false);
   const [meetingUrl, setMeetingUrl] = useState("");
   const [summarizing, setSummarizing] = useState(false);
+  const skipAutoFinalize = useRef(false);
+  const wasCapturingRef = useRef(false);
 
   const displayTranscript = live.isCapturing
     ? live.transcriptText
     : savedTranscript;
+
+  const finalizeLiveSession = useCallback(
+    async (sessionId: string | null, transcript: string) => {
+      setSavedTranscript(transcript);
+      setSummarizing(true);
+      let ai =
+        transcript.length > 0
+          ? `Key decisions:\n• ${transcript.slice(0, 280)}${transcript.length > 280 ? "…" : ""}\n\nAction items:\n• Confirm follow-ups in CRM\n• Archive recording under ${title}.`
+          : "No transcript captured — try again with mic permission or use demo mode (no browser STT).";
+      if (transcript.length > 0) {
+        try {
+          const res = await fetch("/api/vanode/ai", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              mode: "live_summary",
+              transcript,
+              sessionTitle: title,
+            }),
+          });
+          const data = (await res.json()) as { summary?: string };
+          if (res.ok && typeof data.summary === "string" && data.summary.trim()) {
+            ai = data.summary.trim();
+          }
+        } catch {
+          /* keep offline recap */
+        }
+      }
+      setSummary(ai);
+      setSummarizing(false);
+      if (sessionId) {
+        onUpdateSession(sessionId, {
+          endedAt: new Date().toISOString(),
+          transcript,
+          aiSummary: ai,
+          cloudQueued: cloud,
+        });
+      }
+      setActiveId(null);
+    },
+    [cloud, onUpdateSession, title],
+  );
+
+  useEffect(() => {
+    if (skipAutoFinalize.current) {
+      wasCapturingRef.current = live.isCapturing;
+      return;
+    }
+    if (wasCapturingRef.current && !live.isCapturing && activeId) {
+      void finalizeLiveSession(activeId, live.transcriptText.trim());
+    }
+    wasCapturingRef.current = live.isCapturing;
+  }, [activeId, finalizeLiveSession, live.isCapturing, live.transcriptText]);
 
   const startLive = () => {
     const id = onAddSession({
@@ -668,44 +723,10 @@ export function LiveMeetingCaptureCard({
 
   const stopLive = async () => {
     const sessionId = activeId;
-    const transcript = live.transcriptText.trim();
-    live.stopCapture();
-    setSavedTranscript(transcript);
-    setSummarizing(true);
-    let ai =
-      transcript.length > 0
-        ? `Key decisions:\n• ${transcript.slice(0, 280)}${transcript.length > 280 ? "…" : ""}\n\nAction items:\n• Confirm follow-ups in CRM\n• Archive recording under ${title}.`
-        : "No transcript captured — try again with mic permission or use demo mode (no browser STT).";
-    if (transcript.length > 0) {
-      try {
-        const res = await fetch("/api/vanode/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: "live_summary",
-            transcript,
-            sessionTitle: title,
-          }),
-        });
-        const data = (await res.json()) as { summary?: string };
-        if (res.ok && typeof data.summary === "string" && data.summary.trim()) {
-          ai = data.summary.trim();
-        }
-      } catch {
-        /* keep offline recap */
-      }
-    }
-    setSummary(ai);
-    setSummarizing(false);
-    if (sessionId) {
-      onUpdateSession(sessionId, {
-        endedAt: new Date().toISOString(),
-        transcript,
-        aiSummary: ai,
-        cloudQueued: cloud,
-      });
-    }
-    setActiveId(null);
+    skipAutoFinalize.current = true;
+    const transcript = live.stopCapture().trim();
+    await finalizeLiveSession(sessionId, transcript);
+    skipAutoFinalize.current = false;
   };
 
   const downloadTxt = () => {
