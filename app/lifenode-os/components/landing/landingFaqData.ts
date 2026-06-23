@@ -240,7 +240,7 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     category: "Cancellation & refunds",
     question: "What is your refund policy?",
     answer:
-      "Refunds are handled per Lemon Squeezy and our Terms of Service. Contact us within 14 days of a mistaken charge with your order ID; we review duplicate billing, accidental annual purchases, and service outages case by case.",
+      "Paid subscriptions are non-refundable. You can cancel anytime from Settings → Plan or the Lemon Squeezy customer portal; access continues through the end of your billing period, then your account moves to Core limits.",
   },
   {
     id: "cancel-data",
