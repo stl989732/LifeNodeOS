@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { resolveIntegrationUserId } from "@/src/lib/integrations/resolveIntegrationUserId";
 import { listInboxItems, rowToClientItem } from "@/src/lib/orchestrator/inboxDb";
+import { requireInboxAccess } from "@/src/lib/orchestrator/requireInboxAccess";
 import { syncAllInboxProviders } from "@/src/lib/orchestrator/syncAll";
 import type { InboxSource } from "@/src/lib/orchestrator/types";
 
@@ -14,18 +14,9 @@ type SyncBody = {
 /** POST — pull Gmail, Slack, and Google Calendar into inbox_items. */
 export async function POST(request: Request) {
   const session = await auth();
-  const sessionUserId = session?.user?.id;
-  if (!sessionUserId) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  }
-
-  const integrationUserId = await resolveIntegrationUserId(session);
-  if (!integrationUserId) {
-    return NextResponse.json(
-      { error: "ACCOUNT_LINK_FAILED" },
-      { status: 403 },
-    );
-  }
+  const access = await requireInboxAccess(session);
+  if (!access.ok) return access.response;
+  const { sessionUserId, integrationUserId } = access;
 
   let body: SyncBody = {};
   try {

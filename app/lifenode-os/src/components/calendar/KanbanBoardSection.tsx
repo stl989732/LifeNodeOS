@@ -24,6 +24,7 @@ import {
 } from "@/src/lib/kanban/types";
 
 import { transferInboxDrop } from "@/src/hooks/useInboxDropTransfer";
+import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 
 const KANBAN_DRAG_MIME = "application/x-lifenode-kanban-card";
 
@@ -38,6 +39,7 @@ export default function KanbanBoardSection({
   userId,
   onStoreChange,
 }: KanbanBoardSectionProps) {
+  const { canAdd, promptUpgrade } = usePlanEntitlements();
   const [newBoardName, setNewBoardName] = useState("");
   const [showNewBoard, setShowNewBoard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState<Record<string, string>>({});
@@ -86,6 +88,10 @@ export default function KanbanBoardSection({
   }
 
   function handleCreateBoard() {
+    if (!canAdd("kanban_boards", store.boards.length)) {
+      promptUpgrade("kanban_boards");
+      return;
+    }
     const board = createKanbanBoard(newBoardName);
     persist({
       ...store,

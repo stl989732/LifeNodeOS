@@ -332,7 +332,7 @@ export default function HomeNode() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const chefTipFetchedRef = useRef(false);
-  const chefDiscoverFlowRef = useRef(false);
+  const [chefDiscoverFlowActive, setChefDiscoverFlowActive] = useState(false);
   const kitchenStaleRefetchStarted = useRef(false);
   const pendingChefTabIdRef = useRef(null);
 
@@ -1339,7 +1339,7 @@ export default function HomeNode() {
   async function runChefDiscover() {
     const q = ingredientsOnHand.trim();
     if (!q) return;
-    chefDiscoverFlowRef.current = true;
+    setChefDiscoverFlowActive(true);
     loadingOverlay.show("ChefNode is preparing your kitchen…");
     setMealLoading(true);
     setChefPhase("idle");
@@ -1378,7 +1378,7 @@ export default function HomeNode() {
     } catch {
       setChefIntro("Something went wrong. Check your connection and try again.");
     } finally {
-      chefDiscoverFlowRef.current = false;
+      setChefDiscoverFlowActive(false);
       loadingOverlay.hide();
       setMealLoading(false);
     }
@@ -3566,7 +3566,7 @@ export default function HomeNode() {
 
       {mealLoading &&
       (chefPhase !== "recipe" || kitchenRecipeTabs.length === 0) &&
-      !chefDiscoverFlowRef.current ? (
+      !chefDiscoverFlowActive ? (
         <div className="fixed inset-0 z-[92] flex items-center justify-center bg-[#0F172A]/25 p-6 backdrop-blur-md">
           <div className="glass-card max-w-md px-8 py-8">
             <ChefUtensilLoader

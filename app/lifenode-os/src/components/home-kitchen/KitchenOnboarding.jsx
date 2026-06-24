@@ -145,7 +145,7 @@ export default function KitchenOnboarding({ onComplete }) {
               Where do you store food?
             </h2>
             <p className="mb-8 max-w-xl text-sm leading-relaxed text-slate-500 md:text-base">
-              Pick the spaces your kitchen has. We'll set up a calm, organized view of each one.
+              Pick the spaces your kitchen has. We&apos;ll set up a calm, organized view of each one.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               {STORAGE_TYPES.map((s) => {
@@ -275,7 +275,7 @@ export default function KitchenOnboarding({ onComplete }) {
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#84A59D]">Step 4</p>
             <h2 className={`mb-2 text-2xl font-semibold md:text-3xl ${KITCHEN_TEXT.title}`}>All set.</h2>
             <p className="mb-8 max-w-xl text-sm leading-relaxed text-slate-500 md:text-base">
-              Your kitchen is mapped. From here, HomeNode will quietly track what you have, what's
+              Your kitchen is mapped. From here, HomeNode will quietly track what you have, what&apos;s
               expiring, and what to cook next.
             </p>
             <div className="grid gap-3 sm:grid-cols-3">

@@ -18,8 +18,9 @@ import {
 import { useLifeNode } from "@/src/context/LifeNodeContext";
 import NodeGalleryModal from "@/src/components/shell/NodeGalleryModal";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
-import { hydrateConfiguredHatKeys } from "@/lib/pending-shell-hats";
+import { hydrateConfiguredHatKeys, clearPendingShellHats } from "@/lib/pending-shell-hats";
 import NotificationsBell from "@/src/components/NotificationsBell";
+import CheckoutSuccessBanner from "@/src/components/billing/CheckoutSuccessBanner";
 import { ACTIVE_TO_HAT_KEY } from "@/lib/node-mappings";
 
 const ONBOARDING_TOTAL_STEPS = 3;
@@ -157,7 +158,12 @@ export default function LifeNodeShell() {
   useEffect(() => {
     if (status === "loading") return;
     if (status === "unauthenticated") {
-      router.replace("/auth/signin?callbackUrl=/shell");
+      const search =
+        typeof window !== "undefined" ? window.location.search : "";
+      const callback = encodeURIComponent(
+        search && search !== "?" ? `/shell${search}` : "/shell",
+      );
+      router.replace(`/auth/signin?callbackUrl=${callback}`);
       return;
     }
 
@@ -427,7 +433,9 @@ export default function LifeNodeShell() {
     return (
       <div className="relative min-h-screen overflow-hidden bg-[#0B0F17] px-6 pb-10 pt-[calc(var(--ln-node-nav-chrome-block)+1.5rem)] text-slate-100">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(30,41,59,0.6),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(56,189,248,0.12),transparent_45%)]" />
-        <div className="relative mx-auto max-w-3xl rounded-3xl border border-white/15 bg-white/[0.05] p-8 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-10">
+        <div className="relative mx-auto max-w-3xl">
+          <CheckoutSuccessBanner />
+          <div className="rounded-3xl border border-white/15 bg-white/[0.05] p-8 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
             LifeNode Setup
           </p>
@@ -495,6 +503,7 @@ export default function LifeNodeShell() {
               <p className="text-xs text-amber-200">{setupWarning}</p>
             ) : null}
           </div>
+          </div>
         </div>
       </div>
     );
@@ -519,6 +528,7 @@ export default function LifeNodeShell() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(30,41,59,0.65),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(99,102,241,0.2),transparent_45%)]" />
 
       <div className="relative mx-auto max-w-7xl">
+        <CheckoutSuccessBanner />
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-xl">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">

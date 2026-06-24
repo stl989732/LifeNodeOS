@@ -316,7 +316,7 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
                 Security questions
               </p>
               <p className="mt-1 text-[11px] text-slate-400">
-                You'll answer these if you ever lose access to your password.
+                You&apos;ll answer these if you ever lose access to your password.
                 Pick {SECURITY_QUESTIONS_REQUIRED} distinct questions.
               </p>
             </div>

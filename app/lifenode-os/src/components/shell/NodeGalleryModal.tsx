@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useId } from "react";
-import { Check } from "lucide-react";
+import { Check, Lock } from "lucide-react";
+import type { ActiveNodeName } from "@/lib/node-mappings";
 import type { ActiveNode } from "@/src/context/LifeNodeContext";
+import { activeNodeAllowed } from "@/src/lib/billing/planLimits";
+import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 import { NODE_GALLERY_ENTRIES } from "./node-gallery-nodes";
 
 type Props = {
@@ -12,6 +15,12 @@ type Props = {
   onToggleHat: (node: ActiveNode) => void;
 };
 
+function nodeUpgradeLabel(node: ActiveNodeName): string {
+  if (node === "TraderNode" || node === "ProNode") return "Nexus";
+  if (node === "VitalNode") return "Sync";
+  return "paid plan";
+}
+
 export default function NodeGalleryModal({
   open,
   onClose,
@@ -19,6 +28,21 @@ export default function NodeGalleryModal({
   onToggleHat,
 }: Props) {
   const titleId = useId();
+  const { entitlements, promptUpgradeMessage } = usePlanEntitlements();
+
+  const handleToggle = useCallback(
+    (node: ActiveNode, selected: boolean) => {
+      if (!selected && !activeNodeAllowed(entitlements, node)) {
+        promptUpgradeMessage({
+          title: `${node} requires ${nodeUpgradeLabel(node)}`,
+          message: `Your ${entitlements.displayName} plan includes BizNode, VANode, and HomeNode. Upgrade to enable ${node}.`,
+        });
+        return;
+      }
+      onToggleHat(node);
+    },
+    [entitlements, onToggleHat, promptUpgradeMessage],
+  );
   const onKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -96,20 +120,28 @@ export default function NodeGalleryModal({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4">
           {NODE_GALLERY_ENTRIES.map(({ node, label, Icon }, index) => {
             const selected = activeHats.includes(node);
+            const allowed = activeNodeAllowed(entitlements, node);
             return (
               <button
                 key={node}
                 type="button"
-                onClick={() => onToggleHat(node)}
+                onClick={() => handleToggle(node, selected)}
                 style={{
                   animation: `ln-node-gallery-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) ${index * 55}ms both`,
                 }}
                 className={`ln-hat-card group relative flex flex-col items-center gap-3 rounded-2xl border border-solid px-4 py-6 text-center transition duration-300 ease-out ${
                   selected
                     ? "border-teal-400/55 bg-[rgba(45,212,191,0.12)] shadow-[0_0_28px_rgba(45,212,191,0.22)]"
-                    : "border-white/10 bg-[rgba(255,255,255,0.05)] opacity-80 hover:scale-[1.05] hover:border-[rgba(0,255,200,0.45)] hover:bg-[rgba(255,255,255,0.1)] hover:opacity-100 hover:shadow-[0_0_22px_rgba(0,255,200,0.18)]"
+                    : allowed
+                      ? "border-white/10 bg-[rgba(255,255,255,0.05)] opacity-80 hover:scale-[1.05] hover:border-[rgba(0,255,200,0.45)] hover:bg-[rgba(255,255,255,0.1)] hover:opacity-100 hover:shadow-[0_0_22px_rgba(0,255,200,0.18)]"
+                      : "border-white/10 bg-[rgba(255,255,255,0.03)] opacity-60"
                 } backdrop-blur-[10px]`}
               >
+                {!allowed && !selected ? (
+                  <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-700/90 text-slate-200">
+                    <Lock className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </span>
+                ) : null}
                 {selected ? (
                   <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-teal-500 text-black shadow-[0_0_12px_rgba(45,212,191,0.6)]">
                     <Check className="h-3.5 w-3.5" strokeWidth={3} />
@@ -124,7 +156,11 @@ export default function NodeGalleryModal({
                 </span>
                 <span className="text-sm font-bold text-white">{label}</span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  {selected ? "Selected" : "Tap to toggle"}
+                  {selected
+                    ? "Selected"
+                    : allowed
+                      ? "Tap to toggle"
+                      : nodeUpgradeLabel(node)}
                 </span>
               </button>
             );

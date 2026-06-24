@@ -89,7 +89,7 @@ type SupabaseCredentialRow = {
   updated_at: string;
 };
 
-function useSupabaseCredentialStore(): boolean {
+function shouldUseSupabaseCredentialStore(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
       (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
@@ -193,7 +193,7 @@ function normalizeQuestion(raw: unknown): SecurityQuestion | null {
 }
 
 async function readUsers(): Promise<StoredCredentialUser[]> {
-  if (useSupabaseCredentialStore()) {
+  if (shouldUseSupabaseCredentialStore()) {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase.from("credential_users").select("*");
     if (error) {
@@ -219,7 +219,7 @@ async function readUsers(): Promise<StoredCredentialUser[]> {
 }
 
 async function writeUsers(users: StoredCredentialUser[]): Promise<void> {
-  if (useSupabaseCredentialStore()) {
+  if (shouldUseSupabaseCredentialStore()) {
     const supabase = createSupabaseAdminClient();
     const { error } = await supabase
       .from("credential_users")
@@ -265,7 +265,7 @@ export async function findCredentialUserByEmail(
   const normalized = email.trim().toLowerCase();
   if (!normalized) return null;
 
-  if (useSupabaseCredentialStore()) {
+  if (shouldUseSupabaseCredentialStore()) {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("credential_users")
@@ -521,7 +521,7 @@ export async function deleteCredentialUserById(userId: string): Promise<void> {
   const id = userId.trim();
   if (!id) return;
 
-  if (useSupabaseCredentialStore()) {
+  if (shouldUseSupabaseCredentialStore()) {
     const supabase = createSupabaseAdminClient();
     const { error } = await supabase.from("credential_users").delete().eq("id", id);
     if (error) throw error;

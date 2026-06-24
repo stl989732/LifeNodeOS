@@ -22,6 +22,15 @@ function isEmptyUserState(state: UserState): boolean {
   );
 }
 
+function shellStateNeedsLegacyHatMerge(
+  canonical: UserState,
+  legacy: UserState,
+): boolean {
+  return (
+    canonical.configuredHats.length === 0 && legacy.configuredHats.length > 0
+  );
+}
+
 /**
  * One stable id for shell state, onboarding, and node widgets.
  * Prefer the credential_users row when the email matches so Google/GitHub
@@ -66,10 +75,24 @@ export async function migrateLegacyPersistenceIfNeeded(
 
   try {
     const canonical = await getUserState(canonicalUserId);
-    if (!isEmptyUserState(canonical)) return;
-
     const legacy = await getUserState(legacyUserId);
     if (isEmptyUserState(legacy)) return;
+
+    if (shellStateNeedsLegacyHatMerge(canonical, legacy)) {
+      await writeUserStateDirect({
+        ...canonical,
+        configuredHats: legacy.configuredHats,
+        lastActiveNode: canonical.lastActiveNode ?? legacy.lastActiveNode,
+        nodeOnboarding:
+          Object.keys(canonical.nodeOnboarding).length > 0
+            ? canonical.nodeOnboarding
+            : legacy.nodeOnboarding,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (!isEmptyUserState(canonical)) return;
 
     await writeUserStateDirect({
       ...legacy,

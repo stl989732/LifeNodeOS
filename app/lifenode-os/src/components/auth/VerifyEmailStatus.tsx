@@ -68,7 +68,7 @@ export default function VerifyEmailStatus() {
         </div>
         <div className="space-y-2">
           <h2 className="text-lg font-semibold text-slate-100">
-            You're activated.
+            You&apos;re activated.
           </h2>
           <p className="text-sm text-slate-400">
             Your LifeNode OS account is live. Sign in to assemble your Nodes.

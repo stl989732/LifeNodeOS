@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { hydrateConfiguredHatKeys } from "@/lib/sync-configured-hats";
 import {
   bootstrapPersistenceSession,
+  CLOUD_SYNC_COMPLETE_EVENT,
   syncCrossDeviceWidgets,
 } from "@/src/lib/crossDeviceSync";
 import { bootstrapUserClientStorage } from "@/src/lib/sessionClientIsolation";
@@ -59,7 +60,19 @@ export default function SessionPersistenceBootstrap({ children }: Props) {
 
       ranForUser.current = canonicalUserId;
       await hydrateConfiguredHatKeys(canonicalUserId);
-      if (!cancelled) setSyncReady(true);
+      if (cancelled) return;
+
+      setSyncReady(true);
+      // LifeNodeProvider mounts after syncReady; re-hydrate hats once listeners exist.
+      queueMicrotask(() => {
+        if (cancelled) return;
+        void hydrateConfiguredHatKeys(canonicalUserId);
+        window.dispatchEvent(
+          new CustomEvent(CLOUD_SYNC_COMPLETE_EVENT, {
+            detail: { userId: canonicalUserId },
+          }),
+        );
+      });
     })();
 
     return () => {

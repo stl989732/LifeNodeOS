@@ -26,15 +26,19 @@ void (async () => {
   // Turbopack on Windows + Desktop/synced folders often stalls 30–60s on first compile.
   // Use webpack by default on Windows; opt in with LIFENODE_USE_TURBOPACK=1.
   const port = process.env.PORT?.trim() || "3000";
-  const nextArgs = ["next", "dev", "-p", port];
+  // Bind IPv4 explicitly — on Windows, `localhost` can resolve to ::1 while Next listens on 127.0.0.1.
+  const host = process.env.LIFENODE_DEV_HOST?.trim() || "127.0.0.1";
+  const nextArgs = ["next", "dev", "-p", port, "-H", host];
   if (process.env.LIFENODE_USE_TURBOPACK === "1") {
     nextArgs.push("--turbopack");
   } else if (process.platform === "win32") {
     nextArgs.push("--webpack");
     console.log(
-      "[LifeNode OS] Dev server: http://localhost:" +
+      "[LifeNode OS] Dev server warming up on http://" +
+        host +
+        ":" +
         port +
-        " (webpack on Windows — first page load may take 20–40s). Set LIFENODE_USE_TURBOPACK=1 for Turbopack.\n",
+        " (webpack on Windows — first compile can take ~60s on Desktop/synced folders).\n",
     );
   }
 
@@ -50,10 +54,48 @@ void (async () => {
   });
 
   child.on("spawn", () => {
+    const pricingUrl = `http://${host}:${port}/pricing`;
     console.log(
-      "[LifeNode OS] Open http://localhost:" +
-        port +
-        " — wait for “Ready”, then allow ~30s on first compile.\n",
+      "[LifeNode OS] Wait for “Ready” below, then open:\n" +
+        "  " +
+        pricingUrl +
+        "\n" +
+        "  (Pre-compiling in the background — do not refresh if the tab is still loading.)\n",
     );
+    warmDevServer(host, port);
   });
 })();
+
+/** Hit /pricing once Next is ready so the browser is not stuck on a 60s first compile. */
+function warmDevServer(host, port) {
+  const url = `http://${host}:${port}/pricing`;
+  let attempts = 0;
+  const maxAttempts = 90;
+
+  const tryFetch = () => {
+    attempts += 1;
+    fetch(url, { signal: AbortSignal.timeout(120_000) })
+      .then((res) => {
+        if (res.ok) {
+          console.log(
+            "\n[LifeNode OS] ✓ Dev server ready — open " + url + "\n",
+          );
+          return;
+        }
+        retry();
+      })
+      .catch(() => {
+        if (attempts < maxAttempts) retry();
+        else {
+          console.warn(
+            "\n[LifeNode OS] Warmup timed out. If the browser shows “connection failed”, wait and retry " +
+              url +
+              " (first compile may still be running).\n",
+          );
+        }
+      });
+  };
+
+  const retry = () => setTimeout(tryFetch, 2000);
+  setTimeout(tryFetch, 5000);
+}

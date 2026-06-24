@@ -1,6 +1,6 @@
 # Product Marketing Context
 
-*Last updated: 2026-05-08 — V1 draft auto-generated from codebase. Items marked `[NEEDS INPUT]` need your confirmation or correction.*
+*Last updated: 2026-06-17 — Competitive landscape enriched via Tavily web search. Items marked `[NEEDS INPUT]` need your confirmation or correction.*
 
 ## Product Overview
 
@@ -75,12 +75,15 @@ LifeNode OS is consumer/prosumer — single-buyer in most cases. Per-Node person
 
 **Direct (same solution, same problem):**
 - Notion / Coda — falls short because they're DIY blank canvases; user has to architect everything
-- Sunsama / Motion — falls short because they're calendar/task-only, not multi-domain
-- `[NEEDS INPUT]` Anyone else you consider direct?
+- Sunsama / Motion / Akiflow / Morgen — falls short because they're calendar/task-first daily planners, not role-specific multi-domain dashboards (work + home + clients + health in one native app). Pricing context (2026): Sunsama ~$16–26/mo, Motion ~$29/mo, Akiflow ~$19–34/mo, Morgen ~$15/mo. Sources: [morgen.so Sunsama vs Motion](https://www.morgen.so/blog-posts/sunsama-vs-motion), [Super Productivity Sunsama alternatives](https://super-productivity.com/blog/best-sunsama-alternatives-2026)
+- **Life OS (Notion template ecosystem)** — naming collision risk. Products like [lifeosdashboard.com](https://lifeosdashboard.com) sell a Notion-based "all-in-one life dashboard" with 47 frameworks, AI weekly reports, and domains for work/family/finances/health. Falls short vs LifeNode OS: still a template users must maintain inside Notion; no native role Nodes (Trader, VA, Vital); no OAuth integrations or domain-specific workflows (EOD reports, sniper mode, fridge vision, etc.)
+- **Pocket Informant** — closest "life command center" positioning (tasks + calendar + notes + projects, work + personal). Falls short: generic GTD/calendar UX, not opinionated per-role dashboards or AI triage by hat. Source: [Pocket Informant 2026 roundup](https://www.pocketinformant.com/best-productivity-apps-for-2026-and-why-pocket-informant-leads-the-list)
 
 **Secondary (different solution, same problem):**
 - App stack approach: Asana + Slack + Gmail + Apple Health + QuickBooks — falls short because no context flows between them
-- Personal dashboards built in Notion templates — falls short because they don't have AI intelligence layer
+- Personal dashboards built in Notion templates (incl. free "Life OS" marketplace templates) — falls short because users still build/maintain the system; no native integrations or role-aware AI layer
+- **Reclaim AI** — calendar defense + habits ($8/mo). Solves scheduling, not multi-hat life ops
+- **Routine / Ellie / Todoist** — task or habit layers; require stacking with calendar and domain tools
 
 **Indirect (conflicting approach):**
 - Hiring a human assistant — falls short because it's $$$, doesn't scale, doesn't know your tools

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
+import { getUserPlan } from "@/src/lib/billing/getUserPlan";
+import { getPlanEntitlements } from "@/src/lib/billing/planEntitlements";
+import { canAddWithinPlanLimit } from "@/src/lib/billing/planLimits";
+import { planLimitDeniedResponse } from "@/src/lib/billing/planLimitResponse";
 import {
   buildTrackerInsertRow,
   categoryFromDb,
@@ -75,6 +79,32 @@ export async function POST(request: Request) {
 
   try {
     const supabase = createSupabaseAdminClient();
+    const plan = await getUserPlan(userId);
+    const entitlements = getPlanEntitlements(plan);
+
+    const { count, error: countError } = await supabase
+      .from("lifenode_trackers")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+
+    if (countError) {
+      console.error("Supabase count trackers error:", countError);
+      return NextResponse.json(
+        { error: countError.message, details: countError },
+        { status: 400 },
+      );
+    }
+
+    const trackerCount = count ?? 0;
+    if (!canAddWithinPlanLimit(trackerCount, entitlements.maxTrackers)) {
+      return planLimitDeniedResponse({
+        limit: "trackers",
+        current: trackerCount,
+        max: entitlements.maxTrackers,
+        planDisplayName: entitlements.displayName,
+      });
+    }
+
     const row = buildTrackerInsertRow(input, userId);
     const { data, error } = await insertTrackerRow(
       supabase,

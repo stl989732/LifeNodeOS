@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { requireInboxAccess } from "@/src/lib/orchestrator/requireInboxAccess";
 import { executeInboxTransfer } from "@/src/lib/orchestrator/transfer";
 import type { InboxTransferTarget } from "@/src/lib/orchestrator/types";
 
@@ -26,10 +27,9 @@ function parseTarget(body: Record<string, unknown>): InboxTransferTarget {
 /** POST — transfer inbox item to calendar, kanban, or a node. */
 export async function POST(request: Request, ctx: RouteCtx) {
   const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  }
+  const access = await requireInboxAccess(session);
+  if (!access.ok) return access.response;
+  const { sessionUserId: userId } = access;
 
   const { id } = await ctx.params;
 

@@ -4,6 +4,10 @@ import { auth } from "@/auth";
 import { compressAudioPayload } from "@/lib/audioCompression";
 import { sanitizeAndTruncate } from "@/lib/truncation";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
+import { getUserPlan } from "@/src/lib/billing/getUserPlan";
+import { getPlanEntitlements } from "@/src/lib/billing/planEntitlements";
+import { meterChefRecipeGeneration } from "@/src/lib/billing/meterChefRecipe";
+import { chefRecipeLimitDeniedResponse } from "@/src/lib/billing/chefRecipeLimitResponse";
 import {
   getChefImageModelId,
   getChefTextModelId,
@@ -434,6 +438,21 @@ async function readKitchenAiBody(request: Request): Promise<
   return { ok: true, body: raw as KitchenAiRequestBody };
 }
 
+async function enforceChefRecipePlanLimit(
+  userId: string,
+): Promise<NextResponse | null> {
+  const meter = await meterChefRecipeGeneration(userId);
+  if (meter.allowed) return null;
+
+  const plan = await getUserPlan(userId);
+  const entitlements = getPlanEntitlements(plan);
+  return chefRecipeLimitDeniedResponse({
+    recipesUsed: meter.recipesUsed,
+    recipesLimit: meter.recipesLimit,
+    planDisplayName: entitlements.displayName,
+  });
+}
+
 export async function POST(request: Request) {
   const apiKey = process.env.GOOGLE_API_KEY?.trim();
   const parsedBody = await readKitchenAiBody(request);
@@ -674,6 +693,14 @@ JSON only.`,
     }
 
     if (mode === "chef_execute") {
+      const session = await auth();
+      const userId = session?.user?.id;
+      if (!userId) {
+        return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+      }
+      const recipeLimitResponse = await enforceChefRecipePlanLimit(userId);
+      if (recipeLimitResponse) return recipeLimitResponse;
+
       const selectedMeal = (body.selectedMeal ?? "").trim();
       if (!selectedMeal) {
         return NextResponse.json(
@@ -894,6 +921,14 @@ Each recipe: ingredients = array of 6-14 objects { "item", "amount" }; steps = a
     }
 
     if (mode === "recipe") {
+      const session = await auth();
+      const userId = session?.user?.id;
+      if (!userId) {
+        return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+      }
+      const recipeLimitResponse = await enforceChefRecipePlanLimit(userId);
+      if (recipeLimitResponse) return recipeLimitResponse;
+
       const ingredientsText = (body.ingredients ?? "").trim();
       if (!ingredientsText) {
         return NextResponse.json(

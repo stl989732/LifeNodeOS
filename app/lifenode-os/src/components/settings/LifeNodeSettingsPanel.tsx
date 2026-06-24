@@ -9,6 +9,7 @@ import {
 import {
   Bell,
   Bot,
+  CreditCard,
   Laptop,
   LifeBuoy,
   MessageSquare,
@@ -36,10 +37,12 @@ import {
   type UiDensity,
 } from "@/src/lib/settings/lifeNodeSettings";
 import AccountDeletionModal from "./AccountDeletionModal";
+import PlanUsageSection from "./PlanUsageSection";
 import { deleteAccountClient } from "@/src/lib/account/deleteAccountClient";
 
 type SectionId =
   | "account"
+  | "plan"
   | "workspace"
   | "ai"
   | "notifications"
@@ -49,6 +52,7 @@ type SectionId =
 
 const SECTIONS: { id: SectionId; label: string; icon: typeof Shield }[] = [
   { id: "account", label: "Account & Security", icon: Shield },
+  { id: "plan", label: "Plan & Usage", icon: CreditCard },
   { id: "workspace", label: "Workspace & Nodes", icon: SlidersHorizontal },
   { id: "ai", label: "AI Behavior", icon: Bot },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -346,6 +350,8 @@ export default function LifeNodeSettingsPanel({ open, onClose }: Props) {
                 </div>
               </div>
             ) : null}
+
+            {section === "plan" ? <PlanUsageSection /> : null}
 
             {section === "workspace" ? (
               <div className="space-y-6">

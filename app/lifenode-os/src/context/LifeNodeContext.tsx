@@ -20,6 +20,7 @@ import {
   saveConfiguredHatsBackup,
   savePendingShellHats,
 } from "@/lib/sync-configured-hats";
+import { CLOUD_SYNC_COMPLETE_EVENT } from "@/src/lib/crossDeviceSync";
 import type { ShellHatKey } from "@/lib/node-mappings";
 import type { ProRoleId } from "@/src/lib/proNode/types";
 import {
@@ -27,6 +28,7 @@ import {
   writeProWorkspaceRole,
 } from "@/src/lib/proNode/workspaceContext";
 import { LifeNodeSettingsEffects } from "@/src/hooks/useLifeNodeSettings";
+import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 
 /** Canonical node identifiers — LifeNode OS “brain” keys. */
 export type ActiveNode =
@@ -566,6 +568,7 @@ export function resolveLifeNodeTheme(
 export function LifeNodeProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
+  const { entitlements: billingEntitlements } = usePlanEntitlements();
   const [activeNode, setActiveNode] = useState<ActiveNode>("BizNode");
   const [vitalStats, setVitalStats] = useState<VitalStats>({
     heartRate: 0,
@@ -716,7 +719,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
         /* offline / guest */
       }
     })();
-  }, [session?.user?.id]);
+  }, [session]);
 
   const updateConfiguredHats = useCallback(
     (nodes: ActiveNode[]) => {
@@ -798,8 +801,17 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       if (!cancelled) setConfiguredHats([]);
     };
 
+    const onCloudSync = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string }>).detail;
+      const uid = detail?.userId?.trim() || session.user.id;
+      void hydrateConfiguredHatKeys(uid).then((hatKeys) => {
+        applyHats(hatKeys);
+      });
+    };
+
     window.addEventListener("lifenode:hats:updated", onHatsUpdated);
     window.addEventListener("lifenode:session:cleared", onSessionCleared);
+    window.addEventListener(CLOUD_SYNC_COMPLETE_EVENT, onCloudSync);
 
     void (async () => {
       const hats = await hydrateConfiguredHatKeys(session.user.id);
@@ -810,6 +822,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.removeEventListener("lifenode:hats:updated", onHatsUpdated);
       window.removeEventListener("lifenode:session:cleared", onSessionCleared);
+      window.removeEventListener(CLOUD_SYNC_COMPLETE_EVENT, onCloudSync);
     };
   }, [status, session?.user?.id, setConfiguredHatsFromShellKeys]);
 
@@ -1091,7 +1104,9 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       bridgeSignals.calendarHasCommitments ||
       bridgeSignals.lifePulseHasCommitments;
     const alertsEnabled =
-      linoSignalsReady && (linoAlertsArmed || commitmentAlertsEnabled);
+      billingEntitlements.logicBridges &&
+      linoSignalsReady &&
+      (linoAlertsArmed || commitmentAlertsEnabled);
 
     if (!alertsEnabled) {
       queueMicrotask(() => {
@@ -1143,6 +1158,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     persistOutOfScopeAlerts,
     linoAlertsArmed,
     linoSignalsReady,
+    billingEntitlements.logicBridges,
   ]);
 
   const isLinoInterrupting = useMemo(() => {

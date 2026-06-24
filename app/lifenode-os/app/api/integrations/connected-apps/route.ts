@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { toConnectedAppId } from "@/src/lib/integrations/appProviderMap";
+import { getUserPlan } from "@/src/lib/billing/getUserPlan";
+import { getPlanEntitlements } from "@/src/lib/billing/planEntitlements";
+import { canAddWithinPlanLimit } from "@/src/lib/billing/planLimits";
+import { planLimitDeniedResponse } from "@/src/lib/billing/planLimitResponse";
 import {
   listUserConnectedApps,
   upsertUserConnectedApp,
@@ -64,10 +68,44 @@ export async function POST(request: Request) {
       : "syncing";
 
   try {
+    const plan = await getUserPlan(userId);
+    const entitlements = getPlanEntitlements(plan);
+    const appId = toConnectedAppId(app);
+    const targetNode = node.trim().toUpperCase();
+    const existingRows = await listUserConnectedApps(userId);
+    const existing = existingRows.find(
+      (row) =>
+        row.target_node.toUpperCase() === targetNode &&
+        row.app_id.toLowerCase() === appId.toLowerCase(),
+    );
+    const activeRows = existingRows.filter(
+      (row) =>
+        row.connection_status === "connected" ||
+        row.connection_status === "syncing",
+    );
+    const becomingActive =
+      connectionStatus === "connected" || connectionStatus === "syncing";
+    const wasActive =
+      existing?.connection_status === "connected" ||
+      existing?.connection_status === "syncing";
+    const isNewActiveSlot = becomingActive && !wasActive;
+
+    if (
+      isNewActiveSlot &&
+      !canAddWithinPlanLimit(activeRows.length, entitlements.maxIntegrations)
+    ) {
+      return planLimitDeniedResponse({
+        limit: "integrations",
+        current: activeRows.length,
+        max: entitlements.maxIntegrations,
+        planDisplayName: entitlements.displayName,
+      });
+    }
+
     await upsertUserConnectedApp({
       user_id: userId,
       target_node: node,
-      app_id: toConnectedAppId(app),
+      app_id: appId,
       connection_status: connectionStatus,
     });
     return NextResponse.json({ ok: true });

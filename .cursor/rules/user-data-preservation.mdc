@@ -1,0 +1,137 @@
+---
+alwaysApply: true
+---
+# LifeNode OS — User Data Preservation
+
+**Goal:** Ship code/UI fixes without wiping, resetting, or overwriting data the user entered in the dashboard.
+
+User data is **not** in the repo. It lives in Supabase tables, browser `localStorage`, and (local dev only) JSON files under `data/`. Treat every change as potentially destructive until you confirm which store it touches.
+
+---
+
+## Where user data lives
+
+| Layer | Location | What it holds |
+|-------|----------|---------------|
+| **Supabase (production)** | `user_shell_state` | Hats, onboarding, workflows, notifications, projects, display name |
+| | `user_node_widget_data` | Dashboard widget payloads (`widget_key` + JSON `payload`) |
+| | `lifenode_trackers` | Life Pulse tracker rows |
+| | `user_integrations` | OAuth tokens (never client-side) |
+| | `user_connected_apps` | Per-node app connection UI state |
+| | `linos_chats` / messages | Lino chat history |
+| | Node-specific tables | Pro vault, biz triage, family events, vital metrics, etc. |
+| **Browser localStorage** | Per-node keys (see below) | TraderNode, VitalNode, VANode, BizNode sync, kitchen setup, Lino prefs |
+| **Local dev only** | `data/user-state/<userId>.json` | Shell state when Supabase env vars are unset |
+| | `data/node-widgets/<userId>/*.json` | Widget payloads when Supabase env vars are unset |
+
+**Production rule:** Vercel must have `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. Without them, server reads return **empty defaults** — the UI looks wiped even though Supabase still has rows.
+
+---
+
+## Never do these (common wipe causes)
+
+1. **Enable `NEXT_PUBLIC_LIFENODE_DEV_FRESH_SESSION=1` in production or preview deploys.**  
+   It skips all shell persistence (`lib/dev-flags.ts`). Dev-only.
+
+2. **Rename or bump storage keys without a migration.**  
+   Examples: `lifenode.tradernode.v1`, `lifenode_vanode_v1`, `lifenode.biznode.master-sync.v3`.  
+   If you must change a key, read the old key on load and write through to the new key once.
+
+3. **Replace full state objects instead of patching.**  
+   Use `patchUserState`, `patchNodeOnboardingDraft`, and widget **upsert** — never write `{}` or `defaultState()` over existing rows.
+
+4. **Drop or truncate user tables in migrations.**  
+   Migrations must be **additive**: `create table if not exists`, `alter table … add column if not exists`. No `DROP TABLE`, `TRUNCATE`, or mass `DELETE` on user data tables.
+
+5. **Remove fields from `normalizeState` / widget parsers without backward compatibility.**  
+   `lib/user-state-store.ts` `normalizeState()` only keeps known fields. Unknown JSON in DB is discarded on read. When changing shape: accept old + new fields; default missing fields; migrate in place on read if needed.
+
+6. **Call `localStorage.removeItem` or reset hooks in non-dev paths.**  
+   e.g. `KitchenHome.jsx` setup reset — only run on explicit user "reset", never on deploy or component mount.
+
+7. **Change RLS policies without verifying reads still work.**  
+   A policy that blocks `select` looks like empty data. After RLS changes: Supabase MCP `get_advisors` + confirm a test user row is readable.
+
+8. **Seed or overwrite demo data into user-scoped stores.**  
+   No `upsert` of demo fixtures keyed by real `user_id`. Demo/empty states belong in UI fallbacks when **no row exists**, not as writes.
+
+---
+
+## Safe change patterns
+
+### UI / component changes (no data touch)
+- Change layout, styling, copy, a11y — **do not** change load/save keys, API routes, or default merge logic.
+- If adding new dashboard fields: **merge** into existing payload (`{ ...existing, newField }`), don't replace the whole object.
+
+### Shell state (`user_shell_state`)
+- Read with `getUserState(userId)`; write with `patchUserState` or targeted helpers (`addWorkflow`, `patchNodeOnboarding`, etc.).
+- Never `writeUserState(defaultState(userId))` except for brand-new users with no row.
+- After schema/shape changes, extend `normalizeState` to tolerate old rows.
+
+### Widget data (`user_node_widget_data`)
+- Use `node-widget-data-store.ts`: `getNodeWidget` / `upsertNodeWidget`.
+- Register new widgets in `lib/node-widget-keys.ts` — **new keys only**; don't rename existing keys without migration.
+- Payload changes: deep-merge or version inside JSON (`{ schemaVersion: 2, … }`), don't require exact new shape on read.
+
+### localStorage-backed nodes (Trader, Vital, VANode, BizNode, kitchen)
+- Prefer **user-scoped keys**: `userScopedStorageKey(BASE_KEY, userId)` pattern from TradeNode/VANode.
+- On load: try user-scoped key → legacy global key → migrate forward with `setItem`.
+- On save: only persist fields the user edited; preserve unknown keys in parsed JSON when spreading (`{ ...parsed, updatedField }`).
+
+### Database migrations
+- Additive only. Backfill with `UPDATE … WHERE column IS NULL`, never delete rows.
+- Before merge: Supabase MCP `list_tables` + review migration SQL for user tables.
+- After apply: confirm row counts unchanged (or only increased).
+
+### Deploy / env
+- Confirm production/preview env has Supabase URL + service role key.
+- Confirm `NEXT_PUBLIC_LIFENODE_DEV_FRESH_SESSION` is **unset or `0`** on Vercel.
+- Deploy does not clear Supabase; env misconfig or dev flags do.
+
+---
+
+## Pre-merge checklist (agent must run mentally or explicitly)
+
+When the task touches persistence, loading, onboarding, dashboard widgets, or migrations:
+
+- [ ] Which store(s) does this feature use? (table name or localStorage key)
+- [ ] Is the change read-only for user data, or does it write?
+- [ ] If it writes: patch/merge/upsert, not full replace?
+- [ ] If shape changed: old data still parses? Migration path?
+- [ ] If migration: additive only? RLS still allows read/write for app?
+- [ ] If storage key changed: old key migrated on load?
+- [ ] `DEV_FRESH_SESSION` not enabled for deploy target?
+- [ ] User impact stated: *"Existing user rows preserved / at risk because …"*
+
+---
+
+## Verification after changes
+
+1. `npm run lint && npm run build` in `app/lifenode-os`.
+2. **Manual or Playwright:** sign in → open affected node → confirm prior inputs still visible → make a small edit → refresh → edit persists.
+3. If Supabase touched: MCP `get_logs` or spot-check one `user_id` row before/after.
+4. Node/integration/OAuth changes: Playwright on sign-in + affected node + OAuth callback (per master rule).
+
+---
+
+## Incident: "User data disappeared after deploy"
+
+Triage in order:
+
+1. **Vercel env** — `NEXT_PUBLIC_LIFENODE_DEV_FRESH_SESSION`, Supabase URL, service role key present?
+2. **Supabase** — rows still in table? (data exists but UI can't read = RLS/env/code path)
+3. **Sentry / Vercel logs** — `[user-state-store] Supabase read failed` → empty UI, data may still be in DB
+4. **Recent storage key or normalizeState change** — migration missing?
+
+Fix root cause; **do not** "fix" by resetting users to empty state.
+
+---
+
+## Related files (read before editing persistence)
+
+- `app/lifenode-os/lib/user-state-store.ts` — shell state read/write/normalize
+- `app/lifenode-os/lib/node-widget-data-store.ts` — widget payloads
+- `app/lifenode-os/lib/dev-flags.ts` — `DEV_FRESH_SESSION`
+- `app/lifenode-os/lib/node-widget-keys.ts` — widget key registry
+- `app/lifenode-os/supabase/migrations/` — schema changes
+- Node localStorage: `TradeNode.jsx`, `VitalNode.jsx`, `components/vanode/useVanodeStore.ts`, `src/lib/bizNode/onboardingSyncStorage.ts`

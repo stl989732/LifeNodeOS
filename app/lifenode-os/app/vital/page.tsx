@@ -1,16 +1,19 @@
 import NodeRouteBinder from "@/src/components/NodeRouteBinder";
 import OnboardingGate from "@/src/components/OnboardingGate";
+import PlanNodeGate from "@/src/components/billing/PlanNodeGate";
 import GenericNodeCommandShell from "@/src/components/shell/GenericNodeCommandShell";
 import VitalNode from "@/src/components/VitalNode";
 
 export default function VitalNodePage() {
   return (
     <OnboardingGate node="VitalNode">
-      <NodeRouteBinder node="VitalNode">
-        <GenericNodeCommandShell>
-          <VitalNode />
-        </GenericNodeCommandShell>
-      </NodeRouteBinder>
+      <PlanNodeGate node="VitalNode">
+        <NodeRouteBinder node="VitalNode">
+          <GenericNodeCommandShell>
+            <VitalNode />
+          </GenericNodeCommandShell>
+        </NodeRouteBinder>
+      </PlanNodeGate>
     </OnboardingGate>
   );
 }

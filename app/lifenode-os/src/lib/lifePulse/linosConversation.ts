@@ -335,7 +335,7 @@ export async function runLinosBreakdown(input: {
     };
   }
 
-  let blueprint = blueprintFromParsed(
+  const blueprint = blueprintFromParsed(
     parsed,
     domain,
     rawPrompt,

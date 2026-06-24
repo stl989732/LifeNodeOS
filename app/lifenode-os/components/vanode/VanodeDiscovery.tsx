@@ -193,6 +193,10 @@ export function VanodeDiscovery({
         const outcome = await startOAuthConnect("VA", id);
         if (outcome === "unauthorized") {
           router.push(`/auth/signin?callbackUrl=${encodeURIComponent("/vanode")}`);
+        } else if (outcome === "plan_limit") {
+          setConnectError(
+            "You've reached your integration limit on Core. Upgrade to Sync or Nexus.",
+          );
         } else if (outcome === "unsupported") {
           setConnectError(`${name} is not available for OAuth yet.`);
         }

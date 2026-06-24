@@ -61,7 +61,7 @@ export default function ForgotPasswordForm() {
           <ShieldQuestion className="h-6 w-6" aria-hidden />
         </div>
         <p className="text-sm text-slate-400">
-          Enter the email on your LifeNode OS account. We'll send a recovery
+          Enter the email on your LifeNode OS account. We&apos;ll send a recovery
           link that asks your security questions before letting you set a new
           password.
         </p>
@@ -77,7 +77,7 @@ export default function ForgotPasswordForm() {
                   Check your inbox.
                 </p>
                 <p className="text-emerald-100/85">
-                  If an account exists for that email, you'll get a message
+                  If an account exists for that email, you&apos;ll get a message
                   titled “Reset your LifeNode OS password.” Open it, answer
                   your security questions, and pick a new password. The link
                   expires in 1 hour.
@@ -104,7 +104,7 @@ export default function ForgotPasswordForm() {
         <div className="space-y-4">
           <div className="space-y-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-4 text-sm text-amber-100">
             <p className="font-semibold text-amber-50">
-              We can't verify your identity yet.
+              We can&apos;t verify your identity yet.
             </p>
             <p className="text-amber-100/85">
               This account was created before security questions were enabled.

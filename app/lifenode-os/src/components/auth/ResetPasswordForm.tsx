@@ -168,7 +168,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
             Password updated
           </h2>
           <p className="text-sm text-slate-400">
-            You're all set. Sign in with your new password.
+            You&apos;re all set. Sign in with your new password.
           </p>
         </div>
         <Link
@@ -232,7 +232,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
       />
 
       {password.length > 0 && confirm.length > 0 && password !== confirm && (
-        <p className="text-xs text-rose-300">Passwords don't match.</p>
+        <p className="text-xs text-rose-300">Passwords don&apos;t match.</p>
       )}
 
       {submit.kind === "error" && (

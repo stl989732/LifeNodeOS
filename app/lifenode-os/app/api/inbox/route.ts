@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { listInboxItems, rowToClientItem } from "@/src/lib/orchestrator/inboxDb";
+import { requireInboxAccess } from "@/src/lib/orchestrator/requireInboxAccess";
 import type { InboxSource, InboxStatus } from "@/src/lib/orchestrator/types";
 
 export const runtime = "nodejs";
 
-function unauthorized() {
-  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-}
-
 /** GET — list unified inbox items for the signed-in user. */
 export async function GET(request: Request) {
   const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const access = await requireInboxAccess(session);
+  if (!access.ok) return access.response;
+  const { sessionUserId: userId } = access;
 
   const url = new URL(request.url);
   const source = url.searchParams.get("source") as InboxSource | null;

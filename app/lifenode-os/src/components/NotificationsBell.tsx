@@ -164,7 +164,7 @@ export default function NotificationsBell() {
                   Notifications
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Quiet alerts from nodes you're not currently wearing.
+                  Quiet alerts from nodes you&apos;re not currently wearing.
                 </p>
               </div>
               {items.length > 0 ? (
@@ -182,9 +182,9 @@ export default function NotificationsBell() {
               {items.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-sm text-slate-400">
                   <BellOff className="h-5 w-5 text-slate-500" />
-                  <p>You're caught up.</p>
+                  <p>You&apos;re caught up.</p>
                   <p className="text-xs text-slate-500">
-                    Out-of-scope alerts will land here so they don't interrupt
+                    Out-of-scope alerts will land here so they don&apos;t interrupt
                     you.
                   </p>
                 </div>

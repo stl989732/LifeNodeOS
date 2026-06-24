@@ -36,13 +36,7 @@ export async function GET() {
       displayName: snapshot.entitlements.displayName,
       currentPeriodEnd: snapshot.currentPeriodEnd,
       variantSlug: snapshot.variantSlug,
-      entitlements: {
-        nodes: snapshot.entitlements.nodes,
-        aiCreditsDaily: snapshot.entitlements.aiCreditsDaily,
-        maxIntegrations: snapshot.entitlements.maxIntegrations,
-        maxVaClients: snapshot.entitlements.maxVaClients,
-        maxTrackers: snapshot.entitlements.maxTrackers,
-      },
+      entitlements: snapshot.entitlements,
       billingConfigured: isLemonSqueezyConfigured(),
       customerPortalUrl,
     });

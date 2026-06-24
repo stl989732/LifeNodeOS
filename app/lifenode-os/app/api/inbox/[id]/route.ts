@@ -1,28 +1,25 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { resolveIntegrationUserId } from "@/src/lib/integrations/resolveIntegrationUserId";
 import {
   archiveInboxItem,
   getInboxItem,
   patchInboxItem,
   rowToClientItem,
 } from "@/src/lib/orchestrator/inboxDb";
+import { requireInboxAccess } from "@/src/lib/orchestrator/requireInboxAccess";
 import { hydrateInboxBody } from "@/src/lib/orchestrator/writeback";
 import type { InboxStatus } from "@/src/lib/orchestrator/types";
 
 export const runtime = "nodejs";
-
-function unauthorized() {
-  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-}
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
 /** GET — inbox item detail (optional body hydration from provider). */
 export async function GET(_request: Request, ctx: RouteCtx) {
   const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const access = await requireInboxAccess(session);
+  if (!access.ok) return access.response;
+  const { sessionUserId: userId, integrationUserId } = access;
 
   const { id } = await ctx.params;
 
@@ -42,7 +39,6 @@ export async function GET(_request: Request, ctx: RouteCtx) {
           !providerPayload.bodyHtml.trim();
 
     if (needsHydration) {
-      const integrationUserId = await resolveIntegrationUserId(session);
       if (integrationUserId) {
         const hydrated = await hydrateInboxBody(
           integrationUserId,
@@ -78,8 +74,9 @@ export async function GET(_request: Request, ctx: RouteCtx) {
 /** PATCH — local status, notes, transfer_meta. */
 export async function PATCH(request: Request, ctx: RouteCtx) {
   const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const access = await requireInboxAccess(session);
+  if (!access.ok) return access.response;
+  const { sessionUserId: userId } = access;
 
   const { id } = await ctx.params;
 
@@ -113,8 +110,9 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
 /** DELETE — soft-archive in LifeNode (provider delete via /actions). */
 export async function DELETE(_request: Request, ctx: RouteCtx) {
   const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return unauthorized();
+  const access = await requireInboxAccess(session);
+  if (!access.ok) return access.response;
+  const { sessionUserId: userId } = access;
 
   const { id } = await ctx.params;
 

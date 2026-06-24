@@ -13,7 +13,7 @@ function notifyConnectedAppsChanged(): void {
 async function markAppSyncing(
   nodeName: string,
   appId: string,
-): Promise<boolean> {
+): Promise<{ ok: boolean; planLimit?: boolean; message?: string }> {
   try {
     const res = await fetch("/api/integrations/connected-apps", {
       method: "POST",
@@ -26,18 +26,25 @@ async function markAppSyncing(
       }),
     });
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
       console.error(
         "Error syncing app card state:",
         typeof data?.error === "string" ? data.error : res.statusText,
       );
-      return false;
+      return {
+        ok: false,
+        planLimit: data.error === "PLAN_LIMIT_REACHED",
+        message: data.message,
+      };
     }
     notifyConnectedAppsChanged();
-    return true;
+    return { ok: true };
   } catch (e) {
     console.error("Error syncing app card state:", e);
-    return false;
+    return { ok: false };
   }
 }
 
@@ -73,7 +80,7 @@ async function fetchOAuthAuthorizeUrl(
 export async function startOAuthConnect(
   nodeName: string,
   appId: string,
-): Promise<"redirected" | "unauthorized" | "unsupported"> {
+): Promise<"redirected" | "unauthorized" | "unsupported" | "plan_limit"> {
   const provider = resolveAppConnectProvider(appId);
   if (!provider) return "unsupported";
 
@@ -82,7 +89,10 @@ export async function startOAuthConnect(
   const node = encodeURIComponent(nodeName.toUpperCase());
   const app = encodeURIComponent(appKey);
 
-  void markAppSyncing(nodeName, appId);
+  const syncResult = await markAppSyncing(nodeName, appId);
+  if (!syncResult.ok) {
+    return syncResult.planLimit ? "plan_limit" : "unauthorized";
+  }
 
   let authorizeUrl: string | null = null;
   try {
@@ -120,7 +130,7 @@ export async function connectAppToNode(
   }
 
   const synced = await markAppSyncing(nodeName, appId);
-  if (!synced) return false;
+  if (!synced.ok) return false;
 
   const width = 600;
   const height = 600;

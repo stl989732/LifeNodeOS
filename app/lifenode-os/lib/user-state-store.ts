@@ -176,7 +176,7 @@ function isServerlessRuntime(): boolean {
   return process.env.VERCEL === "1" || process.env.VERCEL === "true";
 }
 
-function useSupabaseUserState(): boolean {
+function shouldUseSupabaseUserState(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
       (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
@@ -185,9 +185,9 @@ function useSupabaseUserState(): boolean {
 }
 
 /** Local JSON files are dev-only; Vercel/serverless must use Supabase. */
-function useFilesystemUserState(): boolean {
+function shouldUseFilesystemUserState(): boolean {
   if (isServerlessRuntime()) return false;
-  return !useSupabaseUserState();
+  return !shouldUseSupabaseUserState();
 }
 
 function stateToJson(state: UserState): Record<string, unknown> {
@@ -222,7 +222,7 @@ async function writeUserStateToSupabase(state: UserState): Promise<void> {
 }
 
 async function ensureDir(): Promise<void> {
-  if (!useFilesystemUserState()) return;
+  if (!shouldUseFilesystemUserState()) return;
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
   } catch (e) {
@@ -412,7 +412,7 @@ export async function getUserState(userId: string): Promise<UserState> {
     return cached.state;
   }
 
-  if (useSupabaseUserState()) {
+  if (shouldUseSupabaseUserState()) {
     try {
       const fromDb = await readUserStateFromSupabase(userId);
       return cacheUserState(fromDb ?? defaultState(userId));
@@ -422,7 +422,7 @@ export async function getUserState(userId: string): Promise<UserState> {
     }
   }
 
-  if (!useFilesystemUserState()) {
+  if (!shouldUseFilesystemUserState()) {
     console.error(
       "[user-state-store] No persistence backend: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Vercel.",
     );
@@ -454,7 +454,7 @@ export class UserStatePersistenceError extends Error {
 }
 
 async function writeUserState(state: UserState): Promise<void> {
-  if (useSupabaseUserState()) {
+  if (shouldUseSupabaseUserState()) {
     try {
       await writeUserStateToSupabase(state);
       cacheUserState(state);
@@ -468,7 +468,7 @@ async function writeUserState(state: UserState): Promise<void> {
     }
   }
 
-  if (!useFilesystemUserState()) {
+  if (!shouldUseFilesystemUserState()) {
     throw new UserStatePersistenceError(
       "Persistence unavailable on serverless. Configure Supabase (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) and apply the user_shell_state migration.",
     );

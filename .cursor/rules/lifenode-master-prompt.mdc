@@ -1,8 +1,6 @@
 ---
-description: LifeNode OS master routing — incident response, UI/API/node workflows, commit+push after verified changes
 alwaysApply: true
 ---
-
 # LifeNode OS — Master Rule
 
 **Routing:** UI reviews → `web-design-guidelines`; API questions → Context7; node changes → Playwright on auth + OAuth flows.

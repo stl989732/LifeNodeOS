@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { markAccountsDeleted } from "@/lib/account-deleted";
 import { deleteCredentialUserById } from "@/lib/auth-users-store";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
 
@@ -30,7 +31,7 @@ function isServerlessRuntime(): boolean {
   return process.env.VERCEL === "1" || process.env.VERCEL === "true";
 }
 
-function useSupabasePersistence(): boolean {
+function shouldUseSupabasePersistence(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
       (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
@@ -38,14 +39,14 @@ function useSupabasePersistence(): boolean {
   );
 }
 
-function useSupabaseCredentialStore(): boolean {
-  return useSupabasePersistence();
+function shouldUseSupabaseCredentialStore(): boolean {
+  return shouldUseSupabasePersistence();
 }
 
 /** Local JSON files are dev-only; Vercel/serverless must use Supabase. */
-function useFilesystemDevPersistence(): boolean {
+function shouldUseFilesystemDevPersistence(): boolean {
   if (isServerlessRuntime()) return false;
-  return !useSupabasePersistence();
+  return !shouldUseSupabasePersistence();
 }
 
 function sanitizeUserId(userId: string): string {
@@ -197,7 +198,7 @@ export async function deleteUserAccount(options: {
   const userIds = uniqueUserIds(options.userId, ...(options.legacyUserIds ?? []));
 
   try {
-    if (isServerlessRuntime() && !useSupabasePersistence()) {
+    if (isServerlessRuntime() && !shouldUseSupabasePersistence()) {
       return {
         ok: false,
         error:
@@ -206,7 +207,7 @@ export async function deleteUserAccount(options: {
       };
     }
 
-    if (useSupabasePersistence()) {
+    if (shouldUseSupabasePersistence()) {
       const supabase = createSupabaseAdminClient();
       await deleteRowsForUserIds(supabase, userIds);
 
@@ -223,14 +224,14 @@ export async function deleteUserAccount(options: {
       }
     }
 
-    if (useFilesystemDevPersistence()) {
+    if (shouldUseFilesystemDevPersistence()) {
       for (const id of userIds) {
         await deleteLocalDevFiles(id);
       }
     }
 
     if (options.removeCredentialUser) {
-      if (!useSupabaseCredentialStore() && isServerlessRuntime()) {
+      if (!shouldUseSupabaseCredentialStore() && isServerlessRuntime()) {
         return {
           ok: false,
           error:
@@ -240,6 +241,8 @@ export async function deleteUserAccount(options: {
       }
       await deleteCredentialUserById(options.userId);
     }
+
+    await markAccountsDeleted(userIds);
 
     return { ok: true };
   } catch (e) {

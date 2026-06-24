@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { resolveIntegrationUserId } from "@/src/lib/integrations/resolveIntegrationUserId";
 import { archiveInboxItem, getInboxItem } from "@/src/lib/orchestrator/inboxDb";
+import { requireInboxAccess } from "@/src/lib/orchestrator/requireInboxAccess";
 import {
   archiveGmailMessage,
   insertGoogleCalendarBlock,
@@ -16,15 +16,9 @@ type RouteCtx = { params: Promise<{ id: string }> };
 /** POST — provider write-back: reply, archive, schedule to Google Calendar. */
 export async function POST(request: Request, ctx: RouteCtx) {
   const session = await auth();
-  const sessionUserId = session?.user?.id;
-  if (!sessionUserId) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  }
-
-  const integrationUserId = await resolveIntegrationUserId(session);
-  if (!integrationUserId) {
-    return NextResponse.json({ error: "ACCOUNT_LINK_FAILED" }, { status: 403 });
-  }
+  const access = await requireInboxAccess(session);
+  if (!access.ok) return access.response;
+  const { sessionUserId, integrationUserId } = access;
 
   const { id } = await ctx.params;
 

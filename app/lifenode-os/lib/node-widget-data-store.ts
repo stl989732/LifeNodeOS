@@ -36,7 +36,7 @@ function isServerlessRuntime(): boolean {
   return process.env.VERCEL === "1" || process.env.VERCEL === "true";
 }
 
-function useSupabaseWidgetStore(): boolean {
+function shouldUseSupabaseWidgetStore(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
       (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
@@ -44,13 +44,13 @@ function useSupabaseWidgetStore(): boolean {
   );
 }
 
-function useFilesystemWidgetStore(): boolean {
+function shouldUseFilesystemWidgetStore(): boolean {
   if (isServerlessRuntime()) return false;
-  return !useSupabaseWidgetStore();
+  return !shouldUseSupabaseWidgetStore();
 }
 
 async function ensureWidgetDir(userId: string): Promise<void> {
-  if (!useFilesystemWidgetStore()) return;
+  if (!shouldUseFilesystemWidgetStore()) return;
   try {
     await fs.mkdir(path.join(DATA_DIR, sanitizeUserId(userId)), {
       recursive: true,
@@ -163,7 +163,7 @@ export async function getNodeWidget(
   userId: string,
   widgetKey: NodeWidgetKey,
 ): Promise<NodeWidgetRecord | null> {
-  if (useSupabaseWidgetStore()) {
+  if (shouldUseSupabaseWidgetStore()) {
     try {
       return await readWidgetFromSupabase(userId, widgetKey);
     } catch (e) {
@@ -172,7 +172,7 @@ export async function getNodeWidget(
     }
   }
 
-  if (useFilesystemWidgetStore()) {
+  if (shouldUseFilesystemWidgetStore()) {
     try {
       return await readWidgetFromFilesystem(userId, widgetKey);
     } catch (e) {
@@ -203,7 +203,7 @@ export async function upsertNodeWidget(
   widgetKey: NodeWidgetKey,
   payload: unknown,
 ): Promise<NodeWidgetRecord> {
-  if (useSupabaseWidgetStore()) {
+  if (shouldUseSupabaseWidgetStore()) {
     try {
       return await writeWidgetToSupabase(userId, widgetKey, payload);
     } catch (e) {
@@ -215,7 +215,7 @@ export async function upsertNodeWidget(
     }
   }
 
-  if (useFilesystemWidgetStore()) {
+  if (shouldUseFilesystemWidgetStore()) {
     try {
       return await writeWidgetToFilesystem(userId, widgetKey, payload);
     } catch (e) {

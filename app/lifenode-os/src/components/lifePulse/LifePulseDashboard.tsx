@@ -89,7 +89,7 @@ export default function LifePulseDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id, status]);
+  }, [session, status, setLoading, setTrackers]);
 
   useEffect(() => {
     load();

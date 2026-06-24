@@ -18,49 +18,71 @@ export type PlanEntitlements = {
   maxIntegrations: number;
   maxVaClients: number;
   maxTrackers: number;
+  maxKanbanBoards: number;
+  maxInvoices: number;
+  maxEodRecords: number;
+  maxTranscriptions: number;
+  /** Full recipe generations per UTC month (recipe + chef_execute). */
+  maxChefRecipesMonthly: number;
+  whiteboardEnabled: boolean;
+  logicBridges: boolean;
 };
 
 export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
   core: {
     plan: "core",
     displayName: "Core",
-    aiCreditsDaily: 25,
+    aiCreditsDaily: 20,
     features: {
-      linos_assistant: 15,
-      vanode_ai: 5,
+      linos_assistant: 12,
+      vanode_ai: 4,
       biznode_ai: 3,
       lifepulse_plan: 2,
-      lifepulse_intake: 5,
+      lifepulse_intake: 4,
       chef_text: 3,
       chef_image: 0,
     },
-    nodes: ["work", "va"],
-    maxIntegrations: 3,
-    maxVaClients: 1,
-    maxTrackers: 5,
+    nodes: ["work", "va", "home"],
+    maxIntegrations: 2,
+    maxVaClients: 2,
+    maxTrackers: 3,
+    maxKanbanBoards: 1,
+    maxInvoices: 2,
+    maxEodRecords: 2,
+    maxTranscriptions: 2,
+    maxChefRecipesMonthly: 2,
+    whiteboardEnabled: true,
+    logicBridges: false,
   },
   sync: {
     plan: "sync",
     displayName: "Sync",
-    aiCreditsDaily: 120,
+    aiCreditsDaily: 150,
     features: {
-      linos_assistant: 60,
-      vanode_ai: 20,
-      biznode_ai: 15,
-      lifepulse_plan: 10,
-      lifepulse_intake: 20,
-      chef_text: 15,
-      chef_image: 8,
+      linos_assistant: 75,
+      vanode_ai: 25,
+      biznode_ai: 18,
+      lifepulse_plan: 12,
+      lifepulse_intake: 25,
+      chef_text: 20,
+      chef_image: 10,
     },
     nodes: ["work", "va", "home", "vital"],
-    maxIntegrations: 10,
-    maxVaClients: 5,
-    maxTrackers: 30,
+    maxIntegrations: 12,
+    maxVaClients: 8,
+    maxTrackers: 40,
+    maxKanbanBoards: 10,
+    maxInvoices: 20,
+    maxEodRecords: 20,
+    maxTranscriptions: 20,
+    maxChefRecipesMonthly: 20,
+    whiteboardEnabled: true,
+    logicBridges: true,
   },
   nexus: {
     plan: "nexus",
     displayName: "Nexus",
-    aiCreditsDaily: 500,
+    aiCreditsDaily: 1000,
     features: {
       linos_assistant: 250,
       vanode_ai: 50,
@@ -74,6 +96,13 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
     maxIntegrations: 999,
     maxVaClients: 999,
     maxTrackers: 999,
+    maxKanbanBoards: 999,
+    maxInvoices: 999,
+    maxEodRecords: 999,
+    maxTranscriptions: 999,
+    maxChefRecipesMonthly: 40,
+    whiteboardEnabled: true,
+    logicBridges: true,
   },
 };
 

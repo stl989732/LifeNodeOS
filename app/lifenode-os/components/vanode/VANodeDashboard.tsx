@@ -31,6 +31,7 @@ import { ActiveClientProvider } from "./ActiveClientContext";
 import { ClientProofView } from "./ClientProofView";
 import { VanodeDiscovery } from "./VanodeDiscovery";
 import { useVanodeStore } from "./useVanodeStore";
+import { useGatedVanodeActions } from "./useGatedVanodeActions";
 import {
   AiTaskAssistantCard,
   ChaosCalculatorCard,
@@ -171,6 +172,12 @@ function VaSyncedStatusBar({
 
 export function VANodeDashboard() {
   const store = useVanodeStore();
+  const {
+    gatedAddClient,
+    gatedAddEod,
+    gatedAddInvoice,
+    gatedAddTranscript,
+  } = useGatedVanodeActions(store);
 
   useServerOnboardingComplete(
     "VANode",
@@ -398,7 +405,7 @@ export function VANodeDashboard() {
             }
             window.open(u.toString(), "_blank", "noopener,noreferrer");
           }}
-          onAddClient={(c) => store.addClient(c)}
+          onAddClient={(c) => gatedAddClient(c)}
           settings={store.data.settings}
           onPatchSettings={store.patchVaSettings}
         />
@@ -416,7 +423,7 @@ export function VANodeDashboard() {
                 eodLogs={store.data.eodLogs}
                 cloudSyncRecording={store.data.settings.cloudSyncRecording}
                 onSetCloudSync={store.setCloudSyncRecording}
-                onAddEod={(payload) => store.addEodLog(payload)}
+                onAddEod={(payload) => gatedAddEod(payload)}
               />
             </VaFocusShell>
           )}
@@ -494,7 +501,7 @@ export function VANodeDashboard() {
                 clients={store.data.clients}
                 waiting={store.data.waitingTasks}
                 eodLogs={store.data.eodLogs}
-                onAdd={(c) => store.addClient(c)}
+                onAdd={(c) => gatedAddClient(c)}
                 onUpdateClient={(id, patch) => store.updateClient(id, patch)}
                 onRemove={store.removeClient}
               />
@@ -509,7 +516,7 @@ export function VANodeDashboard() {
           <div className="md:col-span-2">
             <LiveMeetingCaptureCard
               onAddVaultNote={store.addNote}
-              onAddSession={(row) => store.addLiveTranscript(row)}
+              onAddSession={(row) => gatedAddTranscript(row)}
               onUpdateSession={(id, patch) =>
                 store.updateLiveTranscript(id, patch)
               }
@@ -521,7 +528,7 @@ export function VANodeDashboard() {
               invoices={store.data.invoices}
               eodLogs={store.data.eodLogs}
               clients={store.data.clients}
-              onAdd={(inv) => store.addInvoice(inv)}
+              onAdd={(inv) => gatedAddInvoice(inv)}
               onUpdateStatus={(id, status) =>
                 store.updateInvoice(id, { status })
               }
@@ -567,7 +574,7 @@ export function VANodeDashboard() {
           eodLogs={store.data.eodLogs}
           cloudSyncRecording={store.data.settings.cloudSyncRecording}
           onSetCloudSync={store.setCloudSyncRecording}
-          onAddEod={(payload) => store.addEodLog(payload)}
+          onAddEod={(payload) => gatedAddEod(payload)}
         />
       </div>
     ) : activeStage === "vault" && nt.smartNotes ? (
@@ -612,7 +619,7 @@ export function VANodeDashboard() {
         {stageHeader("Meeting recorder")}
         <LiveMeetingCaptureCard
           onAddVaultNote={store.addNote}
-          onAddSession={(row) => store.addLiveTranscript(row)}
+          onAddSession={(row) => gatedAddTranscript(row)}
           onUpdateSession={(id, patch) =>
             store.updateLiveTranscript(id, patch)
           }
@@ -637,7 +644,7 @@ export function VANodeDashboard() {
           clients={store.data.clients}
           waiting={store.data.waitingTasks}
           eodLogs={store.data.eodLogs}
-          onAdd={(c) => store.addClient(c)}
+          onAdd={(c) => gatedAddClient(c)}
           onUpdateClient={(id, patch) => store.updateClient(id, patch)}
           onRemove={store.removeClient}
         />
@@ -649,7 +656,7 @@ export function VANodeDashboard() {
           invoices={store.data.invoices}
           eodLogs={store.data.eodLogs}
           clients={store.data.clients}
-          onAdd={(inv) => store.addInvoice(inv)}
+          onAdd={(inv) => gatedAddInvoice(inv)}
           onUpdateStatus={(id, status) =>
             store.updateInvoice(id, { status })
           }

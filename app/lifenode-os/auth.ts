@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
+import { isAccountDeleted } from "@/lib/account-deleted";
 import { findCredentialUserByEmail } from "@/lib/auth-users-store";
 import { provisionCoreSubscription } from "@/src/lib/billing/provisionCoreSubscription";
 
@@ -106,9 +107,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.name = user.name ?? token.name;
         provisionCoreSubscription(stableId ?? token.sub);
       }
+
+      const deleted = await isAccountDeleted(
+        typeof token.sub === "string" ? token.sub : null,
+        typeof token.oauthSubject === "string" ? token.oauthSubject : null,
+      );
+      if (deleted) {
+        token.accountDeleted = true;
+      } else {
+        delete token.accountDeleted;
+      }
+
       return token;
     },
     async session({ session, token }) {
+      if (token.accountDeleted) {
+        return null as unknown as typeof session;
+      }
+
       if (session.user) {
         session.user.id = (token.sub as string) ?? "";
         if (typeof token.email === "string") {
