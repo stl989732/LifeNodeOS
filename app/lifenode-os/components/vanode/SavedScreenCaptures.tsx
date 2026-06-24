@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Cloud, Download, Play, Share2, Trash2, X } from "lucide-react";
 import { useActiveClientOptional } from "./ActiveClientContext";
@@ -31,10 +31,14 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const [playingRow, setPlayingRow] = useState<ScreenCaptureRecord | null>(null);
   const [playUrl, setPlayUrl] = useState<string | null>(null);
   const [playLoading, setPlayLoading] = useState(false);
+  const [playError, setPlayError] = useState(false);
+  const playUrlRef = useRef<string | null>(null);
 
   const visibleRows = useMemo(() => {
     if (!activeClientId) return rows;
-    return rows.filter((r) => r.clientId === activeClientId);
+    return rows.filter(
+      (r) => r.clientId === activeClientId || r.clientId == null,
+    );
   }, [rows, activeClientId]);
 
   const reload = useCallback(async () => {
@@ -51,13 +55,27 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   }, [reload, refreshKey]);
 
   useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [reload]);
+
+  useEffect(() => {
     if (!playingRow) {
+      if (playUrlRef.current) {
+        URL.revokeObjectURL(playUrlRef.current);
+        playUrlRef.current = null;
+      }
       setPlayUrl(null);
+      setPlayError(false);
+      setPlayLoading(false);
       return;
     }
     let cancelled = false;
-    let objectUrl: string | null = null;
     setPlayLoading(true);
+    setPlayError(false);
     void getScreenCaptureBlob(playingRow.id).then((blob) => {
       if (cancelled) return;
       if (!blob) {
@@ -66,23 +84,38 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
         setPlayLoading(false);
         return;
       }
-      objectUrl = URL.createObjectURL(blob);
+      if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current);
+      const objectUrl = URL.createObjectURL(blob);
+      playUrlRef.current = objectUrl;
       setPlayUrl(objectUrl);
       setPlayLoading(false);
     });
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [onToast, playingRow]);
+
+  useEffect(() => {
+    return () => {
+      if (playUrlRef.current) {
+        URL.revokeObjectURL(playUrlRef.current);
+        playUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const handlePlay = (row: ScreenCaptureRecord) => {
     setPlayingRow(row);
   };
 
   const closePlayer = () => {
+    if (playUrlRef.current) {
+      URL.revokeObjectURL(playUrlRef.current);
+      playUrlRef.current = null;
+    }
     setPlayingRow(null);
     setPlayUrl(null);
+    setPlayError(false);
   };
 
   const handleDownload = async (
@@ -278,12 +311,24 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
                   Loading video…
                 </p>
               ) : (
-                <video
-                  src={playUrl}
-                  controls
-                  autoPlay
-                  className="max-h-[70vh] w-full rounded-xl bg-black"
-                />
+                <>
+                  <video
+                    key={playUrl}
+                    src={playUrl}
+                    controls
+                    playsInline
+                    autoPlay
+                    preload="metadata"
+                    className="max-h-[70vh] w-full rounded-xl bg-black"
+                    onError={() => setPlayError(true)}
+                  />
+                  {playError ? (
+                    <p className="mt-3 text-center text-sm text-amber-200/90">
+                      This browser cannot play this format inline — use WebM or
+                      MP4 download from the list.
+                    </p>
+                  ) : null}
+                </>
               )}
             </div>
           </div>,

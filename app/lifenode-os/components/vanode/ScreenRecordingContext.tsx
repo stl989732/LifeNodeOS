@@ -35,6 +35,27 @@ type ScreenRecordingState = {
 
 const ScreenRecordingContext = createContext<ScreenRecordingState | null>(null);
 
+const REVIEW_CAPTURE_SESSION_KEY = "lifenode.vanode.review-capture-id";
+
+function readReviewCaptureId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return sessionStorage.getItem(REVIEW_CAPTURE_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeReviewCaptureId(id: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (id) sessionStorage.setItem(REVIEW_CAPTURE_SESSION_KEY, id);
+    else sessionStorage.removeItem(REVIEW_CAPTURE_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function useScreenRecording() {
   const ctx = useContext(ScreenRecordingContext);
   if (!ctx) {
@@ -200,7 +221,14 @@ export function ScreenRecordingProvider({
   const [saving, setSaving] = useState(false);
   const [includeMic, setIncludeMic] = useState(true);
   const [lastSavedId, setLastSavedId] = useState<string | null>(null);
-  const [reviewCaptureId, setReviewCaptureId] = useState<string | null>(null);
+  const [reviewCaptureId, setReviewCaptureIdState] = useState<string | null>(
+    () => readReviewCaptureId(),
+  );
+
+  const setReviewCaptureId = useCallback((id: string | null) => {
+    setReviewCaptureIdState(id);
+    writeReviewCaptureId(id);
+  }, []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { Menu, X } from "lucide-react";
 import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
 import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
+import SupportChromeMenu from "@/src/components/SupportChromeMenu";
 import {
   LANDING_EXPLORE_LINKS,
   LANDING_NODE_LINKS,
@@ -71,7 +73,10 @@ function MobileNavDrawer({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!open || !mounted || typeof document === "undefined") return null;
 
   const panelBg = theme === "dark" ? "bg-slate-950 text-slate-100" : "bg-white text-slate-900";
   const sectionLabel =
@@ -84,16 +89,16 @@ function MobileNavDrawer({
       : "block rounded-xl px-3 py-2.5 text-sm font-medium text-slate-800 transition hover:bg-slate-100";
   const divider = theme === "dark" ? "border-slate-800" : "border-slate-200";
 
-  return (
-    <div className="fixed inset-0 z-[200] md:hidden" role="dialog" aria-modal="true" aria-label="Site menu">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] md:hidden" role="dialog" aria-modal="true" aria-label="Site menu">
       <button
         type="button"
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="absolute inset-0 z-0 bg-black/45 backdrop-blur-[2px]"
         aria-label="Close menu"
         onClick={onClose}
       />
       <div
-        className={`absolute inset-x-3 top-3 bottom-3 flex flex-col overflow-hidden rounded-2xl border shadow-2xl ${panelBg} ${
+        className={`absolute inset-x-3 top-3 bottom-3 z-10 flex flex-col overflow-hidden rounded-2xl border shadow-2xl ${panelBg} ${
           theme === "dark" ? "border-slate-800" : "border-slate-200"
         }`}
       >
@@ -161,7 +166,7 @@ function MobileNavDrawer({
             </div>
           ) : null}
 
-          <div className={`mb-4 border-t pt-4 ${divider}`}>
+          <div className={signedIn ? `mb-4 border-t pt-4 ${divider}` : "mb-4"}>
             <p className={`mb-2 px-3 ${sectionLabel}`}>Explore</p>
             <ul className="space-y-0.5">
               {LANDING_EXPLORE_LINKS.map((link) => (
@@ -206,7 +211,8 @@ function MobileNavDrawer({
           </div>
         </nav>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -296,6 +302,11 @@ export default function LandingPublicHeader({ theme = "light", className = "" }:
               Sign out
             </button>
           ) : null}
+
+          <SupportChromeMenu
+            variant={theme}
+            className="hidden md:inline-flex shrink-0"
+          />
 
           <button
             type="button"

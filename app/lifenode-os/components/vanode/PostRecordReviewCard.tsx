@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Download,
@@ -33,6 +33,9 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
   const [trimEnd, setTrimEnd] = useState(0);
   const [duration, setDuration] = useState(0);
   const [trimming, setTrimming] = useState(false);
+  const [playError, setPlayError] = useState(false);
+  const [loadGen, setLoadGen] = useState(0);
+  const videoUrlRef = useRef<string | null>(null);
 
   const { position, style, dragHandleProps } = useDraggableFloatingPosition(
     "lifenode.vanode.post-record-review",
@@ -62,16 +65,34 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [captureId]);
+  }, [captureId, loadGen]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setLoadGen((g) => g + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+    };
+  }, []);
 
   useEffect(() => {
     if (!blob) {
       setVideoUrl(null);
+      setPlayError(false);
       return;
     }
+    setPlayError(false);
     const url = URL.createObjectURL(blob);
+    videoUrlRef.current = url;
     setVideoUrl(url);
-    return () => URL.revokeObjectURL(url);
+    return () => {
+      URL.revokeObjectURL(url);
+      if (videoUrlRef.current === url) videoUrlRef.current = null;
+    };
   }, [blob]);
 
   const canTrim = useMemo(
@@ -160,9 +181,13 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
         <div className="space-y-3 p-3">
           {videoUrl ? (
             <video
+              key={videoUrl}
               src={videoUrl}
               controls
+              playsInline
+              preload="metadata"
               className="max-h-48 w-full rounded-xl bg-black"
+              onError={() => setPlayError(true)}
               onLoadedMetadata={(e) => {
                 const d = e.currentTarget.duration;
                 if (Number.isFinite(d) && d > 0) {
@@ -174,6 +199,12 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
           ) : (
             <p className="text-xs text-white/60">Loading preview…</p>
           )}
+          {playError ? (
+            <p className="text-xs text-amber-200/90">
+              Preview unavailable in this browser — use Download or open from
+              Saved on this device below.
+            </p>
+          ) : null}
 
           {duration > 0 ? (
             <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2">

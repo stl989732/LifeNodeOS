@@ -63,6 +63,21 @@ export function useDraggableFloatingPosition(
     [estimate.height, estimate.width],
   );
 
+  useEffect(() => {
+    const reclamp = () => {
+      setPosition((prev) => clamp(prev.x, prev.y));
+    };
+    window.addEventListener("resize", reclamp);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") reclamp();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("resize", reclamp);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [clamp]);
+
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;

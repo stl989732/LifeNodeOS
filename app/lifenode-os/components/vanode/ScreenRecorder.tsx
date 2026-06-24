@@ -16,6 +16,7 @@ export function ScreenRecorder({ onError }: Props) {
     setIncludeMic,
     startRecording,
     stopRecording,
+    lastSavedId,
   } = useScreenRecording();
 
   return (
@@ -45,6 +46,12 @@ export function ScreenRecorder({ onError }: Props) {
         the floating pill to stop. Saved captures stay in the list below — download
         WebM or MP4 anytime.
       </p>
+      {lastSavedId ? (
+        <p className="text-xs text-teal-700">
+          Latest capture is ready — check the floating review card or Saved on this
+          device below.
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
