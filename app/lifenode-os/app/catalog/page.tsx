@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
 import {
   ALL_PRODUCT_SURFACES,
@@ -9,7 +8,8 @@ import {
   SHELL_SURFACES,
 } from "@/lib/product-catalog";
 import { CatalogGrid } from "@/components/landing/ProductCatalogGrids";
-import DashboardReturnNav from "@/src/components/DashboardReturnNav";
+import LandingPublicHeader from "@/components/landing/LandingPublicHeader";
+import LandingSiteFooter from "@/components/landing/LandingSiteFooter";
 
 const FONT_PLAYFAIR = "font-[family-name:var(--font-playfair)]";
 const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
@@ -17,35 +17,9 @@ const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
 export default function CatalogPage() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#f8fafc] via-slate-900/95 to-[#0B0F17] text-slate-50">
-      <header className="relative z-10 flex items-center justify-between px-6 py-5">
-        <Link href="/" className="flex items-center gap-2.5">
-          <Image
-            src="/lifenode-os-logo.png"
-            alt="LifeNode OS"
-            width={32}
-            height={32}
-            className="h-8 w-8 shrink-0 object-contain"
-            unoptimized
-          />
-          <span className="font-bold tracking-wide text-xl text-white">
-            LifeNode <span className="font-light text-slate-400">OS</span>
-          </span>
-        </Link>
-        <nav className="flex flex-wrap items-center gap-4 text-sm font-semibold">
-          <DashboardReturnNav linkClassName="text-slate-300 transition hover:text-white" />
-          <Link href="/pricing" className="text-slate-300 transition hover:text-white">
-            Pricing
-          </Link>
-          <Link
-            href="/auth/signup"
-            className="rounded-full bg-white px-4 py-2 text-slate-900 transition hover:bg-slate-100"
-          >
-            Sign up
-          </Link>
-        </nav>
-      </header>
+      <LandingPublicHeader theme="dark" />
 
-      <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-4 md:px-6">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-2 md:px-6">
         <Link
           href="/"
           className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-slate-200"
@@ -92,6 +66,8 @@ export default function CatalogPage() {
           </Link>
         </div>
       </div>
+
+      <LandingSiteFooter variant="dark" />
     </main>
   );
 }

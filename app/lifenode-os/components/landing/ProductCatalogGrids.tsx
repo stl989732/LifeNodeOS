@@ -74,7 +74,7 @@ export function CatalogGrid({
         <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#677589]">
           {title}
         </p>
-        <p className={`${FONT_OUTFIT} mt-2 max-w-2xl text-sm text-slate-400`}>{subtitle}</p>
+        <p className={`${FONT_OUTFIT} mt-2 max-w-2xl text-sm text-[#515A67]`}>{subtitle}</p>
       </div>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {surfaces.map((surface) => (

@@ -2,16 +2,13 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useSession } from "next-auth/react";
-import DashboardReturnNav from "@/src/components/DashboardReturnNav";
-import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
-import SupportChromeMenu from "@/src/components/SupportChromeMenu";
+import LandingPublicHeader from "@/components/landing/LandingPublicHeader";
+import LandingSiteFooter from "@/components/landing/LandingSiteFooter";
 import LandingCatalogTeaser from "@/components/landing/LandingCatalogTeaser";
 import LandingFeatureSections from "@/components/landing/LandingFeatureSections";
 import PricingPlansSection from "@/src/components/billing/PricingPlansSection";
 import LandingFaqSection from "@/components/landing/LandingFaqSection";
-import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
 import {
   savePendingShellHats,
   persistConfiguredHatsToApi,
@@ -340,94 +337,7 @@ export default function Onboarding() {
         .ln-ripple-ring:nth-child(3) { animation-delay: 1.2s; }
       `}</style>
 
-      <nav className="absolute top-0 w-full p-6 flex justify-between items-center z-50">
-        <div className="flex items-center gap-2.5 shrink-0">
-          <Image
-            src="/lifenode-os-logo.png"
-            alt="LifeNode OS"
-            width={32}
-            height={32}
-            className="h-8 w-8 shrink-0 object-contain"
-            priority
-            unoptimized
-          />
-          <span className="font-bold text-slate-900 tracking-wide text-xl">
-            LifeNode <span className="font-light text-slate-400">OS</span>
-          </span>
-        </div>
-        <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-6 text-sm font-semibold">
-          <Link
-            href="/pricing"
-            className="text-slate-600 transition hover:text-slate-900"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/#faq"
-            className="text-slate-600 transition hover:text-slate-900"
-          >
-            FAQ
-          </Link>
-          <Link
-            href="/catalog"
-            className="text-slate-600 transition hover:text-slate-900"
-          >
-            Full Catalog
-          </Link>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-3 text-sm font-semibold">
-          {session?.user ? (
-            <>
-              <DashboardReturnNav />
-              <button
-                type="button"
-                onClick={() =>
-                  void signOutWithClientCleanup(session?.user?.id, {
-                    callbackUrl: "/",
-                  })
-                }
-                className="text-slate-600 transition hover:text-slate-900"
-              >
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/pricing"
-                className="md:hidden text-slate-600 transition hover:text-slate-900"
-              >
-                Pricing
-              </Link>
-              <Link
-                href="/#faq"
-                className="md:hidden text-slate-600 transition hover:text-slate-900"
-              >
-                FAQ
-              </Link>
-              <Link
-                href="/catalog"
-                className="md:hidden text-slate-600 transition hover:text-slate-900"
-              >
-                Full Catalog
-              </Link>
-              <Link
-                href="/auth/signin"
-                className="text-slate-600 transition hover:text-slate-900"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/auth/signup"
-                className="rounded-full bg-slate-900 px-4 py-2 text-white shadow-md transition hover:bg-slate-800"
-              >
-                Sign up
-              </Link>
-            </>
-          )}
-          <SupportChromeMenu variant="light" />
-        </div>
-      </nav>
+      <LandingPublicHeader theme="light" className="absolute top-0 left-0 right-0" />
 
       {step === 0 && (
         <>
@@ -739,64 +649,7 @@ export default function Onboarding() {
         </div>
       )}
 
-      <footer
-        className={`relative z-10 w-full border-t px-8 py-6 text-xs ${
-          step === 0
-            ? "border-slate-800 bg-[#0B0F17] text-[#90A1B9]"
-            : "border-slate-200 bg-white text-slate-500"
-        }`}
-      >
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 sm:flex-row">
-          <div>&copy; {new Date().getFullYear()} LifeNode OS. All rights reserved.</div>
-          <div className="flex items-center gap-6">
-            <Link
-              href="/docs"
-              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
-            >
-              User Guide
-            </Link>
-            <Link
-              href="/catalog"
-              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
-            >
-              Full Catalog
-            </Link>
-            <Link
-              href="/pricing"
-              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/#faq"
-              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
-            >
-              FAQ
-            </Link>
-            <Link
-              href="/terms"
-              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
-            >
-              Terms of Use
-            </Link>
-            <Link
-              href="/privacy"
-              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
-            >
-              Privacy Policy
-            </Link>
-            <Link
-              href="/cookie-policy"
-              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
-            >
-              Cookie Policy
-            </Link>
-            <ConsentPreferencesLink
-              className={`transition-colors ${step === 0 ? "hover:text-slate-300" : "hover:text-slate-800"}`}
-            />
-          </div>
-        </div>
-      </footer>
+      <LandingSiteFooter variant={step === 0 ? "dark" : "light"} />
     </div>
   );
 }
