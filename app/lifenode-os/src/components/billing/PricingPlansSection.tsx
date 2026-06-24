@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PLAN_ENTITLEMENTS } from "@/src/lib/billing/planEntitlements";
 import type { BillingInterval, PaidPlanKey } from "@/src/lib/billing/plans";
+import { landingDarkText } from "@/components/landing/landingDarkTheme";
 
 async function startCheckout(plan: PaidPlanKey, interval: BillingInterval) {
   const res = await fetch("/api/billing/checkout", {
@@ -178,7 +179,7 @@ export default function PricingPlansSection({
 
       <p
         className={`mt-10 text-center text-xs ${
-          dark ? "text-slate-500" : "text-slate-500"
+          dark ? landingDarkText.disclaimer : "text-slate-500"
         }`}
       >
         Prices in USD. Taxes at checkout. Paid subscriptions are non-refundable;
@@ -253,7 +254,7 @@ function PlanCard({
           {price === 0 ? "" : annual ? " / mo billed yearly" : " / mo"}
         </span>
       </p>
-      <p className={`mt-2 text-sm ${dark ? "text-slate-400" : "text-slate-600"}`}>
+      <p className={`mt-2 text-sm ${dark ? landingDarkText.planTagline : "text-slate-600"}`}>
         {tagline}
       </p>
       <ul className={`mt-5 space-y-2 text-sm ${dark ? "text-slate-300" : "text-slate-700"}`}>

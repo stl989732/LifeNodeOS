@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { LANDING_FAQ_ITEMS } from "./landingFaqData";
+import { landingDarkText } from "./landingDarkTheme";
 import { SUPPORT_ROUTES } from "@/lib/support/routes";
 
 const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
@@ -45,7 +46,9 @@ export default function LandingFaqSection() {
       >
         Answers before you commit
       </h2>
-      <p className="mx-auto mt-4 max-w-2xl text-center text-sm text-[#76808F] md:text-base">
+      <p
+        className={`mx-auto mt-4 max-w-2xl text-center text-sm md:text-base ${landingDarkText.subtitle}`}
+      >
         Nodes, integrations, billing, and support — including why some mobile apps
         cannot connect yet.
       </p>

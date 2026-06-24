@@ -387,7 +387,7 @@ export default function Onboarding() {
             </div>
           </div>
 
-          <section className="relative z-10 bg-gradient-to-b from-transparent via-slate-950/40 to-[#0B0F17] pb-8 pt-4">
+          <section className="landing-dark-zone relative z-10 bg-gradient-to-b from-transparent via-slate-950/40 to-[#0B0F17] pb-8 pt-4">
             <div className="mb-16 md:mb-24">
               <LandingProductMock />
             </div>

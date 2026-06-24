@@ -1,6 +1,7 @@
 "use client";
 
 import { Activity, Clock, HeartPulse, Home, Layers, Moon, RefreshCw } from "lucide-react";
+import { landingDarkText } from "./landingDarkTheme";
 
 const FONT_PLAYFAIR = "font-[family-name:var(--font-playfair)]";
 
@@ -104,7 +105,9 @@ export default function LandingFeatureSections() {
             <div className={feature.reverse ? "md:[direction:ltr]" : ""}>
               <p
                 className={`mb-3 text-[10px] font-bold uppercase tracking-[0.28em] ${
-                  feature.id === "recovery" ? "text-[#BFCFFF]" : "text-[#90A1B9]"
+                  feature.id === "recovery"
+                    ? landingDarkText.featureLabelAlt
+                    : landingDarkText.featureLabel
                 }`}
               >
                 {feature.id === "household"

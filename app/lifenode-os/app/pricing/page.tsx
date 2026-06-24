@@ -8,7 +8,7 @@ import LandingSiteFooter from "@/components/landing/LandingSiteFooter";
 
 export default function PricingPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#f8fafc] via-slate-900/95 to-[#0B0F17] text-slate-50">
+    <main className="landing-dark-zone min-h-screen bg-gradient-to-b from-[#f8fafc] via-slate-900/95 to-[#0B0F17] text-slate-50">
       <LandingPublicHeader theme="dark" />
       <div className="mx-auto max-w-5xl px-4 pb-8 pt-4">
         <PricingPlansSection variant="dark" />

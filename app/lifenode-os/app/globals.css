@@ -149,6 +149,35 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
   z-index: 1;
 }
 
+/* Landing — dark gradient band (features, pricing, FAQ on home + /pricing) */
+.landing-dark-zone {
+  --landing-text-subtitle: #afbaca;
+  --landing-text-disclaimer: #bbc9dd;
+  --landing-text-plan-tagline: #96a3b5;
+  --landing-text-feature-label: #90a1b9;
+  --landing-text-feature-label-alt: #8b95a8;
+}
+
+.text-landing-subtitle {
+  color: var(--landing-text-subtitle);
+}
+
+.text-landing-disclaimer {
+  color: var(--landing-text-disclaimer);
+}
+
+.text-landing-plan-tagline {
+  color: var(--landing-text-plan-tagline);
+}
+
+.text-landing-feature-label {
+  color: var(--landing-text-feature-label);
+}
+
+.text-landing-feature-label-alt {
+  color: var(--landing-text-feature-label-alt);
+}
+
 /* HomeNode + Kitchen — Crisp Mint & Cream (shared module background) */
 .kitchen-mint-cream-bg,
 .mint-cream-module-bg {
