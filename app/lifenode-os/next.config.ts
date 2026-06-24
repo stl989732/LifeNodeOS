@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 import { fileURLToPath } from "url";
 import { withSentryConfig } from "@sentry/nextjs";
+import { buildSecurityHeaders } from "./lib/security-headers";
 
 /** Next project directory (lifenode-os), not the parent folder also named `app`. */
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -9,6 +10,15 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(projectRoot, "..", "..");
 
 const nextConfig: NextConfig = {
+  async headers() {
+    const securityHeaders = buildSecurityHeaders();
+    return [
+      {
+        source: "/(.*)",
+        headers: securityHeaders,
+      },
+    ];
+  },
   async redirects() {
     return [
       {
@@ -47,4 +57,11 @@ export default withSentryConfig(nextConfig, {
   widenClientFileUpload: true,
   disableLogger: true,
   automaticVercelMonitors: true,
+  // Faster local dev — Sentry still loads via instrumentation-client in production builds.
+  ...(process.env.NODE_ENV === "development"
+    ? {
+        disableServerWebpackPlugin: true,
+        disableClientWebpackPlugin: true,
+      }
+    : {}),
 });

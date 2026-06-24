@@ -1,4 +1,3 @@
-import { getSupabaseBrowserClient } from "@/src/lib/supabase/client";
 
 export type DealTriageMetadata = {
   lead_name?: string;
@@ -265,21 +264,14 @@ export function normalizeDealTriageRow(
 }
 
 export async function fetchDealTriageFeed(userId: string): Promise<DealTriageRow[]> {
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("biz_deal_triage")
-    .select(
-      "id, user_id, source_provider, raw_notes_or_payload, metadata, kanban_column, status, created_at",
-    )
-    .eq("node_owner", "BIZ")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(24);
-
-  if (error) throw error;
-  return (data ?? []).map((row) =>
-    normalizeDealTriageRow(row as Record<string, unknown>),
-  );
+  void userId;
+  const res = await fetch("/api/triage", { credentials: "include" });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Triage load failed (${res.status})`);
+  }
+  const json = (await res.json()) as { records?: DealTriageRow[] };
+  return json.records ?? [];
 }
 
 export const DEMO_DEAL_TRIAGE: Omit<

@@ -36,9 +36,12 @@ export async function proxy(request: NextRequest) {
   const secret = process.env.AUTH_SECRET?.trim();
   if (!secret) {
     console.error(
-      "[proxy] AUTH_SECRET is missing. Add it to app/lifenode-os/.env.local",
+      "[proxy] AUTH_SECRET is missing. Protected routes are blocked until configured.",
     );
-    return NextResponse.next();
+    return NextResponse.json(
+      { error: "AUTH_MISCONFIGURED" },
+      { status: 503 },
+    );
   }
 
   let token = null;
@@ -55,7 +58,12 @@ export async function proxy(request: NextRequest) {
 
   if (!token) {
     const url = new URL("/auth/signin", request.nextUrl.origin);
-    url.searchParams.set("callbackUrl", pathname);
+    const callbackPath =
+      pathname +
+      (request.nextUrl.search && request.nextUrl.search !== "?"
+        ? request.nextUrl.search
+        : "");
+    url.searchParams.set("callbackUrl", callbackPath);
     return NextResponse.redirect(url);
   }
 

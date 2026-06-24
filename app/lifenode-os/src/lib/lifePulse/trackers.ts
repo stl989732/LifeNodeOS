@@ -1,10 +1,6 @@
-import { getSupabaseBrowserClient } from "@/src/lib/supabase/client";
-import { normalizeTracker } from "./trackerDb";
 import {
   countsTowardCalmAggregate,
   isTrackerCompleted,
-  normalizePriorityForDb,
-  normalizeStatusForDb,
   type TrackerPriority,
   type TrackerStatus,
 } from "./trackerSchema";
@@ -23,12 +19,14 @@ function metricsFromTracker(tracker: LifePulseTracker): Record<string, unknown> 
 async function parseApiError(res: Response): Promise<Error> {
   const body = (await res.json().catch(() => ({}))) as {
     error?: string;
+    message?: string;
     details?: unknown;
     hint?: string;
   };
-  const parts = [body.error, body.hint].filter(Boolean);
+  const parts = [body.message, body.error, body.hint].filter(Boolean);
   const msg = parts.length ? parts.join(" — ") : `Request failed (${res.status})`;
   const err = new Error(msg);
+  (err as Error & { code?: string }).code = body.error;
   console.error("LifePulse API error:", body.details ?? body);
   return err;
 }
@@ -218,43 +216,23 @@ export async function updateLifePulseTracker(
     parent_id?: string | null;
   },
 ): Promise<LifePulseTracker> {
-  const supabase = getSupabaseBrowserClient();
-  const dbPatch: Record<string, unknown> = {};
-
-  if (patch.title !== undefined) dbPatch.title = patch.title;
-  if (patch.due_date !== undefined) {
-    dbPatch.target_date = patch.due_date;
-    dbPatch.due_date = patch.due_date;
-  }
-  if (patch.start_date !== undefined) dbPatch.start_date = patch.start_date;
-  if (patch.parent_id !== undefined) dbPatch.parent_id = patch.parent_id;
-  if (patch.progress_percent !== undefined) {
-    dbPatch.progress_percent = Math.round(Number(patch.progress_percent) || 0);
-  }
-  if (patch.status !== undefined) dbPatch.status = normalizeStatusForDb(patch.status);
-  if (patch.priority !== undefined) dbPatch.priority = normalizePriorityForDb(patch.priority);
-
-  if (patch.context_data !== undefined) {
-    dbPatch.context_data = patch.context_data;
-  } else if (patch.metrics !== undefined) {
-    dbPatch.context_data = patch.metrics;
-  }
-
-  const { data, error } = await supabase
-    .from("lifenode_trackers")
-    .update(dbPatch)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return normalizeTracker(data as Record<string, unknown>);
+  const res = await fetch(`/api/life-pulse/trackers/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw await parseApiError(res);
+  const json = (await res.json()) as { tracker: LifePulseTracker };
+  return json.tracker;
 }
 
 export async function deleteLifePulseTracker(id: string): Promise<void> {
-  const supabase = getSupabaseBrowserClient();
-  const { error } = await supabase.from("lifenode_trackers").delete().eq("id", id);
-  if (error) throw error;
+  const res = await fetch(`/api/life-pulse/trackers/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw await parseApiError(res);
 }
 
 export function aggregateCalmCompletion(trackers: LifePulseTracker[]): number {

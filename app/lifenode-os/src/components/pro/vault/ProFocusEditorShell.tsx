@@ -11,12 +11,10 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import ProTiptapSurface from "@/src/components/pro/vault/ProTiptapSurface";
 import { exportVaultDocxFromHtml, exportVaultPdf } from "@/src/components/pro/vault/vaultExport";
 import {
   EMPTY_DOC,
-  SHARES_TABLE,
   type PronodeVaultRow,
 } from "@/src/components/pro/vault/pronodeVaultTypes";
 import { usePersistenceUserId } from "@/src/hooks/usePersistenceUserId";
@@ -131,22 +129,24 @@ export default function ProFocusEditorShell({
     setSaving(true);
     setMessage(null);
     try {
-      const supabase = getSupabaseBrowserClient();
       const payload = {
         id: vaultId,
-        user_id: persistenceUserId,
         title: title.trim() || "Untitled",
         node_type: nodeType || "General",
         content: editorRef.current?.getJSON() ?? content,
-        updated_at: new Date().toISOString(),
       };
-      const { data, error } = await supabase
-        .from("pronode_vault")
-        .upsert(payload, { onConflict: "id" })
-        .select()
-        .single();
-      if (error) throw error;
-      if (data) onSaved?.(data as PronodeVaultRow);
+      const res = await fetch("/api/pro/vault", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? "Save failed.");
+      }
+      const body = (await res.json()) as { item?: PronodeVaultRow };
+      if (body.item) onSaved?.(body.item);
       setMessage("Saved to vault.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Save failed.");
@@ -159,18 +159,19 @@ export default function ProFocusEditorShell({
     setShareBusy(true);
     setMessage(null);
     try {
-      const supabase = getSupabaseBrowserClient();
-      const token = crypto.randomUUID().replace(/-/g, "").slice(0, 24);
-      const expires = new Date(Date.now() + 86_400_000).toISOString();
       const snapshot = editorRef.current?.getJSON() ?? content;
-      const { error } = await supabase.from(SHARES_TABLE).insert({
-        vault_id: vaultId,
-        token,
-        snapshot,
-        expires_at: expires,
+      const res = await fetch("/api/pro/vault/shares", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vaultId, snapshot }),
       });
-      if (error) throw error;
-      const url = `${window.location.origin}/pro/vault/share/${token}`;
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? "Share failed.");
+      }
+      const body = (await res.json()) as { urlPath?: string };
+      const url = `${window.location.origin}${body.urlPath ?? ""}`;
       await navigator.clipboard.writeText(url);
       setMessage("Share link copied (24h).");
     } catch (e) {

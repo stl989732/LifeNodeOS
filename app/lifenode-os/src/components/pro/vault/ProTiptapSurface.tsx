@@ -10,6 +10,26 @@ const TOOL_BTN =
   "rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40";
 const COLOR_SWATCH = "h-6 w-6 cursor-pointer rounded border border-slate-200";
 
+function ToolbarBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${TOOL_BTN} ${active ? "border-slate-800 bg-slate-800 text-white hover:bg-slate-800" : ""}`}
+    >
+      {children}
+    </button>
+  );
+}
+
 type Props = {
   docKey: string;
   initialDoc: JSONContent;
@@ -58,26 +78,6 @@ export default function ProTiptapSurface({
       <div className={`${PANEL} min-h-[280px] animate-pulse bg-slate-50`}>
         <p className="p-4 text-xs text-slate-500">Loading editor…</p>
       </div>
-    );
-  }
-
-  function ToolbarBtn({
-    active,
-    onClick,
-    children,
-  }: {
-    active?: boolean;
-    onClick: () => void;
-    children: ReactNode;
-  }) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className={`${TOOL_BTN} ${active ? "border-slate-800 bg-slate-800 text-white hover:bg-slate-800" : ""}`}
-      >
-        {children}
-      </button>
     );
   }
 

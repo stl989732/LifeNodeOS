@@ -2,7 +2,6 @@
 
 import { Database, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getSupabaseBrowserClient } from "@/src/lib/supabase/client";
 import type { PronodeVaultRow } from "@/src/components/pro/vault/pronodeVaultTypes";
 import { getVaultNodeTypesForProRole } from "@/src/lib/proNode/workspaceContext";
 import type { ProRoleId } from "@/src/lib/proNode/types";
@@ -49,22 +48,20 @@ export default function ProSmartVault({
       }
       setError(null);
       try {
-        const supabase = getSupabaseBrowserClient();
-        let query = supabase
-          .from("pronode_vault")
-          .select("id,title,node_type,content,updated_at")
-          .eq("user_id", persistenceUserId)
-          .order("updated_at", { ascending: false });
-
-        if (vaultNodeTypes.length === 1) {
-          query = query.eq("node_type", vaultNodeTypes[0]);
-        } else if (vaultNodeTypes.length > 1) {
-          query = query.in("node_type", vaultNodeTypes);
+        const params = new URLSearchParams();
+        if (vaultNodeTypes.length > 0) {
+          params.set("nodeTypes", vaultNodeTypes.join(","));
         }
-
-        const { data, error: qErr } = await query;
-        if (qErr) throw qErr;
-        setRows((data as PronodeVaultRow[]) ?? []);
+        const res = await fetch(`/api/pro/vault?${params.toString()}`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const payload = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(payload.error ?? "Could not load vault.");
+        }
+        const payload = (await res.json()) as { items?: PronodeVaultRow[] };
+        setRows(payload.items ?? []);
         hasLoadedOnceRef.current = true;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not load vault.");
