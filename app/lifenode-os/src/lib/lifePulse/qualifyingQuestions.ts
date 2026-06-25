@@ -133,9 +133,15 @@ export function getQualifyingQuestions(
           required: true,
         },
         {
-          id: "travel_date",
-          prompt: "When is your travel date?",
-          type: "datetime",
+          id: "departure_date",
+          prompt: "When do you leave for your destination? (departure date)",
+          type: "date",
+          required: true,
+        },
+        {
+          id: "return_date",
+          prompt: "When do you return home? (return date)",
+          type: "date",
           required: true,
         },
         {
@@ -153,17 +159,6 @@ export function getQualifyingQuestions(
             { id: "venue", label: "Venue / central hotel (4-star)" },
             { id: "nearby", label: "Budget hotels nearby" },
             { id: "airbnb", label: "Airbnb / apartment" },
-          ],
-          required: true,
-        },
-        {
-          id: "duration",
-          prompt: "How long is the trip?",
-          type: "choice",
-          options: [
-            { id: "3d", label: "3–5 days" },
-            { id: "1w", label: "1 week" },
-            { id: "2w", label: "2 weeks" },
           ],
           required: true,
         },
@@ -374,6 +369,13 @@ export function formatQualifyingAnswersForAi(
     .filter(([, v]) => v.trim())
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
+}
+
+/** Max qualifying questions shown per domain (travel needs departure + return dates). */
+export function maxQualifyingQuestionsForCategory(
+  category: LifePulseCategoryId,
+): number {
+  return category === "travel" || category === "events" ? 5 : 3;
 }
 
 function getStudyFocusOptions(subject: string): { id: string; label: string }[] {

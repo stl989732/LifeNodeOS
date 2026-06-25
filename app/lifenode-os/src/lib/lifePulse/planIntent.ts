@@ -1,4 +1,5 @@
 import type { LifePulseCategoryId } from "./types";
+import { parseTravelTripDays } from "./travelDates";
 
 export type PlanIntent = {
   /** User-requested plan length in days (0 = not specified). */
@@ -75,8 +76,15 @@ function detectStudySubjectFromAnswers(
 
 function parseDurationFromQualifyingAnswers(
   answers?: Record<string, string>,
+  category?: LifePulseCategoryId,
 ): number {
   if (!answers) return 0;
+
+  if (category === "travel") {
+    const tripDays = parseTravelTripDays(answers);
+    if (tripDays > 0) return tripDays;
+  }
+
   const durationAnswer = answers.study_duration ?? answers.routine_window;
   if (durationAnswer) {
     const n = Number.parseInt(durationAnswer.replace(/\D/g, ""), 10);
@@ -97,18 +105,36 @@ export function resolvePlanIntent(
 ): PlanIntent {
   const durationDays =
     parsePlanDurationDays(rawPrompt) ||
-    parseDurationFromQualifyingAnswers(qualifyingAnswers);
+    parseDurationFromQualifyingAnswers(qualifyingAnswers, category);
   const studySubject =
     category === "study"
       ? detectStudySubject(rawPrompt) ?? detectStudySubjectFromAnswers(qualifyingAnswers)
       : null;
 
   let dueDateIso = dueDateHint;
+  const returnDateRaw = qualifyingAnswers?.return_date?.trim();
+  const departureDateRaw = qualifyingAnswers?.departure_date?.trim();
   const travelDateRaw = qualifyingAnswers?.travel_date?.trim();
-  if (!dueDateIso && travelDateRaw) {
-    const parsed = new Date(travelDateRaw);
+
+  if (!dueDateIso && returnDateRaw) {
+    const parsed = new Date(
+      returnDateRaw.includes("T") ? returnDateRaw : `${returnDateRaw}T23:59:59`,
+    );
     if (!Number.isNaN(parsed.getTime())) {
-      parsed.setHours(23, 59, 59, 0);
+      dueDateIso = parsed.toISOString();
+    }
+  } else if (!dueDateIso && travelDateRaw) {
+    const parsed = new Date(
+      travelDateRaw.includes("T") ? travelDateRaw : `${travelDateRaw}T23:59:59`,
+    );
+    if (!Number.isNaN(parsed.getTime())) {
+      dueDateIso = parsed.toISOString();
+    }
+  } else if (!dueDateIso && departureDateRaw) {
+    const parsed = new Date(
+      departureDateRaw.includes("T") ? departureDateRaw : `${departureDateRaw}T23:59:59`,
+    );
+    if (!Number.isNaN(parsed.getTime())) {
       dueDateIso = parsed.toISOString();
     }
   }
@@ -159,7 +185,29 @@ export function defaultDurationForCategory(category: LifePulseCategoryId): numbe
 }
 
 export function effectivePlanDays(intent: PlanIntent, category: LifePulseCategoryId): number {
-  return intent.durationDays > 0
-    ? intent.durationDays
-    : defaultDurationForCategory(category);
+  if (intent.durationDays > 0) return intent.durationDays;
+  if (category === "travel") return 0;
+  return defaultDurationForCategory(category);
+}
+
+/** Plan length for AI + tables — travel uses round-trip dates, not a 7-day default. */
+export function resolveTargetPlanDays(
+  intent: PlanIntent,
+  category: LifePulseCategoryId,
+  rawPrompt: string,
+  qualifyingAnswers?: Record<string, string>,
+): number {
+  const fromPrompt = parsePlanDurationDays(rawPrompt);
+  const travelDays =
+    category === "travel" ? parseTravelTripDays(qualifyingAnswers) : 0;
+  const effective = effectivePlanDays(intent, category);
+
+  if (category === "travel") {
+    if (travelDays > 0) return travelDays;
+    if (fromPrompt > 0) return fromPrompt;
+    if (effective > 0) return effective;
+    return 1;
+  }
+
+  return Math.max(fromPrompt || effective || 7, 1);
 }

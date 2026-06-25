@@ -10,15 +10,16 @@ import {
 import { getGeminiTextModel, geminiGenerateContentUrl } from "@/src/lib/geminiModels";
 import { buildBreakdownSystemPrompt, buildIntakeSystemPrompt } from "./linosConversationPrompt";
 import {
-  parsePlanDurationDays,
   resolvePlanIntent,
   detectStudySubject,
-  effectivePlanDays,
+  resolveTargetPlanDays,
 } from "./planIntent";
 import {
   getQualifyingQuestions,
+  maxQualifyingQuestionsForCategory,
   type QualifyingQuestion,
 } from "./qualifyingQuestions";
+import { sanitizeLinosMarkdown } from "./linosTextSanitize";
 import {
   extractTableRowsFromAiPayload,
   extractSummaryFromAiPayload,
@@ -88,7 +89,7 @@ function parseJsonLoose(s: string): Record<string, unknown> | null {
 }
 
 function maxQualifyingQuestions(domain: LifePulseCategoryId): number {
-  return domain === "travel" || domain === "events" ? 4 : 3;
+  return maxQualifyingQuestionsForCategory(domain);
 }
 
 function fallbackIntakeMessage(domain: LifePulseCategoryId, rawPrompt: string): string {
@@ -203,6 +204,8 @@ export async function runLinosIntake(input: {
     linosText = `${linosText}\n\n---\n\n*${usage.warning}*`;
   }
 
+  linosText = sanitizeLinosMarkdown(linosText);
+
   return {
     phase: "questions",
     domain,
@@ -222,9 +225,11 @@ function blueprintFromParsed(
   qualifyingAnswers: Record<string, string>,
 ): LinosPlanBlueprint {
   const intent = resolvePlanIntent(rawPrompt, domain, null, qualifyingAnswers);
-  const targetDays = Math.max(
-    parsePlanDurationDays(rawPrompt) || intent.durationDays || 7,
-    1,
+  const targetDays = resolveTargetPlanDays(
+    intent,
+    domain,
+    rawPrompt,
+    qualifyingAnswers,
   );
 
   const table_rows = extractTableRowsFromAiPayload(parsed, domain);
@@ -273,10 +278,12 @@ function blueprintFromParsed(
           .filter(([, v]) => v.trim())
           .map(([k, v]) => `**${k}:** ${v}`)
           .join(" · ");
-        return `## Day ${i + 1}\n${parts || "_Details in your plan table._"}`;
+        return `**Day ${i + 1}**\n${parts || "_Details in your plan table._"}`;
       })
       .join("\n\n");
   }
+
+  md = sanitizeLinosMarkdown(md);
 
   return {
     title,
@@ -303,9 +310,11 @@ export async function runLinosBreakdown(input: {
   const rawPrompt = sanitizeAndTruncate(input.rawPrompt.trim());
   const domain = input.domain;
   const intent = resolvePlanIntent(rawPrompt, domain, null, input.qualifyingAnswers);
-  const targetDays = Math.max(
-    effectivePlanDays(intent, domain),
-    parsePlanDurationDays(rawPrompt) || 7,
+  const targetDays = resolveTargetPlanDays(
+    intent,
+    domain,
+    rawPrompt,
+    input.qualifyingAnswers,
   );
 
   const answersBlock = Object.entries(input.qualifyingAnswers)
@@ -320,10 +329,10 @@ export async function runLinosBreakdown(input: {
 
   const travelEventHint =
     domain === "travel" || domain === "events"
-      ? "\nUse origin + accommodation answers to put realistic USD amounts in every Budget/Amount field (no 'Research cost' or TBD)."
+      ? "\nUse origin + accommodation answers to put realistic USD amounts in every Budget/Amount field (no 'Research cost' or TBD). For travel, itinerary length MUST match the user's departure and return dates (round trip) — never assume a 7-day trip."
       : "";
 
-  const userText = `Original request: ${rawPrompt}\nDomain: ${domain}\nPlan length: ${targetDays} days/steps\nAnswers:\n${answersBlock}${travelEventHint}`;
+  const userText = `Original request: ${rawPrompt}\nDomain: ${domain}\nPlan length: ${targetDays} days/steps (from user travel dates when provided)\nAnswers:\n${answersBlock}${travelEventHint}`;
 
   const parsed = await callGemini(system, userText);
   const usage = await incrementLinosUsage(input.userId);
@@ -342,7 +351,7 @@ export async function runLinosBreakdown(input: {
     input.qualifyingAnswers,
   );
 
-  let breakdownText = blueprint.breakdown_markdown;
+  let breakdownText = sanitizeLinosMarkdown(blueprint.breakdown_markdown);
   if (usage.warning && !breakdownText.includes("only have 4 left")) {
     breakdownText = `${breakdownText}\n\n---\n\n*${usage.warning}*`;
   }

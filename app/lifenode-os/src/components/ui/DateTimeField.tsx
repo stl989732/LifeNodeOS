@@ -11,6 +11,8 @@ type Props = {
   labelClassName?: string;
   inputClassName?: string;
   required?: boolean;
+  /** When true, only show a date picker (no time). */
+  dateOnly?: boolean;
 };
 
 export function isoToDatetimeLocal(iso: string | null | undefined): string {
@@ -65,6 +67,7 @@ export default function DateTimeField({
   labelClassName = "",
   inputClassName = "",
   required,
+  dateOnly = false,
 }: Props) {
   const dateRef = useRef<HTMLInputElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
@@ -85,13 +88,18 @@ export default function DateTimeField({
             ref={dateRef}
             type="date"
             value={date}
-            onChange={(e) => onChange(combineValue(e.target.value, time))}
+            onChange={(e) =>
+              onChange(
+                dateOnly ? e.target.value : combineValue(e.target.value, time),
+              )
+            }
             onClick={() => openPicker(dateRef.current)}
             disabled={disabled}
             required={required}
             className={`${fieldClass} ${inputClassName}`}
           />
         </div>
+        {!dateOnly ? (
         <div className="relative min-w-[7rem] flex-1">
           <input
             ref={timeRef}
@@ -104,6 +112,7 @@ export default function DateTimeField({
             className={`${fieldClass} ${inputClassName}`}
           />
         </div>
+        ) : null}
       </div>
     </div>
   );

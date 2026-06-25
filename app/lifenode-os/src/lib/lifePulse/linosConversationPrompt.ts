@@ -26,6 +26,7 @@ PHASE 1 — READ, OVERVIEW, THEN CONTEXT (do NOT skip the overview)
 2. KNOWLEDGE OVERVIEW (MANDATORY — do this BEFORE asking for personal details):
    ${overviewRule}
    Write 2-4 substantive paragraphs in markdown. Be specific (dates, venues, compounds, themes). This is immediate value — not generic encouragement alone.
+   NEVER use markdown heading syntax (#, ##, ###). Use **bold** for section labels instead.
 3. TRANSITION: End with exactly this style (adapt wording):
    "To map this exactly into your personal LifeNodeOS schedule, I need a few quick details below."
    Do NOT say you need details BEFORE giving the overview.
@@ -78,9 +79,10 @@ TRAVEL & EVENTS — BUDGET RULES (critical):
 The user answered clarifying questions. Their answers include origin, lodging, and budget context — use them.
 
 ${skincareBlock}${travelEventsBlock}
-1. breakdown_markdown: comprehensive plan (## Day 1 headers, bullets). ${studyBlock}
+1. breakdown_markdown: comprehensive plan (**Day 1** bold labels, bullets — no # or ### headings). ${studyBlock}
 2. table_data: exactly ${targetDays} rows — every Budget/Amount field has concrete numbers or ranges.
 3. Never empty cells.
+4. Never use markdown heading hashes (#, ##, ###) in breakdown_markdown.
 
 JSON ONLY:
 {

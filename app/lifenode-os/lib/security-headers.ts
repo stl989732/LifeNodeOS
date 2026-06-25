@@ -14,10 +14,11 @@ export function buildSecurityHeaders(): { key: string; value: string }[] {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
     "style-src 'self' 'unsafe-inline' https:",
-    // Next.js + Termly + Sentry + Vercel Speed Insights need script allowances.
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://app.termly.io https://*.sentry.io https://va.vercel-scripts.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://vitals.vercel-insights.com https://app.termly.io",
-    "frame-src 'self' https://app.termly.io",
+    // Next.js + Termly + Sentry + Vercel Speed Insights + Scale surveys.
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://app.termly.io https://*.sentry.io https://va.vercel-scripts.com https://scale.verpexxsystems.dev",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://vitals.vercel-insights.com https://app.termly.io https://scale.verpexxsystems.dev",
+    "frame-src 'self' https://app.termly.io https://scale.verpexxsystems.dev",
+    "media-src 'self' blob:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
   ].join("; ");

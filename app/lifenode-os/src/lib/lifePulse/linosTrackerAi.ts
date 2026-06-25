@@ -5,8 +5,8 @@ import {
   formatQualifyingAnswersForAi,
 } from "./qualifyingQuestions";
 import {
-  effectivePlanDays,
   resolvePlanIntent,
+  resolveTargetPlanDays,
   type PlanIntent,
 } from "./planIntent";
 import {
@@ -95,7 +95,12 @@ function ensureFullPlanTable(
   existingRows: PlanTableRow[],
   qualifyingAnswers?: Record<string, string>,
 ): { table_columns: string[]; table_rows: PlanTableRow[] } {
-  const targetDays = effectivePlanDays(intent, category);
+  const targetDays = resolveTargetPlanDays(
+    intent,
+    category,
+    rawPrompt,
+    qualifyingAnswers,
+  );
 
   if (
     existingRows.length >= targetDays &&
@@ -148,7 +153,7 @@ function attachStructuredPlan(
       ...base.context_data,
       table_columns,
       table_rows,
-      plan_days: effectivePlanDays(intent, category),
+      plan_days: resolveTargetPlanDays(intent, category, rawPrompt, qualifyingAnswers),
       study_subject: intent.studySubject,
       qualifying_answers: qualifyingAnswers ?? {},
     },
@@ -181,7 +186,7 @@ function fallbackPlan(
   intent: PlanIntent,
   qualifyingAnswers?: Record<string, string>,
 ): LinosTrackerAiResult {
-  const days = effectivePlanDays(intent, category);
+  const days = resolveTargetPlanDays(intent, category, rawPrompt, qualifyingAnswers);
   const due_date = intent.dueDateIso;
 
   let title: string;
@@ -234,7 +239,12 @@ function normalizeAiPayload(
   qualifyingAnswers?: Record<string, string>,
 ): LinosTrackerAiResult {
   const parsedDue = intent.dueDateIso;
-  const targetDays = effectivePlanDays(intent, category);
+  const targetDays = resolveTargetPlanDays(
+    intent,
+    category,
+    rawPrompt,
+    qualifyingAnswers,
+  );
 
   const summaryFromAi = extractSummaryFromAiPayload(raw);
   const intro =
@@ -351,7 +361,12 @@ export function planFromBlueprint(input: {
     input.blueprint.due_date_iso,
     input.qualifyingAnswers,
   );
-  const days = effectivePlanDays(intent, input.category);
+  const days = resolveTargetPlanDays(
+    intent,
+    input.category,
+    input.rawPrompt,
+    input.qualifyingAnswers,
+  );
 
   const base = {
     title: input.blueprint.title.slice(0, 120),
@@ -399,7 +414,12 @@ export async function generateLinosTrackerPlan(input: {
     input.due_date ?? parsed.due_date,
     input.qualifyingAnswers,
   );
-  const targetDays = effectivePlanDays(intent, input.category);
+  const targetDays = resolveTargetPlanDays(
+    intent,
+    input.category,
+    rawPrompt,
+    input.qualifyingAnswers,
+  );
 
   const apiKey = process.env.GOOGLE_API_KEY?.trim();
   if (!apiKey) {

@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import { Loader2, Sparkles, X } from "lucide-react";
 import {
   getQualifyingQuestions,
+  maxQualifyingQuestionsForCategory,
   type QualifyingQuestion,
 } from "@/src/lib/lifePulse/qualifyingQuestions";
 import { filterQuestionsForPrompt } from "@/src/lib/lifePulse/filterQuestions";
@@ -79,7 +80,15 @@ function QuestionField({
     return (
       <DateTimeField
         label={question.prompt}
-        value={question.type === "datetime" ? value : value ? `${value}T09:00` : ""}
+        value={
+          question.type === "datetime"
+            ? value
+            : value
+              ? value.includes("T")
+                ? value.slice(0, 10)
+                : value
+              : ""
+        }
         onChange={(next) => {
           if (question.type === "datetime") {
             onChange(next);
@@ -87,6 +96,7 @@ function QuestionField({
           }
           onChange(next ? next.slice(0, 10) : "");
         }}
+        dateOnly={question.type === "date"}
         disabled={disabled}
         inputClassName={AURA_INPUT_CLASS}
         labelClassName={`text-sm font-medium normal-case tracking-normal ${AURA_TEXT.title}`}
@@ -215,7 +225,7 @@ export default function LinosChatPanel({
           ? data.questions
           : getQualifyingQuestions(data.domain, rawPrompt),
         rawPrompt,
-      ).slice(0, 3);
+      ).slice(0, maxQualifyingQuestionsForCategory(data.domain));
       setQuestions(qs);
       setPhase(qs.length > 0 ? "questions" : "loading_breakdown");
       if (qs.length === 0) {

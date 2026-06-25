@@ -3,6 +3,7 @@ import { newTableRowId } from "./tableRows";
 import type { LifePulseCategoryId } from "./types";
 import type { PlanIntent } from "./planIntent";
 import { effectivePlanDays } from "./planIntent";
+import { formatTravelDateRange } from "./travelDates";
 import {
   estimateRoundTripFlights,
   estimateNightlyHotel,
@@ -336,8 +337,8 @@ export function buildTravelPlanRows(
     answerText(qualifyingAnswers, "destination") ||
     rawPrompt.match(/\b(italy|switzerland|japan|france|spain|thailand)\b/i)?.[0] ||
     "your destination";
-  const travelDate = answerText(qualifyingAnswers, "travel_date");
-  const dateNote = travelDate ? `Travel date: ${travelDate}. ` : "";
+  const travelDate = formatTravelDateRange(qualifyingAnswers);
+  const dateNote = travelDate;
   const origin = answerText(qualifyingAnswers, "fly_from") || "your origin";
   const lodging = parseLodgingStyle(
     answerText(qualifyingAnswers, "accommodation_preference"),

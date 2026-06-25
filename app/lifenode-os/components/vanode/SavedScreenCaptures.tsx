@@ -85,7 +85,16 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
         return;
       }
       if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current);
-      const objectUrl = URL.createObjectURL(blob);
+      const mimeType =
+        playingRow.mimeType ||
+        (playingRow.filename.toLowerCase().endsWith(".mp4")
+          ? "video/mp4"
+          : "video/webm");
+      const typedBlob =
+        blob.type && blob.type !== "application/octet-stream"
+          ? blob
+          : new Blob([blob], { type: mimeType });
+      const objectUrl = URL.createObjectURL(typedBlob);
       playUrlRef.current = objectUrl;
       setPlayUrl(objectUrl);
       setPlayLoading(false);
@@ -314,14 +323,23 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
                 <>
                   <video
                     key={playUrl}
-                    src={playUrl}
                     controls
                     playsInline
                     autoPlay
                     preload="metadata"
                     className="max-h-[70vh] w-full rounded-xl bg-black"
                     onError={() => setPlayError(true)}
-                  />
+                  >
+                    <source
+                      src={playUrl}
+                      type={
+                        playingRow.mimeType ||
+                        (playingRow.filename.toLowerCase().endsWith(".mp4")
+                          ? "video/mp4"
+                          : "video/webm")
+                      }
+                    />
+                  </video>
                   {playError ? (
                     <p className="mt-3 text-center text-sm text-amber-200/90">
                       This browser cannot play this format inline — use WebM or
