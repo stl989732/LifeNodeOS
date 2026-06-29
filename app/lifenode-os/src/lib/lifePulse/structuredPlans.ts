@@ -1,8 +1,9 @@
 import { defaultTableColumns } from "./qualifyingQuestions";
+import { appendTravelTotalRow } from "./travelTotals";
 import { newTableRowId } from "./tableRows";
 import type { LifePulseCategoryId } from "./types";
 import type { PlanIntent } from "./planIntent";
-import { effectivePlanDays } from "./planIntent";
+import { effectivePlanDays, resolveTargetPlanDays } from "./planIntent";
 import { formatTravelDateRange } from "./travelDates";
 import {
   estimateRoundTripFlights,
@@ -166,16 +167,23 @@ export function buildStudyPlanRows(
 ): { table_columns: string[]; table_rows: PlanTableRow[] } {
   const columns = defaultTableColumns("study");
   const days = effectivePlanDays(intent, "study");
-  const subject =
-    intent.studySubject ??
-    detectSubjectFromAnswers(qualifyingAnswers) ??
-    "General Studies";
-
-  const curriculum = pickCurriculum(subject);
   const level =
     Object.values(qualifyingAnswers ?? {})
       .join(" ")
       .match(/beginner|intermediate|advanced/i)?.[0] ?? "intermediate";
+  const subject =
+    intent.studySubject ??
+    (answerText(qualifyingAnswers, "study_topic") ||
+      detectSubjectFromAnswers(qualifyingAnswers) ||
+      "General Studies");
+
+  const curriculum = pickCurriculum(subject);
+  const knownCurriculum =
+    subject !== "General Studies" &&
+    /mathematics|english|physics|chemistry|biology|economics/i.test(subject);
+  if (!knownCurriculum) {
+    return buildCustomStudyPlanRows(subject, days, level);
+  }
 
   const rows: PlanTableRow[] = [];
   for (let d = 1; d <= days; d++) {
@@ -194,13 +202,46 @@ export function buildStudyPlanRows(
 
 function detectSubjectFromAnswers(answers?: Record<string, string>): string | null {
   if (!answers) return null;
+  const topic = answers.study_topic?.trim();
+  if (topic) return topic;
   const text = Object.values(answers).join(" ");
-  return (
-    /\bmath/i.test(text) ? "Mathematics" :
-    /\benglish|grammar|idiom/i.test(text) ? "English" :
-    /\bphysics/i.test(text) ? "Physics" :
-    null
-  );
+  if (/\bmath/i.test(text)) return "Mathematics";
+  if (/\benglish|grammar|idiom/i.test(text)) return "English";
+  if (/\bphysics/i.test(text)) return "Physics";
+  if (/\bchemistry|\bchem\b/i.test(text)) return "Chemistry";
+  if (/\bbiology|\bbio\b/i.test(text)) return "Biology";
+  if (/\beconomics?/i.test(text)) return "Economics";
+  return null;
+}
+
+export function buildCustomStudyPlanRows(
+  topic: string,
+  days: number,
+  level: string,
+): { table_columns: string[]; table_rows: PlanTableRow[] } {
+  const columns = defaultTableColumns("study");
+  const phases = [
+    { topic: "Foundations", lesson: `Core concepts of ${topic} — vocabulary, frameworks, key definitions` },
+    { topic: "Deep dive", lesson: `Applied ${topic} — case studies, worked examples, industry context` },
+    { topic: "Practice", lesson: `Hands-on exercises and problem sets for ${topic}` },
+    { topic: "Synthesis", lesson: `Connect ideas — mind map or teach-back session` },
+    { topic: "Assessment", lesson: `Self-quiz or mini-project demonstrating ${topic} skills` },
+    { topic: "Review", lesson: "Spaced repetition of weakest areas" },
+  ];
+  const rows: PlanTableRow[] = [];
+  for (let d = 1; d <= days; d++) {
+    const block = phases[(d - 1) % phases.length];
+    rows.push({
+      id: newTableRowId(),
+      cells: {
+        Day: String(d),
+        Topic: `${topic}: ${block.topic}`,
+        "Lesson / Focus": `${block.lesson} (${level} — 45–60 min)`,
+        Status: d === 1 ? "Start today" : "Planned",
+      },
+    });
+  }
+  return { table_columns: columns, table_rows: rows };
 }
 
 export function buildSkincarePlanRows(
@@ -401,7 +442,10 @@ export function buildTravelPlanRows(
     });
   }
 
-  return { table_columns: columns, table_rows: rows };
+  return {
+    table_columns: columns,
+    table_rows: appendTravelTotalRow(rows, columns),
+  };
 }
 
 export function buildSocialMediaPlanRows(
@@ -529,6 +573,13 @@ export function buildPetsPlanRows(
   const petName = answerText(qualifyingAnswers, "pet_name") || "your pet";
   const needs = answerText(qualifyingAnswers, "pet_needs").toLowerCase();
   const isVet = /vet|vaccine|spay|neuter|check-up/i.test(needs);
+  const vetAppt =
+    qualifyingAnswers?.vet_appointment_date?.trim() ||
+    answerText(qualifyingAnswers, "vet_appointment_date");
+  const medStart =
+    qualifyingAnswers?.med_schedule_start?.trim() ||
+    answerText(qualifyingAnswers, "med_schedule_start");
+  const medFreq = answerText(qualifyingAnswers, "med_frequency") || "daily";
 
   const rows: PlanTableRow[] = [];
   for (let d = 1; d <= days; d++) {
@@ -540,22 +591,22 @@ export function buildPetsPlanRows(
     if (isVet) {
       if (d === 1) {
         task = "Find vet clinic";
-        schedule = "This week";
+        schedule = medStart || "This week";
         food = "—";
-        notes = "Search local vets; check reviews & vaccine packages";
+        notes = answerText(qualifyingAnswers, "vet_clinic") || "Search local vets; check reviews";
       } else if (d === 2) {
         task = "Book appointment";
-        schedule = "Call or online";
+        schedule = vetAppt ? "Confirm slot" : "Call or online";
         food = "—";
-        notes = "Spay/neuter, vaccines, or annual check-up — confirm prep instructions";
+        notes = vetAppt ? `Target: ${vetAppt}` : "Spay/neuter, vaccines, or check-up";
       } else if (d === 3) {
         task = "Pre-visit checklist";
-        schedule = "Day before";
+        schedule = vetAppt ? "Day before appointment" : "Day before";
         food = "Light meal if fasting required";
         notes = "Bring records, carrier, questions list";
       } else if (d === 4) {
         task = "Vet visit";
-        schedule = "Appointment day";
+        schedule = vetAppt || "Appointment day";
         food = "Per vet instructions";
         notes = "Note follow-up meds & next vaccine dates in this table";
       } else {
@@ -566,7 +617,16 @@ export function buildPetsPlanRows(
       }
     } else if (/vitamin|medication|reminder/i.test(needs)) {
       task = d % 2 === 1 ? "Give vitamins / meds" : "Log dose in table";
-      schedule = d % 2 === 1 ? "8:00 AM" : "8:00 PM";
+      schedule =
+        medFreq === "twice"
+          ? d % 2 === 1
+            ? "8:00 AM"
+            : "8:00 PM"
+          : medFreq === "weekly"
+            ? `Week ${d} — ${medStart || "start date"}`
+            : medStart
+              ? `${medStart} — daily`
+              : "8:00 AM";
       notes = "Set phone alarm; mark Status when done";
     } else if (/food/i.test(needs)) {
       task = `Meal plan day ${d}`;
@@ -578,6 +638,75 @@ export function buildPetsPlanRows(
     rows.push({
       id: newTableRowId(),
       cells: { Task: task, Schedule: schedule, "Food / Care": food, Notes: notes },
+    });
+  }
+
+  return { table_columns: columns, table_rows: rows };
+}
+
+function parseIsoDate(raw?: string): Date | null {
+  if (!raw?.trim()) return null;
+  const d = new Date(raw.includes("T") ? raw : `${raw}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatDueDate(d: Date): string {
+  return d.toISOString();
+}
+
+export function buildProjectManagementPlanRows(
+  intent: PlanIntent,
+  rawPrompt: string,
+  qualifyingAnswers?: Record<string, string>,
+): { table_columns: string[]; table_rows: PlanTableRow[] } {
+  const columns = defaultTableColumns("project_management");
+  const days = resolveTargetPlanDays(
+    intent,
+    "project_management",
+    rawPrompt,
+    qualifyingAnswers,
+  );
+  const projectName =
+    answerText(qualifyingAnswers, "project_name") || rawPrompt.slice(0, 60);
+  const deadline = parseIsoDate(qualifyingAnswers?.project_deadline);
+  const start =
+    parseIsoDate(qualifyingAnswers?.project_start) ?? new Date();
+
+  const tasks: { task: string; label: string; pct: number; notes: string }[] = [
+    { task: "Kickoff & stakeholder alignment", label: "Planning", pct: 0.05, notes: "Confirm scope with team" },
+    { task: "Requirements & discovery", label: "Planning", pct: 0.12, notes: "$0 cost" },
+    { task: "Architecture / design decisions", label: "Technical", pct: 0.2, notes: "Document key choices" },
+    { task: "Core build sprint 1", label: "Internal", pct: 0.35, notes: "First deliverable milestone" },
+    { task: "Core build sprint 2", label: "Internal", pct: 0.5, notes: "Feature-complete target" },
+    { task: "Integrations & API wiring", label: "Integration", pct: 0.62, notes: "$20–$50 for premium tools" },
+    { task: "Content & documentation", label: "Content", pct: 0.72, notes: "User-facing docs" },
+    { task: "QA & bug bash", label: "Quality Assurance", pct: 0.82, notes: "Regression checklist" },
+    { task: "UAT / stakeholder review", label: "Client", pct: 0.9, notes: "Sign-off before launch" },
+    { task: "Launch & monitoring", label: "Deployment", pct: 0.98, notes: "Go-live + first-week watch" },
+  ];
+
+  const spanMs = deadline
+    ? Math.max(deadline.getTime() - start.getTime(), 24 * 60 * 60 * 1000)
+    : days * 24 * 60 * 60 * 1000;
+
+  const rows: PlanTableRow[] = [];
+  const useCount = Math.min(days, tasks.length);
+  for (let i = 0; i < useCount; i++) {
+    const t = tasks[i];
+    let dueIso = "";
+    if (deadline) {
+      const due = new Date(start.getTime() + spanMs * t.pct);
+      dueIso = formatDueDate(due);
+    }
+    rows.push({
+      id: newTableRowId(),
+      cells: {
+        Task: `${projectName}: ${t.task}`,
+        Label: t.label,
+        Due: dueIso,
+        Status: "Pending",
+        Notes: t.notes,
+      },
     });
   }
 
@@ -605,6 +734,8 @@ export function buildCategoryPlanRows(
       return buildEventsPlanRows(intent, rawPrompt, qualifyingAnswers);
     case "pets":
       return buildPetsPlanRows(intent, rawPrompt, qualifyingAnswers);
+    case "project_management":
+      return buildProjectManagementPlanRows(intent, rawPrompt, qualifyingAnswers);
     default:
       break;
   }

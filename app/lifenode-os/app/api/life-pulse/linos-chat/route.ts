@@ -85,7 +85,9 @@ export async function POST(request: Request) {
     });
 
     if ("error" in result) {
-      return NextResponse.json(result, { status: result.usage.locked ? 429 : 500 });
+      return NextResponse.json(result, {
+        status: result.usage.plan.locked ? 429 : 500,
+      });
     }
 
     return NextResponse.json(result);

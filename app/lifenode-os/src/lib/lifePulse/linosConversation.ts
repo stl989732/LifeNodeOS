@@ -3,10 +3,14 @@ import { detectDomainFromPrompt, domainLabel } from "./detectDomain";
 import { filterQuestionsForPrompt } from "./filterQuestions";
 import {
   getLinosUsageStatus,
-  incrementLinosUsage,
-  LINOS_LOCK_MESSAGE,
+  meterLinosIntake,
+  meterLinosPlan,
+  LINOS_INTAKE_LOCK_MESSAGE,
+  LINOS_PLAN_LOCK_MESSAGE,
   type LinosUsageStatus,
 } from "./linosUsageLimit";
+import { fetchEventResearchContext } from "./eventResearch";
+import { appendTravelTotalRow } from "./travelTotals";
 import { getGeminiTextModel, geminiGenerateContentUrl } from "@/src/lib/geminiModels";
 import { buildBreakdownSystemPrompt, buildIntakeSystemPrompt } from "./linosConversationPrompt";
 import {
@@ -166,13 +170,13 @@ export async function runLinosIntake(input: {
   const rawPrompt = sanitizeAndTruncate(input.rawPrompt.trim());
   const usage = await getLinosUsageStatus(input.userId);
 
-  if (usage.locked) {
+  if (usage.intake.locked) {
     return {
       phase: "questions",
       domain: detectDomainFromPrompt(rawPrompt, input.categoryHint),
       messages: [
         { role: "user", content: rawPrompt },
-        { role: "linos", content: LINOS_LOCK_MESSAGE },
+        { role: "linos", content: LINOS_INTAKE_LOCK_MESSAGE },
       ],
       questions: [],
       usage,
@@ -185,7 +189,12 @@ export async function runLinosIntake(input: {
     rawPrompt,
   ).slice(0, maxQualifyingQuestions(domain));
 
-  const system = buildIntakeSystemPrompt(domain);
+  const eventResearchContext =
+    domain === "events"
+      ? await fetchEventResearchContext({ rawPrompt })
+      : "";
+
+  const system = buildIntakeSystemPrompt(domain, eventResearchContext);
   const parsed = await callGemini(system, `User spark: ${rawPrompt}`);
 
   let linosText = fallbackIntakeMessage(domain, rawPrompt);
@@ -200,8 +209,11 @@ export async function runLinosIntake(input: {
     }
   }
 
-  if (usage.warning) {
-    linosText = `${linosText}\n\n---\n\n*${usage.warning}*`;
+  await meterLinosIntake(input.userId);
+  const usageAfter = await getLinosUsageStatus(input.userId);
+
+  if (usageAfter.intake.warning) {
+    linosText = `${linosText}\n\n---\n\n*${usageAfter.intake.warning}*`;
   }
 
   linosText = sanitizeLinosMarkdown(linosText);
@@ -214,7 +226,7 @@ export async function runLinosIntake(input: {
       { role: "linos", content: linosText },
     ],
     questions: allQuestions,
-    usage,
+    usage: usageAfter,
   };
 }
 
@@ -266,6 +278,10 @@ function blueprintFromParsed(
     cols = built.table_columns;
   }
 
+  if (domain === "travel") {
+    rows = appendTravelTotalRow(rows, cols);
+  }
+
   let md = breakdown;
   if (domain === "skincare" && !md.includes("dermatologist")) {
     md =
@@ -303,8 +319,8 @@ export async function runLinosBreakdown(input: {
   qualifyingAnswers: Record<string, string>;
 }): Promise<LinosBreakdownResult | { error: string; usage: LinosUsageStatus }> {
   const usageBefore = await getLinosUsageStatus(input.userId);
-  if (usageBefore.locked) {
-    return { error: LINOS_LOCK_MESSAGE, usage: usageBefore };
+  if (usageBefore.plan.locked) {
+    return { error: LINOS_PLAN_LOCK_MESSAGE, usage: usageBefore };
   }
 
   const rawPrompt = sanitizeAndTruncate(input.rawPrompt.trim());
@@ -321,10 +337,20 @@ export async function runLinosBreakdown(input: {
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
 
+  const eventResearchContext =
+    domain === "events"
+      ? await fetchEventResearchContext({
+          rawPrompt,
+          eventName: input.qualifyingAnswers.event_name,
+          city: input.qualifyingAnswers.event_city,
+        })
+      : "";
+
   const system = buildBreakdownSystemPrompt(
     domain,
     targetDays,
     intent.studySubject ?? detectStudySubject(rawPrompt),
+    eventResearchContext,
   );
 
   const travelEventHint =
@@ -335,14 +361,17 @@ export async function runLinosBreakdown(input: {
   const userText = `Original request: ${rawPrompt}\nDomain: ${domain}\nPlan length: ${targetDays} days/steps (from user travel dates when provided)\nAnswers:\n${answersBlock}${travelEventHint}`;
 
   const parsed = await callGemini(system, userText);
-  const usage = await incrementLinosUsage(input.userId);
 
   if (!parsed) {
+    const usage = await getLinosUsageStatus(input.userId);
     return {
       error: "Linos could not generate your breakdown. Check GOOGLE_API_KEY and try again.",
       usage,
     };
   }
+
+  await meterLinosPlan(input.userId);
+  const usage = await getLinosUsageStatus(input.userId);
 
   const blueprint = blueprintFromParsed(
     parsed,
@@ -352,8 +381,8 @@ export async function runLinosBreakdown(input: {
   );
 
   let breakdownText = sanitizeLinosMarkdown(blueprint.breakdown_markdown);
-  if (usage.warning && !breakdownText.includes("only have 4 left")) {
-    breakdownText = `${breakdownText}\n\n---\n\n*${usage.warning}*`;
+  if (usage.intake.warning) {
+    breakdownText = `${breakdownText}\n\n---\n\n*${usage.intake.warning}*`;
   }
 
   const linosMessage =

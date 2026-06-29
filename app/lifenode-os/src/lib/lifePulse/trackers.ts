@@ -141,6 +141,16 @@ export type LinosPlanBlueprintPayload = {
   table_data: { id: string; cells: Record<string, string>; label?: string }[];
 };
 
+export class LinosChatError extends Error {
+  usage?: import("./linosUsageLimit").LinosUsageStatus;
+
+  constructor(message: string, usage?: import("./linosUsageLimit").LinosUsageStatus) {
+    super(message);
+    this.name = "LinosChatError";
+    this.usage = usage;
+  }
+}
+
 export async function postLinosChat(input: {
   phase: "intake" | "breakdown";
   rawPrompt: string;
@@ -154,11 +164,14 @@ export async function postLinosChat(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+  const body = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    usage?: import("./linosUsageLimit").LinosUsageStatus;
+  };
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Chat failed (${res.status})`);
+    throw new LinosChatError(body.error ?? `Chat failed (${res.status})`, body.usage);
   }
-  return res.json();
+  return body;
 }
 
 export async function generateLifePulseTracker(input: {

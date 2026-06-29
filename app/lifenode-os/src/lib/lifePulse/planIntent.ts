@@ -22,6 +22,10 @@ const SUBJECT_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /\bstatistics\b|\bstats\b/i, label: "Statistics" },
   { re: /\baccounting\b/i, label: "Accounting" },
   { re: /\bpsychology\b/i, label: "Psychology" },
+  { re: /\bconstruction\b|\bcost estimation\b|\bquantity survey/i, label: "Construction & Cost Estimation" },
+  { re: /\bfinance\b|\bfinancial\b|\binvesting\b/i, label: "Finance" },
+  { re: /\bresearch\b|\bdissertation\b|\bthesis\b/i, label: "Research" },
+  { re: /\bcertification\b|\bcert exam\b|\blicense exam\b/i, label: "Certification Exam Prep" },
 ];
 
 function endOfDayIsoFromNow(daysFromNow: number): string {
@@ -64,6 +68,8 @@ function detectStudySubjectFromAnswers(
   answers?: Record<string, string>,
 ): string | null {
   if (!answers) return null;
+  const topic = answers.study_topic?.trim();
+  if (topic) return topic;
   const text = Object.values(answers).join(" ");
   if (/\bmath/i.test(text)) return "Mathematics";
   if (/\benglish|grammar|idiom/i.test(text)) return "English";
@@ -72,6 +78,17 @@ function detectStudySubjectFromAnswers(
   if (/\bbiology|\bbio\b/i.test(text)) return "Biology";
   if (/\beconomics?/i.test(text)) return "Economics";
   return null;
+}
+
+function daysBetweenDates(startRaw?: string, endRaw?: string): number {
+  if (!endRaw?.trim()) return 0;
+  const end = new Date(endRaw.includes("T") ? endRaw : `${endRaw}T23:59:59`);
+  const start = startRaw?.trim()
+    ? new Date(startRaw.includes("T") ? startRaw : `${startRaw}T00:00:00`)
+    : new Date();
+  if (Number.isNaN(end.getTime())) return 0;
+  const diff = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  return clampDays(diff);
 }
 
 function parseDurationFromQualifyingAnswers(
@@ -105,7 +122,13 @@ export function resolvePlanIntent(
 ): PlanIntent {
   const durationDays =
     parsePlanDurationDays(rawPrompt) ||
-    parseDurationFromQualifyingAnswers(qualifyingAnswers, category);
+    parseDurationFromQualifyingAnswers(qualifyingAnswers, category) ||
+    (category === "project_management"
+      ? daysBetweenDates(
+          qualifyingAnswers?.project_start,
+          qualifyingAnswers?.project_deadline,
+        )
+      : 0);
   const studySubject =
     category === "study"
       ? detectStudySubject(rawPrompt) ?? detectStudySubjectFromAnswers(qualifyingAnswers)
@@ -116,7 +139,15 @@ export function resolvePlanIntent(
   const departureDateRaw = qualifyingAnswers?.departure_date?.trim();
   const travelDateRaw = qualifyingAnswers?.travel_date?.trim();
 
-  if (!dueDateIso && returnDateRaw) {
+  const projectDeadline = qualifyingAnswers?.project_deadline?.trim();
+  if (!dueDateIso && projectDeadline) {
+    const parsed = new Date(
+      projectDeadline.includes("T") ? projectDeadline : `${projectDeadline}T23:59:59`,
+    );
+    if (!Number.isNaN(parsed.getTime())) {
+      dueDateIso = parsed.toISOString();
+    }
+  } else if (!dueDateIso && returnDateRaw) {
     const parsed = new Date(
       returnDateRaw.includes("T") ? returnDateRaw : `${returnDateRaw}T23:59:59`,
     );
@@ -207,6 +238,15 @@ export function resolveTargetPlanDays(
     if (fromPrompt > 0) return fromPrompt;
     if (effective > 0) return effective;
     return 1;
+  }
+
+  if (category === "project_management") {
+    const pmDays = daysBetweenDates(
+      qualifyingAnswers?.project_start,
+      qualifyingAnswers?.project_deadline,
+    );
+    if (pmDays > 0) return pmDays;
+    return Math.max(fromPrompt || effective || 10, 1);
   }
 
   return Math.max(fromPrompt || effective || 7, 1);

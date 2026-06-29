@@ -5,7 +5,9 @@ export type MeterFeatureKey = keyof PlanEntitlements["features"];
 export type MeterEventKey =
   | "linos_assistant_message"
   | "linos_assistant_biz"
-  | "vanode_ai";
+  | "vanode_ai"
+  | "lifepulse_intake"
+  | "lifepulse_plan";
 
 export type MeterEventDef = {
   eventKey: MeterEventKey;
@@ -28,5 +30,15 @@ export const METER_EVENTS: Record<MeterEventKey, MeterEventDef> = {
     eventKey: "vanode_ai",
     credits: 2,
     featureKey: "vanode_ai",
+  },
+  lifepulse_intake: {
+    eventKey: "lifepulse_intake",
+    credits: 1,
+    featureKey: "lifepulse_intake",
+  },
+  lifepulse_plan: {
+    eventKey: "lifepulse_plan",
+    credits: 2,
+    featureKey: "lifepulse_plan",
   },
 };

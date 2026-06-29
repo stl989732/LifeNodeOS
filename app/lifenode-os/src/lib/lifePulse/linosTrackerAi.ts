@@ -16,6 +16,7 @@ import {
   studyIntro,
   type PlanTableRow,
 } from "./structuredPlans";
+import { appendTravelTotalRow } from "./travelTotals";
 import {
   extractSummaryFromAiPayload,
   extractTableRowsFromAiPayload,
@@ -134,13 +135,17 @@ function attachStructuredPlan(
   qualifyingAnswers?: Record<string, string>,
   existingRows: PlanTableRow[] = [],
 ): LinosTrackerAiResult {
-  const { table_columns, table_rows } = ensureFullPlanTable(
+  const { table_columns, table_rows: rawRows } = ensureFullPlanTable(
     category,
     intent,
     rawPrompt,
     existingRows,
     qualifyingAnswers,
   );
+  const table_rows =
+    category === "travel"
+      ? appendTravelTotalRow(rawRows, table_columns)
+      : rawRows;
   const action_items = tableRowsToActionItems(table_rows);
 
   return {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import { Loader2, Sparkles, X } from "lucide-react";
 import {
@@ -12,12 +13,17 @@ import { filterQuestionsForPrompt } from "@/src/lib/lifePulse/filterQuestions";
 import { domainLabel } from "@/src/lib/lifePulse/detectDomain";
 import {
   generateLifePulseTracker,
+  LinosChatError,
   postLinosChat,
   type LinosPlanBlueprintPayload,
 } from "@/src/lib/lifePulse/trackers";
 import type { LifePulseCategoryId, LifePulseTracker } from "@/src/lib/lifePulse/types";
 import { LIFE_PULSE_CATEGORIES } from "@/src/lib/lifePulse/types";
 import DateTimeField from "@/src/components/ui/DateTimeField";
+import {
+  LINOS_PLAN_LOCK_MESSAGE,
+  type LinosUsageStatus,
+} from "@/src/lib/lifePulse/linosUsageLimit";
 import {
   AURA_BTN_PRIMARY,
   AURA_GLASS_CLASS,
@@ -172,6 +178,11 @@ export default function LinosChatPanel({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [blueprint, setBlueprint] = useState<LinosPlanBlueprintPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<LinosUsageStatus | null>(null);
+  const planLimitHit =
+    usage?.plan.locked ||
+    error === LINOS_PLAN_LOCK_MESSAGE ||
+    (error?.includes("maximum limit of plan generations") ?? false);
 
   const runBreakdown = useCallback(
     async (domain: LifePulseCategoryId, resolvedAnswers: Record<string, string>) => {
@@ -187,8 +198,10 @@ export default function LinosChatPanel({
           messages: ChatMessage[];
           blueprint: LinosPlanBlueprintPayload;
           ready_to_save: boolean;
+          usage: LinosUsageStatus;
         };
 
+        if (data.usage) setUsage(data.usage);
         setMessages((prev) => {
           const linosMsg = data.messages?.find((m) => m.role === "linos");
           if (linosMsg) return [...prev, linosMsg];
@@ -197,7 +210,9 @@ export default function LinosChatPanel({
         setBlueprint(data.blueprint);
         setPhase("breakdown");
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Breakdown failed.");
+        const msg = e instanceof Error ? e.message : "Breakdown failed.";
+        if (e instanceof LinosChatError && e.usage) setUsage(e.usage);
+        setError(msg);
         setPhase("questions");
       }
     },
@@ -216,8 +231,10 @@ export default function LinosChatPanel({
         domain: LifePulseCategoryId;
         messages: ChatMessage[];
         questions: QualifyingQuestion[];
+        usage: LinosUsageStatus;
       };
 
+      if (data.usage) setUsage(data.usage);
       setActiveDomain(data.domain);
       setMessages(data.messages ?? []);
       const qs = filterQuestionsForPrompt(
@@ -232,6 +249,7 @@ export default function LinosChatPanel({
         await runBreakdown(data.domain, {});
       }
     } catch (e) {
+      if (e instanceof LinosChatError && e.usage) setUsage(e.usage);
       setError(e instanceof Error ? e.message : "Could not reach Linos.");
       setPhase("questions");
     }
@@ -307,6 +325,29 @@ export default function LinosChatPanel({
       </div>
 
       <div className="max-h-[min(70vh,520px)] space-y-4 overflow-y-auto p-4">
+        {usage && !usage.intake.locked ? (
+          <p className="rounded-lg border border-amber-200/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950">
+            Linos answers today: <strong>{usage.intake.count}</strong> of{" "}
+            <strong>{usage.intake.limit}</strong> used
+            {usage.intake.limit - usage.intake.count > 0
+              ? ` — ${usage.intake.limit - usage.intake.count} left`
+              : ""}
+            . Plan generations: <strong>{usage.plan.count}</strong> of{" "}
+            <strong>{usage.plan.limit}</strong>.
+          </p>
+        ) : null}
+
+        {planLimitHit ? (
+          <div className="rounded-xl border border-violet-300/50 bg-violet-500/10 p-4 text-sm text-violet-950">
+            <p className="font-semibold">{LINOS_PLAN_LOCK_MESSAGE}</p>
+            <Link
+              href="/pricing"
+              className="mt-3 inline-flex rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md transition hover:from-violet-500 hover:to-indigo-500"
+            >
+              Upgrade to Sync or Nexus
+            </Link>
+          </div>
+        ) : null}
         {messages.map((m, i) => (
           <div
             key={`${m.role}-${i}`}

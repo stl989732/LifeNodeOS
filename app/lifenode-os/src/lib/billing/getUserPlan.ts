@@ -1,6 +1,7 @@
 import { getPlanEntitlements } from "./planEntitlements";
 import type { PlanEntitlements } from "./planEntitlements";
 import type { PlanKey } from "./plans";
+import { resolvePlanOverride, type PlanOverride } from "./planOverride";
 import {
   effectivePlanFromRow,
   ensureCoreSubscription,
@@ -17,6 +18,8 @@ export type UserPlanSnapshot = {
   currentPeriodEnd: string | null;
   variantSlug: string | null;
   lemonCustomerPortalUrl: string | null;
+  /** Set when dev or beta env override is active (not a real subscription). */
+  planOverride: PlanOverride | null;
 };
 
 export async function getUserPlan(userId: string): Promise<PlanKey> {
@@ -32,7 +35,8 @@ export async function getUserPlanSnapshot(
     row = await ensureCoreSubscription(userId);
   }
 
-  const plan = effectivePlanFromRow(row);
+  const override = resolvePlanOverride(userId);
+  const plan = override?.plan ?? effectivePlanFromRow(row);
   const entitlements = getPlanEntitlements(plan);
 
   return {
@@ -44,5 +48,6 @@ export async function getUserPlanSnapshot(
     currentPeriodEnd: row.current_period_end,
     variantSlug: row.variant_slug,
     lemonCustomerPortalUrl: null,
+    planOverride: override,
   };
 }

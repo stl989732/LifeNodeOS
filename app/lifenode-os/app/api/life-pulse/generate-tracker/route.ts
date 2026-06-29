@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { appendNotification } from "@/lib/user-state-store";
 import {
+  getLinosUsageStatus,
+  LINOS_PLAN_LOCK_MESSAGE,
+} from "@/src/lib/lifePulse/linosUsageLimit";
+import { meterAiUsage } from "@/src/lib/ai-metering/meterAiUsage";
+import {
   generateLinosTrackerPlan,
   planFromBlueprint,
 } from "@/src/lib/lifePulse/linosTrackerAi";
@@ -93,12 +98,26 @@ export async function POST(request: Request) {
         qualifyingAnswers,
       });
     } else {
+      const usage = await getLinosUsageStatus(userId);
+      if (usage.plan.locked) {
+        return NextResponse.json(
+          { error: LINOS_PLAN_LOCK_MESSAGE, usage },
+          { status: 429 },
+        );
+      }
       plan = await generateLinosTrackerPlan({
         rawPrompt,
         category: category as LifePulseCategoryId,
         due_date: dueHint,
         qualifyingAnswers,
       });
+      const metered = await meterAiUsage(userId, "lifepulse_plan");
+      if (!metered.allowed) {
+        return NextResponse.json(
+          { error: LINOS_PLAN_LOCK_MESSAGE, usage: await getLinosUsageStatus(userId) },
+          { status: 429 },
+        );
+      }
     }
 
     const supabase = createSupabaseAdminClient();

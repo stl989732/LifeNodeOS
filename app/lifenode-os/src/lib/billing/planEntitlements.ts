@@ -38,7 +38,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       vanode_ai: 4,
       biznode_ai: 3,
       lifepulse_plan: 2,
-      lifepulse_intake: 4,
+      lifepulse_intake: 10,
       chef_text: 3,
       chef_image: 0,
     },

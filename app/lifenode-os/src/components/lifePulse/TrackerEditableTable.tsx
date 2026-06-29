@@ -13,6 +13,7 @@ import {
 import type { LifePulseTracker } from "@/src/lib/lifePulse/types";
 import DateTimeField, { datetimeLocalToIso, isoToDatetimeLocal } from "@/src/components/ui/DateTimeField";
 import { AURA_INPUT_CLASS, AURA_TEXT } from "./lifePulseAura";
+import PlanTableFocusModal from "./PlanTableFocusModal";
 
 type Props = {
   tracker: LifePulseTracker;
@@ -23,6 +24,11 @@ type Props = {
   /** When true, Status column starts empty (project management). */
   emptyStatusDefault?: boolean;
 };
+
+function isTotalRow(row: TrackerTableRow): boolean {
+  const item = row.cells.Item ?? row.cells.item ?? row.cells.Task ?? "";
+  return /^total|grand total|estimated total/i.test(item.trim());
+}
 
 export default function TrackerEditableTable({
   tracker,
@@ -35,6 +41,8 @@ export default function TrackerEditableTable({
   const ctx = tracker.context_data ?? tracker.metrics ?? {};
   const columns = getTableColumns(tracker.category, ctx);
   const rows = getTableRows(ctx);
+  const categoryLabel = tracker.category.replace(/_/g, " ");
+  const modalTitle = `Plan table · ${categoryLabel}`;
 
   function persist(nextRows: TrackerTableRow[]) {
     onSaveRows(nextRows, columns);
@@ -64,86 +72,48 @@ export default function TrackerEditableTable({
     persist(rows.filter((r) => r.id !== rowId));
   }
 
-  const shellClass = expanded
-    ? "fixed inset-4 z-50 flex flex-col overflow-hidden rounded-2xl border border-white/30 bg-white/95 shadow-2xl backdrop-blur-xl"
-    : "overflow-hidden rounded-xl border border-white/20 bg-white/15 backdrop-blur-sm";
+  function renderTableBody(focusMode: boolean) {
+    const textSize = focusMode ? "text-sm" : "text-xs";
+    const cellPad = focusMode ? "px-3 py-2.5" : "px-1 py-1";
+    const inputClass = focusMode
+      ? `${AURA_INPUT_CLASS} min-w-[120px] py-2 text-sm`
+      : `${AURA_INPUT_CLASS} min-w-[80px] py-1.5 text-xs`;
 
-  return (
-    <div className={shellClass}>
-      {expanded ? (
-        <div
-          className="absolute inset-0 -z-10 bg-slate-900/40"
-          onClick={() => setExpanded(false)}
-          aria-hidden
-        />
-      ) : null}
-
-      <div className="flex items-center justify-between border-b border-white/15 px-3 py-2">
-        <p className={`text-[10px] font-bold uppercase tracking-widest ${AURA_TEXT.label}`}>
-          Plan table · {tracker.category.replace(/_/g, " ")}
-        </p>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setExpanded((e) => !e)}
-            className="inline-flex items-center gap-1 rounded-lg bg-white/25 px-2 py-1 text-[10px] font-semibold text-slate-800 hover:bg-white/40"
-            title={expanded ? "Minimize table" : "Maximize table for editing"}
-          >
-            {expanded ? (
-              <Minimize2 className="h-3 w-3" />
-            ) : (
-              <Maximize2 className="h-3 w-3" />
-            )}
-            {expanded ? "Minimize" : "Maximize"}
-          </button>
-          <button
-            type="button"
-            onClick={addRow}
-            disabled={busy}
-            className="inline-flex items-center gap-1 rounded-lg bg-white/25 px-2 py-1 text-[10px] font-semibold text-slate-800 hover:bg-white/40"
-          >
-            <Plus className="h-3 w-3" />
-            Add row
-          </button>
-        </div>
-      </div>
-
-      {introText ? (
-        <p className={`border-b border-white/10 px-3 py-2 text-xs leading-relaxed ${AURA_TEXT.body}`}>
-          {introText}
-        </p>
-      ) : null}
-
-      <div className={expanded ? "min-h-0 flex-1 overflow-auto" : "overflow-x-auto"}>
-        <table className="w-full min-w-[480px] text-left text-xs">
-          <thead>
-            <tr className="border-b border-white/15 bg-white/10">
-              {columns.map((col) => (
-                <th
-                  key={col}
-                  className="px-2 py-2 font-semibold text-slate-700"
-                >
-                  {col}
-                </th>
-              ))}
-              <th className="w-10 px-2 py-2" aria-label="Actions" />
+    return (
+      <table className={`w-full min-w-[480px] text-left ${textSize}`}>
+        <thead>
+          <tr className="border-b border-white/15 bg-white/10">
+            {columns.map((col) => (
+              <th
+                key={col}
+                className={`${cellPad} font-semibold text-slate-700`}
+              >
+                {col}
+              </th>
+            ))}
+            <th className="w-10 px-2 py-2" aria-label="Actions" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td
+                colSpan={columns.length + 1}
+                className="px-3 py-6 text-center text-slate-500"
+              >
+                No rows yet — add one or use Linos Quick Add to generate a plan.
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length + 1}
-                  className="px-3 py-6 text-center text-slate-500"
+          ) : (
+            rows.map((row) => {
+              const total = isTotalRow(row);
+              return (
+                <tr
+                  key={row.id}
+                  className={`border-b border-white/10 ${total ? "bg-white/25 font-semibold" : ""}`}
                 >
-                  No rows yet — add one or use Linos Quick Add to generate a plan.
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.id} className="border-b border-white/10">
                   {columns.map((col) => (
-                    <td key={col} className="px-1 py-1">
+                    <td key={col} className={cellPad}>
                       {isDateTimeColumn(col) ? (
                         <DateTimeField
                           value={isoToDatetimeLocal(row.cells[col]) || row.cells[col] || ""}
@@ -152,7 +122,11 @@ export default function TrackerEditableTable({
                             updateCell(row.id, col, stored);
                           }}
                           disabled={busy}
-                          inputClassName={`${AURA_INPUT_CLASS} min-w-[9rem] py-1.5 text-xs`}
+                          inputClassName={
+                            focusMode
+                              ? `${AURA_INPUT_CLASS} min-w-[11rem] py-2 text-sm`
+                              : `${AURA_INPUT_CLASS} min-w-[9rem] py-1.5 text-xs`
+                          }
                         />
                       ) : (
                         <input
@@ -166,12 +140,12 @@ export default function TrackerEditableTable({
                               ? "e.g. In progress"
                               : undefined
                           }
-                          className={`${AURA_INPUT_CLASS} min-w-[80px] py-1.5 text-xs`}
+                          className={inputClass}
                         />
                       )}
                     </td>
                   ))}
-                  <td className="px-1 py-1 text-center">
+                  <td className={`${cellPad} text-center`}>
                     <button
                       type="button"
                       onClick={() => deleteRow(row.id)}
@@ -183,18 +157,98 @@ export default function TrackerEditableTable({
                     </button>
                   </td>
                 </tr>
-              ))
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    );
+  }
+
+  function renderToolbar(focusMode: boolean) {
+    return (
+      <div className="flex items-center justify-between border-b border-white/15 px-3 py-2">
+        <p
+          className={`font-bold uppercase tracking-widest text-slate-700 ${focusMode ? "text-xs" : `text-[10px] ${AURA_TEXT.label}`}`}
+        >
+          {modalTitle}
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            className={`inline-flex items-center gap-1 rounded-lg bg-white/25 font-semibold text-slate-800 hover:bg-white/40 ${focusMode ? "px-3 py-1.5 text-xs" : "px-2 py-1 text-[10px]"}`}
+            title={expanded ? "Minimize table" : "Maximize table for editing"}
+          >
+            {expanded ? (
+              <Minimize2 className="h-3.5 w-3.5" />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" />
             )}
-          </tbody>
-        </table>
+            {expanded ? "Minimize" : "Maximize"}
+          </button>
+          <button
+            type="button"
+            onClick={addRow}
+            disabled={busy}
+            className={`inline-flex items-center gap-1 rounded-lg bg-white/25 font-semibold text-slate-800 hover:bg-white/40 ${focusMode ? "px-3 py-1.5 text-xs" : "px-2 py-1 text-[10px]"}`}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add row
+          </button>
+        </div>
       </div>
+    );
+  }
+
+  function renderFooter(focus: boolean) {
+    return (
       <p
-        className={`flex shrink-0 items-center gap-1 border-t border-white/10 px-3 py-2 text-[10px] ${AURA_TEXT.muted}`}
+        className={`flex shrink-0 items-center gap-1 border-t border-white/10 px-3 py-2 ${focus ? "text-xs text-slate-600" : `text-[10px] ${AURA_TEXT.muted}`}`}
       >
         <Pencil className="h-3 w-3" />
         Edit cells inline — changes save automatically.
       </p>
+    );
+  }
+
+  const inlineShell = (
+    <div className="overflow-hidden rounded-xl border border-white/20 bg-white/15 backdrop-blur-sm">
+      {renderToolbar(false)}
+      {introText ? (
+        <p className={`border-b border-white/10 px-3 py-2 text-xs leading-relaxed ${AURA_TEXT.body}`}>
+          {introText}
+        </p>
+      ) : null}
+      <div className="overflow-x-auto">{renderTableBody(false)}</div>
+      {renderFooter(false)}
     </div>
+  );
+
+  const focusContent = (
+    <>
+      {renderToolbar(true)}
+      {introText ? (
+        <p className="border-b border-white/10 px-5 py-3 text-sm leading-relaxed text-slate-700">
+          {introText}
+        </p>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-auto px-2 pb-2">{renderTableBody(true)}</div>
+      {renderFooter(true)}
+    </>
+  );
+
+  return (
+    <>
+      {inlineShell}
+      <PlanTableFocusModal
+        open={expanded}
+        title={modalTitle}
+        onClose={() => setExpanded(false)}
+      >
+        {focusContent}
+      </PlanTableFocusModal>
+    </>
   );
 }
 

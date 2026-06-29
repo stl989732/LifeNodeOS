@@ -10,7 +10,10 @@ import { WhiteboardVaultBridgeProvider } from "@/src/context/WhiteboardVaultBrid
 import { LoadingOverlayProvider } from "@/src/context/LoadingOverlayContext";
 import TermlyCMP from "@/src/components/legal/TermlyCMP";
 import TermlyPreferencesTrigger from "@/src/components/legal/TermlyPreferencesTrigger";
-import { TERMLY_RESOURCE_BLOCKER_SRC } from "@/src/components/legal/termlyConfig";
+import {
+  TERMLY_ENABLED,
+  TERMLY_RESOURCE_BLOCKER_SRC,
+} from "@/src/components/legal/termlyConfig";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import LiveCaptureRoot from "@/components/vanode/LiveCaptureRoot";
 import ScreenRecordingRoot from "@/components/vanode/ScreenRecordingRoot";
@@ -74,17 +77,21 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} ${playfair.variable} ${dmSans.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
-        {TERMLY_RESOURCE_BLOCKER_SRC ? (
+        {TERMLY_ENABLED && TERMLY_RESOURCE_BLOCKER_SRC ? (
           <Script
             id="termly-resource-blocker"
             src={TERMLY_RESOURCE_BLOCKER_SRC}
             strategy="beforeInteractive"
           />
         ) : null}
-        <TermlyPreferencesTrigger />
-        <Suspense fallback={null}>
-          <TermlyCMP />
-        </Suspense>
+        {TERMLY_ENABLED ? (
+          <>
+            <TermlyPreferencesTrigger />
+            <Suspense fallback={null}>
+              <TermlyCMP />
+            </Suspense>
+          </>
+        ) : null}
         <AuthProviders>
           <LifeNodeProvider>
             <LiveCaptureRoot>

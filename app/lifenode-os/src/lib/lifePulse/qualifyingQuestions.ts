@@ -25,7 +25,7 @@ export function getQualifyingQuestions(
       const duration = parsePlanDurationDays(rawPrompt);
       const focusPrompt = subject
         ? `You asked for **${subject}**${duration ? ` over ${duration} days` : ""}. Which areas should we emphasize?`
-        : "Which subject and areas should this study plan focus on?";
+        : "Which areas should this study plan emphasize?";
 
       const questions: QualifyingQuestion[] = [];
 
@@ -46,8 +46,16 @@ export function getQualifyingQuestions(
 
       if (!subject) {
         questions.push({
+          id: "study_topic",
+          prompt: "What topic or field should this study plan focus on?",
+          type: "text",
+          placeholder:
+            "e.g. construction cost estimation, CPA exam prep, Python for data analysis",
+          required: true,
+        });
+        questions.push({
           id: "study_subject",
-          prompt: "Which subject is this study plan for?",
+          prompt: "Or pick a school subject (optional)",
           type: "choice",
           options: [
             { id: "math", label: "Mathematics" },
@@ -56,8 +64,8 @@ export function getQualifyingQuestions(
             { id: "chemistry", label: "Chemistry" },
             { id: "economics", label: "Economics" },
             { id: "biology", label: "Biology" },
+            { id: "other", label: "Other — use topic above" },
           ],
-          required: true,
         });
       }
 
@@ -79,41 +87,78 @@ export function getQualifyingQuestions(
             { id: "advanced", label: "Advanced" },
           ],
         },
+        {
+          id: "study_start_date",
+          prompt: "When do you want to start? (optional)",
+          type: "date",
+        },
       );
 
       return questions;
     }
 
     case "events": {
-      const questions: QualifyingQuestion[] = [
-        {
-          id: "fly_from",
-          prompt: "Where will you be flying from?",
-          type: "text",
-          placeholder: "e.g. Los Angeles, USA or Singapore",
-          required: true,
-        },
-        {
-          id: "accommodation_preference",
-          prompt: "What is your preferred accommodation style?",
-          type: "choice",
-          options: [
-            { id: "venue", label: "Venue hotel (e.g. Marriott Manila)" },
-            { id: "nearby", label: "Affordable hotels nearby (Belmont / Savoy)" },
-            { id: "airbnb", label: "Local Airbnb / stay with friends" },
-          ],
-          required: true,
-        },
-      ];
-      if (!/\b(highlevel|philippines|conference|summit|event|gala|manila)\b/i.test(p)) {
-        questions.unshift({
+      const questions: QualifyingQuestion[] = [];
+      if (!/\b(highlevel|philippines|conference|summit|event|gala|concert|festival)\b/i.test(p)) {
+        questions.push({
           id: "event_name",
           prompt: "Which event are you planning to attend?",
           type: "text",
-          placeholder: "e.g. HighLevel Philippines, industry summit…",
+          placeholder: "e.g. Taylor Swift Eras Tour, industry summit…",
           required: true,
         });
       }
+      if (!/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2})/i.test(p)) {
+        questions.push({
+          id: "event_date",
+          prompt: "When is the event? (date)",
+          type: "date",
+          required: true,
+        });
+      }
+      questions.push({
+        id: "event_city",
+        prompt: "Which city is the event in?",
+        type: "text",
+        placeholder: "e.g. Los Angeles, Manila, London",
+        required: true,
+      });
+      questions.push({
+        id: "needs_travel",
+        prompt: "Will you be traveling to this event?",
+        type: "choice",
+        options: [
+          { id: "local", label: "No — I'm local / already nearby" },
+          { id: "travel", label: "Yes — I need flights & lodging" },
+        ],
+        required: true,
+      });
+      questions.push({
+        id: "fly_from",
+        prompt: "Where will you be flying from? (if traveling)",
+        type: "text",
+        placeholder: "e.g. Los Angeles, USA — skip if local",
+      });
+      questions.push({
+        id: "departure_date",
+        prompt: "Departure date (if traveling)",
+        type: "date",
+      });
+      questions.push({
+        id: "return_date",
+        prompt: "Return date (if traveling)",
+        type: "date",
+      });
+      questions.push({
+        id: "accommodation_preference",
+        prompt: "Preferred accommodation (if traveling)",
+        type: "choice",
+        options: [
+          { id: "venue", label: "Venue / central hotel" },
+          { id: "nearby", label: "Budget hotels nearby" },
+          { id: "airbnb", label: "Airbnb / apartment" },
+        ],
+      });
       questions.push({
         id: "event_budget",
         prompt: "Total budget cap for travel + tickets (optional)",
@@ -267,8 +312,12 @@ export function getQualifyingQuestions(
         },
       ];
 
-    case "pets":
-      return [
+    case "pets": {
+      const needsVet =
+        /\b(vet|vaccine|appointment|spay|neuter|check-?up)\b/i.test(p);
+      const needsMeds = /\b(vitamin|medication|meds|pill|dose)\b/i.test(p);
+
+      const questions: QualifyingQuestion[] = [
         {
           id: "pet_type",
           prompt: "What kind of pet(s) do you have? (select all that apply)",
@@ -297,13 +346,50 @@ export function getQualifyingQuestions(
           ],
           required: true,
         },
-        {
-          id: "pet_name",
-          prompt: "Pet name (optional)",
-          type: "text",
-          placeholder: "e.g. Luna",
-        },
       ];
+
+      if (needsVet) {
+        questions.push({
+          id: "vet_appointment_date",
+          prompt: "When is the vet appointment?",
+          type: "datetime",
+          required: true,
+        });
+        questions.push({
+          id: "vet_clinic",
+          prompt: "Vet clinic name (optional)",
+          type: "text",
+          placeholder: "e.g. City Animal Hospital",
+        });
+      }
+
+      if (needsMeds || !needsVet) {
+        questions.push({
+          id: "med_schedule_start",
+          prompt: "When should med/vitamin reminders start?",
+          type: "date",
+        });
+        questions.push({
+          id: "med_frequency",
+          prompt: "How often should reminders fire?",
+          type: "choice",
+          options: [
+            { id: "daily", label: "Once daily" },
+            { id: "twice", label: "Twice daily" },
+            { id: "weekly", label: "Weekly" },
+          ],
+        });
+      }
+
+      questions.push({
+        id: "pet_name",
+        prompt: "Pet name (optional)",
+        type: "text",
+        placeholder: "e.g. Luna",
+      });
+
+      return questions;
+    }
 
     case "project_management":
       return [
@@ -313,6 +399,17 @@ export function getQualifyingQuestions(
           type: "text",
           placeholder: "e.g. Website launch Q3",
           required: true,
+        },
+        {
+          id: "project_deadline",
+          prompt: "What is the target deadline for this project?",
+          type: "date",
+          required: true,
+        },
+        {
+          id: "project_start",
+          prompt: "When does work start? (optional — defaults to today)",
+          type: "date",
         },
         {
           id: "project_scope",
