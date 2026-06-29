@@ -37,6 +37,8 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   waiting: "Track items you are waiting on from clients or teammates.",
   clients: "Client profiles, timezones, work hours, and credential vault.",
   invoice: "Build, print, and share invoices with currency-aware totals.",
+  "billable-hours":
+    "Immutable timetracker per client — breaks, alarms, share links, EOD invoice hours (Sync+).",
   "home-overview": "Family command deck — cart, chores, budget, and kitchen at a glance.",
   "chef-node": "AI recipe discovery, meal planning, and save-to-vault.",
   "smart-cart": "Grocery list with cross-device sync; add items inline.",
@@ -279,6 +281,12 @@ const VA_EXTRAS: ProductFeature[] = [
     label: "Scratch Pad",
     description: "Quick capture with tags; save drafts to Smart Vault.",
   },
+  {
+    id: "billable-hours",
+    label: "Billable Hours Timetracker",
+    description:
+      "Per-client workday timer with breaks, alarms, client share links, and EOD invoice hours (Sync+).",
+  },
 ];
 
 /** Domain nodes users enable as “hats” at sign-in. */
@@ -295,7 +303,7 @@ export const PRODUCT_NODES: ProductSurface[] = [
     id: "va",
     label: "VANode",
     route: "/vanode",
-    blurb: "Client sandboxes, EOD reports, and invoicing.",
+    blurb: "Client sandboxes, EOD reports, billable hours, and invoicing.",
     color: "#0D9488",
     features: [...fromCatalog("va"), ...VA_EXTRAS],
   },

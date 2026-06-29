@@ -47,6 +47,8 @@ const LINOS_GENERATING_PHRASES = [
 export default function LifePulseDashboard() {
   const { data: session, status } = useSession();
   const { patchBridgeSignals } = useLifeNodeContext();
+  const userId = session?.user?.id ? String(session.user.id) : null;
+  const hasLoadedTrackers = useRef(false);
   const [category, setCategory] = useState<LifePulseCategoryId>("travel");
   const [trackers, setTrackers] = useState<LifePulseTracker[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,24 +77,26 @@ export default function LifePulseDashboard() {
   }, [trackers, patchBridgeSignals]);
 
   const load = useCallback(async () => {
-    if (status !== "authenticated" || !session?.user?.id) {
+    if (status !== "authenticated" || !userId) {
       setTrackers([]);
       setLoading(false);
+      hasLoadedTrackers.current = false;
       return;
     }
-    setLoading(true);
+    if (!hasLoadedTrackers.current) setLoading(true);
     try {
-      const data = await fetchLifePulseTrackers(String(session.user.id));
+      const data = await fetchLifePulseTrackers(userId);
       setTrackers(data);
+      hasLoadedTrackers.current = true;
     } catch {
-      setTrackers([]);
+      if (!hasLoadedTrackers.current) setTrackers([]);
     } finally {
       setLoading(false);
     }
-  }, [session, status, setLoading, setTrackers]);
+  }, [userId, status]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   async function updateLifePulseTrackerDue(id: string, dateStr: string) {

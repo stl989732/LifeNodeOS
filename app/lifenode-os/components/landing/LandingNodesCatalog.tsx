@@ -9,6 +9,7 @@ import {
   SHELL_SURFACES,
   type ProductSurface,
 } from "@/lib/product-catalog";
+import { DOC_ROUTES } from "@/lib/docs/routes";
 
 const FONT_PLAYFAIR = "font-[family-name:var(--font-playfair)]";
 const MOBILE_FEATURE_LIMIT = 5;
@@ -129,7 +130,7 @@ export default function LandingNodesCatalog() {
           TraderNode risk guardrails.
         </p>
         <Link
-          href="/docs"
+          href={DOC_ROUTES.hub}
           className="inline-flex items-center gap-2 rounded-full border border-teal-500/40 bg-teal-500/10 px-6 py-3 text-sm font-semibold text-teal-300 transition hover:border-teal-400/60 hover:bg-teal-500/20"
         >
           Read the full user guide

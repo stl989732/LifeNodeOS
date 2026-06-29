@@ -57,6 +57,11 @@ import {
   invoiceShareLinks,
 } from "@/lib/vanode/invoice-share";
 import { toTitleCase } from "@/lib/vanode/title-case";
+import {
+  formatBillableDecimalHours,
+  liveActiveMs,
+  type BillableSession,
+} from "@/src/lib/vanode/billableHours";
 import type {
   ClientProfile,
   ClientCredential,
@@ -1030,6 +1035,8 @@ type AiAssistProps = {
   onAddVaultNote: (n: Omit<Note, "id" | "updatedAt">) => void;
 };
 
+export const VANODE_AI_PREFILL_KEY = "vanode.ai.prefill";
+
 export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
   const { activeClientId } = useActiveClient();
   const [thread, setThread] = useState("");
@@ -1040,6 +1047,15 @@ export function AiTaskAssistantCard({ onAddVaultNote }: AiAssistProps) {
   const [sopTitle, setSopTitle] = useState("");
   const [loadingEmail, setLoadingEmail] = useState(false);
   const [loadingSop, setLoadingSop] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pre = sessionStorage.getItem(VANODE_AI_PREFILL_KEY);
+    if (pre?.trim()) {
+      setThread(pre.trim());
+      sessionStorage.removeItem(VANODE_AI_PREFILL_KEY);
+    }
+  }, []);
 
   const clearThread = () => {
     setThread("");
@@ -1317,6 +1333,8 @@ type WaitProps = {
   clients: ClientProfile[];
   onAdd: (t: { label: string; clientId: string | null }) => void;
   onRemove: (id: string) => void;
+  onDraftFollowUp?: (task: WaitingTask) => void;
+  onOpenUnifiedFeed?: () => void;
 };
 
 
@@ -1424,7 +1442,14 @@ function hoursSinceCreated(iso: string) {
   return (Date.now() - new Date(iso).getTime()) / 3_600_000;
 }
 
-export function WaitingTasksCard({ tasks, clients, onAdd, onRemove }: WaitProps) {
+export function WaitingTasksCard({
+  tasks,
+  clients,
+  onAdd,
+  onRemove,
+  onDraftFollowUp,
+  onOpenUnifiedFeed,
+}: WaitProps) {
   const { activeClientId } = useActiveClient();
   const [label, setLabel] = useState("");
   const [clientId, setClientId] = useState("");
@@ -1540,10 +1565,31 @@ export function WaitingTasksCard({ tasks, clients, onAdd, onRemove }: WaitProps)
       {firstStuck ? (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-950">
           <span className="font-bold">Linos · nudge engine: </span>
-          {cnameForTask(firstStuck, clients)} hasn&apos;t moved on &quot;
+          {cnameForTask(firstStuck, clients)}{" "}
+          hasn&apos;t moved on &quot;
           {firstStuck.label.slice(0, 80)}
           {firstStuck.label.length > 80 ? "…" : ""}&quot; in over 24h. Want a
           polite follow-up drafted?
+          <div className="mt-3 flex flex-wrap gap-2">
+            {onDraftFollowUp ? (
+              <button
+                type="button"
+                onClick={() => onDraftFollowUp(firstStuck)}
+                className="rounded-lg bg-amber-800 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-amber-900"
+              >
+                Draft follow-up in Linos
+              </button>
+            ) : null}
+            {onOpenUnifiedFeed ? (
+              <button
+                type="button"
+                onClick={onOpenUnifiedFeed}
+                className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-[11px] font-bold text-amber-950 hover:bg-amber-50"
+              >
+                Open unified feed
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </section>
@@ -2188,6 +2234,44 @@ export function InvoicingSuiteCard({
   const [confirmPrintOpen, setConfirmPrintOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareText, setShareText] = useState("");
+  const [billableForInvoice, setBillableForInvoice] = useState<BillableSession | null>(
+    null,
+  );
+
+  const invoiceClientId = clientId || activeClientId || "";
+
+  useEffect(() => {
+    if (!open || mode !== "eod" || !invoiceClientId) {
+      setBillableForInvoice(null);
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    void fetch(
+      `/api/vanode/billable-sessions?date=${encodeURIComponent(today)}&clientId=${encodeURIComponent(invoiceClientId)}`,
+      { credentials: "include", cache: "no-store" },
+    )
+      .then((r) => (r.ok ? r.json() : { sessions: [] }))
+      .then((data: { sessions?: BillableSession[] }) => {
+        const list = data.sessions ?? [];
+        const pick =
+          list.find((s) => s.status === "ended") ??
+          list.find((s) => s.status !== "idle");
+        setBillableForInvoice(pick ?? null);
+      })
+      .catch(() => setBillableForInvoice(null));
+  }, [open, mode, invoiceClientId]);
+
+  useEffect(() => {
+    if (!billableForInvoice || mode !== "eod") return;
+    const hrs = formatBillableDecimalHours(liveActiveMs(billableForInvoice));
+    setLineRows((rows) =>
+      rows.map((r) =>
+        r.description === "Hours Billed"
+          ? { ...r, amount: hrs, unit: "hours" as InvoiceLineUnit }
+          : r,
+      ),
+    );
+  }, [billableForInvoice, mode]);
 
   const visibleInvoices = useMemo(
     () =>
@@ -2518,13 +2602,14 @@ export function InvoicingSuiteCard({
       </ul>
 
       {open && (
-        <div className="fixed inset-0 z-[300] flex items-stretch justify-center bg-slate-950/70 p-2 backdrop-blur-md sm:p-4">
+        <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/80 p-2 backdrop-blur-md sm:p-3">
           <div
-            className="input-section flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.06)] shadow-2xl backdrop-blur-[12px] md:flex-row"
+            className="input-section flex h-[min(94dvh,920px)] w-[min(98vw,1400px)] max-w-none flex-col overflow-hidden rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.06)] shadow-2xl backdrop-blur-[12px] md:flex-row"
             role="dialog"
             aria-modal
+            aria-label="Invoice builder"
           >
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-b border-white/10 p-5 md:w-1/2 md:border-b-0 md:border-r md:p-6">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-b border-white/10 p-5 md:w-[44%] md:border-b-0 md:border-r md:p-7">
               <div className="mb-4 flex items-center justify-between gap-2">
                 <h3 className="font-[family-name:var(--font-outfit)] text-lg font-bold text-slate-100">
                   Invoice builder
@@ -2912,7 +2997,7 @@ export function InvoicingSuiteCard({
               </div>
             </div>
 
-            <div className="invoice-preview-card flex min-h-[280px] flex-1 flex-col bg-slate-50 p-6 md:w-1/2">
+            <div className="invoice-preview-card flex min-h-[320px] flex-1 flex-col bg-slate-50 p-6 md:w-[56%] md:p-8">
               <div
                 id={confirmPrintOpen ? undefined : "printable-invoice"}
                 className="invoice-preview-card flex h-full flex-col rounded-2xl border border-teal-200/60 bg-white p-6 shadow-inner"

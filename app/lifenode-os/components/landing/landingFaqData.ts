@@ -33,7 +33,7 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     category: "Nodes",
     question: "What is VANode built for?",
     answer:
-      "VANode is for virtual assistants and agencies: client sessions, EOD logs, screen recording, live transcription, native invoicing, and a client vault. Client limits scale with your plan.",
+      "VANode is for virtual assistants and agencies: client sessions, EOD logs, screen recording, live transcription, native invoicing, billable hours timetracker (Sync+), and a client vault. Client limits scale with your plan.",
   },
   {
     id: "nodes-home",
@@ -283,6 +283,6 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     category: "Contact us",
     question: "Where is the full product documentation?",
     answer:
-      "The User Guide at /docs lists every shell surface, node, integration, and data-sync behavior. Legal policies (Terms, Privacy, Cookie preferences) are linked from the landing footer.",
+      "Documentation lives at /docs — overview, about, user guide, platform & tools, and security. Legal policies (Terms, Privacy, Cookie preferences) are linked from the landing footer.",
   },
 ];

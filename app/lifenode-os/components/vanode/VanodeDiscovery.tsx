@@ -34,6 +34,12 @@ const NATIVE_DEF: { key: NativeToolKey; title: string; description: string }[] =
       title: "Smart Notes",
       description: "Vault notes linked to clients and labels.",
     },
+    {
+      key: "billableHours",
+      title: "Billable Hours Timetracker",
+      description:
+        "Start/pause workday per client, break alarms, share links, EOD invoice hook (Sync+).",
+    },
   ];
 
 type Props = {

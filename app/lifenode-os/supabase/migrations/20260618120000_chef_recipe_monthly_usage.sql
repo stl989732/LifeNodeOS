@@ -80,3 +80,12 @@ grant select, insert, update on table public.chef_recipe_monthly_usage to servic
 grant execute on function public.check_and_meter_chef_recipe(text, integer) to service_role;
 
 alter table public.chef_recipe_monthly_usage enable row level security;
+
+drop policy if exists "chef_recipe_monthly_usage_service_role_all" on public.chef_recipe_monthly_usage;
+
+create policy "chef_recipe_monthly_usage_service_role_all"
+  on public.chef_recipe_monthly_usage
+  for all
+  to service_role
+  using (true)
+  with check (true);

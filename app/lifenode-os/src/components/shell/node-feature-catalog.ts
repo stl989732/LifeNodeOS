@@ -71,6 +71,7 @@ export const NODE_FEATURE_CATALOG: Record<string, CatalogFeature[]> = {
     { id: "waiting", label: "Waiting On", icon: Clock },
     { id: "clients", label: "Clients", icon: Users },
     { id: "invoice", label: "Invoicing", icon: Receipt },
+    { id: "billable-hours", label: "Billable Hours", icon: Clock },
   ],
   home: [
     { id: "home-overview", label: "Home Overview", icon: LayoutDashboard },

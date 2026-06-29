@@ -145,6 +145,7 @@ export const defaultVanodePersisted = (): VanodePersisted => ({
     eod: true,
     chaosCalc: true,
     smartNotes: true,
+    billableHours: true,
   },
   settings: {
     cloudSyncRecording: false,

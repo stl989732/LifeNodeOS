@@ -20,11 +20,17 @@ import {
 import type { PlanKey } from "@/src/lib/billing/plans";
 import UpgradePlanModal from "@/src/components/billing/UpgradePlanModal";
 
+type PlanOverrideInfo = {
+  plan: PlanKey;
+  source: "dev" | "beta";
+};
+
 type SubscriptionPayload = {
   plan: PlanKey;
   isPaid: boolean;
   displayName: string;
   entitlements: PlanEntitlements;
+  planOverride: PlanOverrideInfo | null;
 };
 
 type UpgradePrompt = {
@@ -38,6 +44,7 @@ type PlanEntitlementsContextValue = {
   displayName: string;
   entitlements: PlanEntitlements;
   loading: boolean;
+  planOverride: PlanOverrideInfo | null;
   refresh: () => Promise<void>;
   canAdd: (limit: PlanLimitKey, currentCount: number) => boolean;
   promptUpgrade: (limit: PlanLimitKey) => void;
@@ -84,6 +91,7 @@ export function PlanEntitlementsProvider({ children }: { children: ReactNode }) 
     isPaid: false,
     displayName: DEFAULT_ENTITLEMENTS.displayName,
     entitlements: DEFAULT_ENTITLEMENTS,
+    planOverride: null,
   });
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeCopy, setUpgradeCopy] = useState<UpgradePrompt>({
@@ -98,6 +106,7 @@ export function PlanEntitlementsProvider({ children }: { children: ReactNode }) 
         isPaid: false,
         displayName: DEFAULT_ENTITLEMENTS.displayName,
         entitlements: DEFAULT_ENTITLEMENTS,
+        planOverride: null,
       });
       setLoading(false);
       return;
@@ -115,6 +124,7 @@ export function PlanEntitlementsProvider({ children }: { children: ReactNode }) 
         isPaid?: boolean;
         displayName?: string;
         entitlements?: PlanEntitlements;
+        planOverride?: PlanOverrideInfo | null;
       };
       const plan = data.plan ?? "core";
       setSnapshot({
@@ -122,6 +132,7 @@ export function PlanEntitlementsProvider({ children }: { children: ReactNode }) 
         isPaid: Boolean(data.isPaid),
         displayName: data.displayName ?? getPlanEntitlements(plan).displayName,
         entitlements: data.entitlements ?? getPlanEntitlements(plan),
+        planOverride: data.planOverride ?? null,
       });
     } catch {
       setSnapshot({
@@ -129,6 +140,7 @@ export function PlanEntitlementsProvider({ children }: { children: ReactNode }) 
         isPaid: false,
         displayName: DEFAULT_ENTITLEMENTS.displayName,
         entitlements: DEFAULT_ENTITLEMENTS,
+        planOverride: null,
       });
     } finally {
       setLoading(false);
@@ -168,6 +180,7 @@ export function PlanEntitlementsProvider({ children }: { children: ReactNode }) 
       displayName: snapshot.displayName,
       entitlements: snapshot.entitlements,
       loading,
+      planOverride: snapshot.planOverride,
       refresh,
       canAdd,
       promptUpgrade,
@@ -183,9 +196,23 @@ export function PlanEntitlementsProvider({ children }: { children: ReactNode }) 
     ],
   );
 
+  const overrideLabel = snapshot.planOverride
+    ? snapshot.planOverride.source === "dev"
+      ? "Dev plan override"
+      : "Beta access"
+    : null;
+
   return (
     <PlanEntitlementsContext.Provider value={value}>
       {children}
+      {overrideLabel ? (
+        <div
+          className="pointer-events-none fixed bottom-3 left-3 z-[500] rounded-lg border border-amber-400/40 bg-amber-500/95 px-3 py-1.5 text-[11px] font-semibold text-slate-900 shadow-lg"
+          role="status"
+        >
+          {overrideLabel}: {snapshot.planOverride?.plan}
+        </div>
+      ) : null}
       <UpgradePlanModal
         open={upgradeOpen}
         onClose={() => setUpgradeOpen(false)}

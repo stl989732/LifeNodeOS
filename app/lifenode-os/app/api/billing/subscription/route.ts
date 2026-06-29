@@ -39,6 +39,7 @@ export async function GET() {
       entitlements: snapshot.entitlements,
       billingConfigured: isLemonSqueezyConfigured(),
       customerPortalUrl,
+      planOverride: snapshot.planOverride,
     });
   } catch (error) {
     console.error("[billing/subscription] GET failed:", error);

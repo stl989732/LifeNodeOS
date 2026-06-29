@@ -1,3 +1,4 @@
+import { DOC_ROUTES } from "@/lib/docs/routes";
 import { SUPPORT_ROUTES } from "@/lib/support/routes";
 
 export const LANDING_NODE_LINKS = [
@@ -13,6 +14,7 @@ export const LANDING_NODE_LINKS = [
 export const LANDING_EXPLORE_LINKS = [
   { href: "/pricing", label: "Pricing" },
   { href: "/catalog", label: "Full Catalog" },
+  { href: DOC_ROUTES.hub, label: "Documentation" },
   { href: "/#faq", label: "FAQ" },
 ] as const;
 
@@ -23,7 +25,11 @@ export const LANDING_POLICY_LINKS = [
 ] as const;
 
 export const LANDING_SUPPORT_LINKS = [
-  { href: "/docs", label: "User guide" },
+  { href: DOC_ROUTES.hub, label: "Documentation" },
+  { href: DOC_ROUTES.guide, label: "User guide" },
+  { href: DOC_ROUTES.about, label: "About LifeNode OS" },
+  { href: DOC_ROUTES.platform, label: "Platform & tools" },
+  { href: DOC_ROUTES.security, label: "Security" },
   { href: SUPPORT_ROUTES.feedback, label: "Feedback & suggestions" },
   { href: SUPPORT_ROUTES.ticket, label: "Ticket escalation" },
 ] as const;
@@ -35,7 +41,8 @@ export const FOOTER_COLUMNS = [
       { href: "/pricing", label: "Pricing" },
       { href: "/catalog", label: "Full Catalog" },
       { href: "/#faq", label: "FAQ" },
-      { href: "/docs", label: "User Guide" },
+      { href: DOC_ROUTES.hub, label: "Documentation" },
+      { href: DOC_ROUTES.guide, label: "User Guide" },
     ],
   },
   {

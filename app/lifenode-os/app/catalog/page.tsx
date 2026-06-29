@@ -10,6 +10,7 @@ import {
 import { CatalogGrid } from "@/components/landing/ProductCatalogGrids";
 import LandingPublicHeader from "@/components/landing/LandingPublicHeader";
 import LandingSiteFooter from "@/components/landing/LandingSiteFooter";
+import { DOC_ROUTES } from "@/lib/docs/routes";
 
 const FONT_PLAYFAIR = "font-[family-name:var(--font-playfair)]";
 const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
@@ -59,7 +60,7 @@ export default function CatalogPage() {
 
         <div className="mt-16 text-center">
           <Link
-            href="/docs"
+            href={DOC_ROUTES.guide}
             className={`${FONT_OUTFIT} inline-flex items-center gap-2 text-sm font-semibold text-teal-400 transition hover:text-teal-300`}
           >
             Read the full user guide →

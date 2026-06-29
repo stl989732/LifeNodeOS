@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PLAN_ENTITLEMENTS } from "@/src/lib/billing/planEntitlements";
+import { dailyAiGenerationBullets } from "@/src/lib/billing/planFeatureCopy";
 import type { BillingInterval, PaidPlanKey } from "@/src/lib/billing/plans";
 import { landingDarkText } from "@/components/landing/landingDarkTheme";
 
@@ -27,6 +28,8 @@ async function startCheckout(plan: PaidPlanKey, interval: BillingInterval) {
 const CORE = PLAN_ENTITLEMENTS.core;
 const SYNC = PLAN_ENTITLEMENTS.sync;
 const NEXUS = PLAN_ENTITLEMENTS.nexus;
+const CORE_AI = dailyAiGenerationBullets("core");
+const SYNC_AI = dailyAiGenerationBullets("sync");
 
 const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
 
@@ -135,6 +138,8 @@ export default function PricingPlansSection({
             "2 invoices · 2 EOD reports · 2 transcriptions",
             "1 kanban board · 2 integrations",
             "20 AI credits / day",
+            ...CORE_AI,
+            "Billable hours timetracker — Sync plan and up",
           ]}
         />
         <PlanCard
@@ -154,6 +159,8 @@ export default function PricingPlansSection({
             "20 invoices · 20 EOD reports · 20 transcriptions / month",
             "10 kanban boards",
             "150 AI credits / day",
+            ...SYNC_AI,
+            "Billable hours timetracker (multi-client, break alarms, client links)",
             "Logic bridges & Linos alerts",
           ]}
         />

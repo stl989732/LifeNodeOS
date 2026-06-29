@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useLnFeatureParam } from "@/src/hooks/useLnFeatureParam";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -43,6 +43,7 @@ import {
   SmartVaultCard,
   UnifiedFeedCard,
   WaitingTasksCard,
+  VANODE_AI_PREFILL_KEY,
 } from "./VanodePanels";
 import {
   ClientRoiCard,
@@ -50,8 +51,10 @@ import {
   LiveMeetingCaptureCard,
   TimezoneBridgeCard,
 } from "./VanodeVaProPanels";
+import BillableHoursCard from "./BillableHoursCard";
 import { VanodeExportBackupMenu } from "./VanodeExportBackupMenu";
 import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
+import type { WaitingTask } from "@/lib/vanode/types";
 
 type VaStageId =
   | "overview"
@@ -200,8 +203,29 @@ export function VANodeDashboard() {
   }, [registerVaultCapture, store.addNote]);
 
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [discStep, setDiscStep] = useState<1 | 2>(1);
   const [stage, setStage] = useState<VaStageId>("overview");
+
+  const handleDraftFollowUp = useCallback(
+    (task: WaitingTask) => {
+      const clientName =
+        store.data.clients.find((c) => c.id === task.clientId)?.name ??
+        "the client";
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(
+          VANODE_AI_PREFILL_KEY,
+          `Draft a polite follow-up email to ${clientName} about: ${task.label}`,
+        );
+      }
+      setStage("ai");
+    },
+    [store.data.clients],
+  );
+
+  const handleOpenUnifiedFeed = useCallback(() => {
+    router.push("/inbox");
+  }, [router]);
 
   useLnFeatureParam(
     useCallback((id) => setStage(id as VaStageId), []),
@@ -415,6 +439,14 @@ export function VANodeDashboard() {
           onPatchMetrics={store.patchValueMetrics}
         />
 
+        {(nt.billableHours ?? true) ? (
+          <BillableHoursCard
+            clients={store.data.clients}
+            activeClientId={store.data.activeClientId}
+            onSaveVaultNote={store.addNote}
+          />
+        ) : null}
+
         <div className="grid gap-4 md:auto-rows-fr md:grid-cols-2">
           {nt.eod && (
             <VaFocusShell title="EOD reporter">
@@ -486,6 +518,8 @@ export function VANodeDashboard() {
                 store.addWaitingTask({ label, clientId })
               }
               onRemove={store.removeWaitingTask}
+              onDraftFollowUp={handleDraftFollowUp}
+              onOpenUnifiedFeed={handleOpenUnifiedFeed}
             />
           </VaFocusShell>
 
@@ -635,6 +669,8 @@ export function VANodeDashboard() {
             store.addWaitingTask({ label, clientId })
           }
           onRemove={store.removeWaitingTask}
+          onDraftFollowUp={handleDraftFollowUp}
+          onOpenUnifiedFeed={handleOpenUnifiedFeed}
         />
       </div>
     ) : activeStage === "clients" ? (

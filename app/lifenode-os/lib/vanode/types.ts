@@ -95,7 +95,12 @@ export type Invoice = {
   clientSignatureImageDataUrl?: string | null;
 };
 
-export type NativeToolKey = "aiTask" | "eod" | "chaosCalc" | "smartNotes";
+export type NativeToolKey =
+  | "aiTask"
+  | "eod"
+  | "chaosCalc"
+  | "smartNotes"
+  | "billableHours";
 
 /** Scratch pad tag pills (fixed palette). */
 export type ScratchPadTag = "URGENT" | "GENERAL" | "HIGH_PRIORITY" | "RANDOM";

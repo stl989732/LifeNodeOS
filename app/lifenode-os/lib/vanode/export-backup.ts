@@ -6,6 +6,7 @@ const NATIVE_TOOL_LABELS: Record<NativeToolKey, string> = {
   eod: "EOD Reporter",
   chaosCalc: "Chaos Calculator",
   smartNotes: "Smart Notes / Scratch Pad",
+  billableHours: "Billable Hours Timetracker",
 };
 
 function toolNameById(id: string): string {
