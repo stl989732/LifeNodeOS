@@ -78,11 +78,22 @@ export function liveBreakRemainingMs(
 }
 
 export function formatBillableHours(ms: number): string {
-  const totalMin = Math.floor(ms / 60_000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h === 0) return `${m}m`;
-  return `${h}h ${m}m`;
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h === 0) return `${m}m ${s}s`;
+  return `${h}h ${m}m ${s}s`;
+}
+
+/** Break countdown — always shows minutes and seconds (and hours when needed). */
+export function formatBillableCountdown(ms: number): string {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
 }
 
 export function formatBillableDecimalHours(ms: number): string {

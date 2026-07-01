@@ -42,9 +42,10 @@ export function ScreenRecorder({ onError }: Props) {
         </span>
       </label>
       <p className="text-xs text-slate-500">
-        Recording continues while you switch LifeNode tabs or client focus. Use
-        the floating pill to stop. Saved captures stay in the list below — download
-        WebM or MP4 anytime.
+        Recording continues while you switch LifeNode tabs or client focus. In the
+        browser picker, enable <strong>Share tab audio</strong> for system sound.
+        Use the floating pill to stop. Saved captures stay below — download WebM
+        or MP4 anytime.
       </p>
       {lastSavedId ? (
         <p className="text-xs text-teal-700">

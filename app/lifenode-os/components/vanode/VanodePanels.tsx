@@ -135,7 +135,6 @@ type InvoiceLineRow = {
 const DEFAULT_MANUAL_INVOICE_LINES: InvoiceLineRow[] = [
   { description: "Hours Billed", amount: "", unit: "hours" },
   { description: "Days Worked", amount: "", unit: "days" },
-  { description: "Professional services", amount: "500", unit: "currency" },
 ];
 
 function unitForRow(row: InvoiceLineRow): InvoiceLineUnit {
@@ -2217,7 +2216,7 @@ export function InvoicingSuiteCard({
   const [lineRows, setLineRows] = useState<InvoiceLineRow[]>(() => [
     ...DEFAULT_MANUAL_INVOICE_LINES,
   ]);
-  const [amount, setAmount] = useState("500");
+  const [amount, setAmount] = useState("");
   const [pickedEod, setPickedEod] = useState<string[]>([]);
   const [status, setStatus] = useState<InvoiceStatus>("draft");
   const [businessAgencyName, setBusinessAgencyName] = useState("");
@@ -2356,6 +2355,7 @@ export function InvoicingSuiteCard({
     } else {
       lineItems = lineRows
         .filter((r) => r.description.trim())
+        .filter((r) => r.amount.trim() !== "")
         .map((r) => ({
           description: r.description.trim(),
           amount: parseFloat(r.amount) || 0,
@@ -2442,6 +2442,7 @@ export function InvoicingSuiteCard({
     return sortInvoiceLineRows(
       lineRows
         .filter((r) => r.description.trim())
+        .filter((r) => r.amount.trim() !== "")
         .map((r) => ({
           description: r.description.trim(),
           amount: parseFloat(r.amount) || 0,
@@ -2611,13 +2612,13 @@ export function InvoicingSuiteCard({
           >
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-b border-white/10 p-5 md:w-[44%] md:border-b-0 md:border-r md:p-7">
               <div className="mb-4 flex items-center justify-between gap-2">
-                <h3 className="font-[family-name:var(--font-outfit)] text-lg font-bold text-slate-100">
+                <h3 className="font-[family-name:var(--font-outfit)] text-lg font-bold text-[#424242]">
                   Invoice builder
                 </h3>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-lg border border-white/15 px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-white/10"
+                  className="rounded-lg border border-slate-300/80 px-3 py-1 text-xs font-semibold text-[#424242] hover:bg-white/40"
                 >
                   Close
                 </button>
@@ -2704,8 +2705,12 @@ export function InvoicingSuiteCard({
                       return (
                       <div key={idx} className="flex gap-2">
                         <input
-                          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-slate-100"
-                          placeholder="Description"
+                          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-slate-100 placeholder:text-slate-400"
+                          placeholder={
+                            unit === "currency"
+                              ? "Line item description"
+                              : "Description"
+                          }
                           value={row.description}
                           onChange={(e) => {
                             const description = e.target.value;
@@ -2726,8 +2731,8 @@ export function InvoicingSuiteCard({
                           type="number"
                           min={0}
                           step={qty ? 1 : 0.01}
-                          className="w-24 shrink-0 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-right text-slate-100"
-                          placeholder={qty ? "#" : "$"}
+                          className="w-24 shrink-0 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-right text-slate-100 placeholder:text-slate-400"
+                          placeholder={qty ? "#" : "Amount ($)"}
                           value={row.amount}
                           onChange={(e) =>
                             setLineRows((rows) =>

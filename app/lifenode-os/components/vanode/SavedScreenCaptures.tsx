@@ -10,9 +10,11 @@ import {
   formatCaptureSize,
   getScreenCaptureBlob,
   listScreenCaptures,
+  normalizeCaptureBlob,
   shareScreenCapture,
   type ScreenCaptureRecord,
 } from "@/lib/vanode/screenCaptureStorage";
+import { remuxBlobToMp4 } from "@/lib/vanode/videoMp4Export";
 
 type Props = {
   refreshKey?: number;
@@ -32,6 +34,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const [playUrl, setPlayUrl] = useState<string | null>(null);
   const [playLoading, setPlayLoading] = useState(false);
   const [playError, setPlayError] = useState(false);
+  const [mp4Exporting, setMp4Exporting] = useState(false);
   const playUrlRef = useRef<string | null>(null);
 
   const visibleRows = useMemo(() => {
@@ -90,10 +93,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
         (playingRow.filename.toLowerCase().endsWith(".mp4")
           ? "video/mp4"
           : "video/webm");
-      const typedBlob =
-        blob.type && blob.type !== "application/octet-stream"
-          ? blob
-          : new Blob([blob], { type: mimeType });
+      const typedBlob = normalizeCaptureBlob(blob, mimeType);
       const objectUrl = URL.createObjectURL(typedBlob);
       playUrlRef.current = objectUrl;
       setPlayUrl(objectUrl);
@@ -136,26 +136,35 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
       onToast?.("Capture file missing — it may have been cleared from this browser.");
       return;
     }
+    const mimeType = row.mimeType || blob.type || "video/webm";
+    const typed = normalizeCaptureBlob(blob, mimeType);
     const isMp4 =
-      row.mimeType.includes("mp4") || row.filename.toLowerCase().endsWith(".mp4");
+      mimeType.includes("mp4") || row.filename.toLowerCase().endsWith(".mp4");
     if (format === "native") {
-      downloadAs(blob, row.filename);
+      downloadAs(typed, row.filename);
     } else if (format === "mp4") {
       const name = row.filename.replace(/\.[^.]+$/, "") + ".mp4";
       if (isMp4) {
-        downloadAs(blob, name);
+        downloadAs(typed, name);
       } else {
-        onToast?.(
-          "This recording was saved as WebM (your browser did not support MP4 capture). Use Download WebM.",
-        );
-        return;
+        setMp4Exporting(true);
+        try {
+          onToast?.("Preparing MP4 — this takes about as long as the clip length.");
+          const mp4 = await remuxBlobToMp4(typed);
+          downloadAs(mp4, name);
+        } catch {
+          onToast?.("MP4 export failed — try WebM download (audio is preserved).");
+          return;
+        } finally {
+          setMp4Exporting(false);
+        }
       }
     } else {
       const name = row.filename.replace(/\.[^.]+$/, "") + ".webm";
       if (!isMp4) {
-        downloadAs(blob, name);
+        downloadAs(typed, name);
       } else {
-        downloadAs(blob, row.filename);
+        downloadAs(typed, row.filename);
       }
     }
     onToast?.("Download started.");
@@ -252,16 +261,12 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
               </button>
               <button
                 type="button"
-                title={
-                  isMp4
-                    ? "Download MP4"
-                    : "MP4 not available for this capture"
-                }
+                title="Download MP4 (converts WebM when needed)"
+                disabled={mp4Exporting}
                 onClick={() => void handleDownload(row, "mp4")}
                 className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-teal-50 disabled:opacity-40"
-                disabled={!isMp4}
               >
-                MP4
+                {mp4Exporting ? "…" : "MP4"}
               </button>
               <button
                 type="button"

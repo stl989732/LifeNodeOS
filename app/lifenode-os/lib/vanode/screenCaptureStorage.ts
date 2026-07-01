@@ -65,19 +65,39 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export function pickScreenRecorderMime(): { mimeType: string; ext: string } {
-  const candidates = [
+export function pickScreenRecorderMime(
+  hasAudio = true,
+): { mimeType: string; ext: string } {
+  const withAudio = [
     { mime: "video/webm;codecs=vp9,opus", ext: "webm" },
     { mime: "video/webm;codecs=vp8,opus", ext: "webm" },
+    { mime: "video/webm;codecs=vp9", ext: "webm" },
+    { mime: "video/mp4;codecs=avc1,mp4a", ext: "mp4" },
+    { mime: "video/mp4", ext: "mp4" },
+    { mime: "video/webm", ext: "webm" },
+  ];
+  const videoOnly = [
+    { mime: "video/webm;codecs=vp9", ext: "webm" },
+    { mime: "video/webm;codecs=vp8", ext: "webm" },
     { mime: "video/webm", ext: "webm" },
     { mime: "video/mp4", ext: "mp4" },
   ];
+  const candidates = hasAudio ? withAudio : videoOnly;
   for (const c of candidates) {
     if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(c.mime)) {
       return { mimeType: c.mime, ext: c.ext };
     }
   }
   return { mimeType: "video/webm", ext: "webm" };
+}
+
+/** Ensure blob has a browser-playable MIME (fixes silent / broken preview). */
+export function normalizeCaptureBlob(blob: Blob, mimeType: string): Blob {
+  const type =
+    blob.type && blob.type !== "application/octet-stream"
+      ? blob.type
+      : mimeType || "video/webm";
+  return blob.type === type ? blob : new Blob([blob], { type });
 }
 
 export async function saveScreenCapture(

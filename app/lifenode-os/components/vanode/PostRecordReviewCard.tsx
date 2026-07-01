@@ -12,9 +12,11 @@ import {
   downloadScreenCapture,
   getScreenCaptureBlob,
   listScreenCaptures,
+  normalizeCaptureBlob,
   shareScreenCapture,
   type ScreenCaptureRecord,
 } from "@/lib/vanode/screenCaptureStorage";
+import { remuxBlobToMp4 } from "@/lib/vanode/videoMp4Export";
 import { trimVideoBlob } from "@/lib/vanode/trimVideoBlob";
 import { useDraggableFloatingPosition } from "@/src/components/vanode/useDraggableFloatingPosition";
 
@@ -33,6 +35,7 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
   const [trimEnd, setTrimEnd] = useState(0);
   const [duration, setDuration] = useState(0);
   const [trimming, setTrimming] = useState(false);
+  const [mp4Exporting, setMp4Exporting] = useState(false);
   const [playError, setPlayError] = useState(false);
   const [loadGen, setLoadGen] = useState(0);
   const videoUrlRef = useRef<string | null>(null);
@@ -86,14 +89,41 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
       return;
     }
     setPlayError(false);
-    const url = URL.createObjectURL(blob);
+    const mimeType = record?.mimeType || blob.type || "video/webm";
+    const typed = normalizeCaptureBlob(blob, mimeType);
+    const url = URL.createObjectURL(typed);
     videoUrlRef.current = url;
     setVideoUrl(url);
     return () => {
       URL.revokeObjectURL(url);
       if (videoUrlRef.current === url) videoUrlRef.current = null;
     };
-  }, [blob]);
+  }, [blob, record?.mimeType]);
+
+  const handleDownloadMp4 = useCallback(async () => {
+    if (!blob || !record) return;
+    const mimeType = record.mimeType || blob.type || "video/webm";
+    const typed = normalizeCaptureBlob(blob, mimeType);
+    const isMp4 =
+      mimeType.includes("mp4") || record.filename.toLowerCase().endsWith(".mp4");
+    const name = record.filename.replace(/\.[^.]+$/, "") + ".mp4";
+    if (isMp4) {
+      downloadScreenCapture(typed, name);
+      onToast?.("Download started.");
+      return;
+    }
+    setMp4Exporting(true);
+    try {
+      onToast?.("Preparing MP4 — about as long as the clip.");
+      const mp4 = await remuxBlobToMp4(typed);
+      downloadScreenCapture(mp4, name);
+      onToast?.("MP4 download started.");
+    } catch {
+      onToast?.("MP4 export failed — use Download for WebM.");
+    } finally {
+      setMp4Exporting(false);
+    }
+  }, [blob, onToast, record]);
 
   const canTrim = useMemo(
     () => duration > 1 && trimEnd - trimStart >= 0.5,
@@ -112,7 +142,11 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
 
   const handleDownload = useCallback(() => {
     if (!blob || !record) return;
-    downloadScreenCapture(blob, record.filename);
+    const typed = normalizeCaptureBlob(
+      blob,
+      record.mimeType || blob.type || "video/webm",
+    );
+    downloadScreenCapture(typed, record.filename);
     onToast?.("Download started.");
   }, [blob, onToast, record]);
 
@@ -257,7 +291,16 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
               className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
             >
               <Download className="h-3.5 w-3.5" />
-              Download
+              WebM
+            </button>
+            <button
+              type="button"
+              disabled={mp4Exporting}
+              onClick={() => void handleDownloadMp4()}
+              className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {mp4Exporting ? "MP4…" : "MP4"}
             </button>
             <button
               type="button"

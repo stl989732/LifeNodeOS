@@ -17,6 +17,7 @@ import { useDraggableFloatingPosition } from "@/src/components/vanode/useDraggab
 import {
   pickScreenRecorderMime,
   saveScreenCapture,
+  normalizeCaptureBlob,
   type ScreenCaptureRecord,
 } from "@/lib/vanode/screenCaptureStorage";
 
@@ -179,6 +180,9 @@ async function buildRecordingStream(
         video: false,
       });
       audioContext = new AudioContext();
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
       const dest = audioContext.createMediaStreamDestination();
 
       if (displayAudioTracks.length > 0) {
@@ -203,7 +207,14 @@ async function buildRecordingStream(
     displayAudioTracks.forEach((t) => combinedTracks.push(t));
   }
 
-  return { stream: new MediaStream(combinedTracks), cleanup };
+  const stream = new MediaStream(combinedTracks);
+  if (stream.getAudioTracks().length === 0 && includeMic) {
+    onMicWarning?.(
+      "No audio captured — enable “Share tab audio” in the browser picker and/or allow the microphone.",
+    );
+  }
+
+  return { stream, cleanup };
 }
 
 export function ScreenRecordingProvider({
@@ -311,9 +322,14 @@ export function ScreenRecordingProvider({
       );
       cleanupRef.current = cleanup;
       chunksRef.current = [];
-      const { mimeType, ext } = pickScreenRecorderMime();
+      const hasAudio = stream.getAudioTracks().length > 0;
+      const { mimeType, ext } = pickScreenRecorderMime(hasAudio);
       mimeRef.current = { mimeType, ext };
-      const rec = new MediaRecorder(stream, { mimeType });
+      const rec = new MediaRecorder(stream, {
+        mimeType,
+        audioBitsPerSecond: hasAudio ? 128_000 : undefined,
+        videoBitsPerSecond: 2_500_000,
+      });
       mediaRecorderRef.current = rec;
 
       rec.ondataavailable = (e) => {
@@ -331,7 +347,10 @@ export function ScreenRecordingProvider({
         setActive(false);
         setSeconds(0);
 
-        const blob = new Blob(chunksRef.current, { type: mimeRef.current.mimeType });
+        const rawBlob = new Blob(chunksRef.current, {
+          type: mimeRef.current.mimeType,
+        });
+        const blob = normalizeCaptureBlob(rawBlob, mimeRef.current.mimeType);
         if (blob.size < 1) {
           onError?.(
             "No video data captured — keep the shared tab open until you stop.",

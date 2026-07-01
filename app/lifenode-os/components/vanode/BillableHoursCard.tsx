@@ -23,6 +23,7 @@ import { planHasBillableHours } from "@/src/lib/billing/planFeatureCopy";
 import {
   formatBillableDecimalHours,
   formatBillableHours,
+  formatBillableCountdown,
   liveActiveMs,
   liveBreakRemainingMs,
   vaultNoteBodyForSession,
@@ -335,7 +336,7 @@ export default function BillableHoursCard({
           {onBreak ? (
             <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-amber-800">
               <AlarmClock className="h-4 w-4" />
-              Break — back in {Math.ceil(breakLeft / 60_000)} min
+              Break — back in {formatBillableCountdown(breakLeft)}
             </p>
           ) : null}
 
