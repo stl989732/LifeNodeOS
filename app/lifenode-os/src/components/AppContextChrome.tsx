@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, LayoutDashboard, Timer } from "lucide-react";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
+import AppMobileSupportDrawer from "@/src/components/AppMobileSupportDrawer";
 import SupportChromeMenu from "@/src/components/SupportChromeMenu";
 import { LIFENODE_CHROME_BACK } from "@/src/components/NodeNavChrome";
 
@@ -110,7 +111,10 @@ export default function AppContextChrome({
             </span>
           ) : null}
         </div>
-        <SupportChromeMenu variant={variant} className="shrink-0" />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <AppMobileSupportDrawer variant={variant} />
+          <SupportChromeMenu variant={variant} className="hidden md:inline-flex shrink-0" />
+        </div>
       </div>
     </header>
   );

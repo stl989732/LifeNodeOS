@@ -7,6 +7,8 @@ import { signIn } from "next-auth/react";
 import { MailCheck, ShieldCheck, RefreshCw, Eye, EyeOff } from "lucide-react";
 import PasswordField from "@/src/components/auth/PasswordField";
 import AuthLegalFooter from "@/src/components/auth/AuthLegalFooter";
+import AdminAuthAlert from "@/src/components/auth/AdminAuthAlert";
+import { ADMIN_SIGNIN_QUERY } from "@/src/lib/admin/adminAuth";
 import {
   SECURITY_QUESTION_OPTIONS,
   SECURITY_QUESTIONS_REQUIRED,
@@ -43,6 +45,8 @@ const INITIAL_ROWS: SecurityRow[] = Array.from(
 export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/shell";
+  const adminSignUpMode = searchParams.get(ADMIN_SIGNIN_QUERY) === "1";
+  const [adminSignupBlocked, setAdminSignupBlocked] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -380,6 +384,10 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
           ))}
         </div>
 
+        {adminSignUpMode ? <AdminAuthAlert variant="developer-hint" /> : null}
+
+        {adminSignupBlocked ? <AdminAuthAlert variant="signup-blocked" /> : null}
+
         {state.kind === "error" && (
           <p className="text-sm text-rose-300" role="alert">
             {state.message}
@@ -392,12 +400,39 @@ export function SignUpForm({ googleEnabled, githubEnabled }: Props) {
         >
           {pending ? "Creating account…" : "Create account"}
         </button>
+
+        <div className="space-y-2 border-t border-white/10 pt-4">
+          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Developer
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => setAdminSignupBlocked(true)}
+            className="w-full rounded-xl border border-amber-400/40 bg-amber-400/10 py-3 text-sm font-bold text-amber-50 transition hover:bg-amber-400/20 disabled:opacity-50"
+          >
+            Sign up as Admin
+          </button>
+          <p className="text-center text-[11px] leading-relaxed text-slate-500">
+            Admin accounts are not open to the public. Create a regular account,
+            then use{" "}
+            <Link
+              href={`/auth/signin?${ADMIN_SIGNIN_QUERY}=1`}
+              className="font-semibold text-cyan-300 hover:text-cyan-200"
+            >
+              Sign in as Admin
+            </Link>{" "}
+            with your allowlisted developer email.
+          </p>
+        </div>
       </form>
 
       <p className="text-center text-sm text-slate-400">
         Already have an account?{" "}
         <Link
-          href="/auth/signin"
+          href={
+            adminSignUpMode ? `/auth/signin?${ADMIN_SIGNIN_QUERY}=1` : "/auth/signin"
+          }
           className="font-semibold text-cyan-300 hover:text-cyan-200"
         >
           Sign in

@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, BookOpen, LifeBuoy, MessageSquare, Shield, Wrench } from "lucide-react";
-import { DOC_ROUTES } from "@/lib/docs/routes";
+import { ChevronDown, LifeBuoy, MessageSquare } from "lucide-react";
 import { SUPPORT_ROUTES } from "@/lib/support/routes";
 
 type ChromeVariant = "light" | "dark";
@@ -67,47 +66,6 @@ export default function SupportChromeMenu({
           role="menu"
           className={`absolute right-0 z-[120] mt-2 w-64 overflow-hidden rounded-2xl border p-1 shadow-[0_16px_48px_rgba(15,23,42,0.25)] backdrop-blur-xl ${panelClass}`}
         >
-          <Link
-            href={DOC_ROUTES.hub}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-teal-500" />
-            <span>
-              <span className="block text-sm font-semibold">Documentation</span>
-              <span className="mt-0.5 block text-[11px] opacity-70">
-                Overview, about, guide, platform &amp; security
-              </span>
-            </span>
-          </Link>
-          <Link
-            href={DOC_ROUTES.guide}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-teal-500/80" />
-            <span className="text-sm font-medium">User guide</span>
-          </Link>
-          <Link
-            href={DOC_ROUTES.security}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            <Shield className="mt-0.5 h-4 w-4 shrink-0 text-teal-500/80" />
-            <span className="text-sm font-medium">Security</span>
-          </Link>
-          <Link
-            href={DOC_ROUTES.platform}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="mb-0.5 flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            <Wrench className="mt-0.5 h-4 w-4 shrink-0 text-teal-500/80" />
-            <span className="text-sm font-medium">Platform &amp; tools</span>
-          </Link>
           <Link
             href={SUPPORT_ROUTES.feedback}
             role="menuitem"

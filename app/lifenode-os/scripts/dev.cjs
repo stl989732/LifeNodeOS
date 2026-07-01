@@ -24,19 +24,21 @@ function probePort(host, port) {
   });
 }
 
-async function waitForPortFree(host, port, maxMs = 20_000) {
+async function waitForPortFreeOnAny(hosts, port, maxMs = 20_000) {
   const start = Date.now();
   while (Date.now() - start < maxMs) {
-    if (!(await probePort(host, port))) return true;
+    const results = await Promise.all(hosts.map((h) => probePort(h, port)));
+    if (!results.some(Boolean)) return true;
     await new Promise((r) => setTimeout(r, 500));
   }
   return false;
 }
 
-async function waitForPortBusy(host, port, maxMs = 300_000) {
+async function waitForPortBusyOnAny(hosts, port, maxMs = 300_000) {
   const start = Date.now();
   while (Date.now() - start < maxMs) {
-    if (await probePort(host, port)) return true;
+    const results = await Promise.all(hosts.map((h) => probePort(h, port)));
+    if (results.some(Boolean)) return true;
     await new Promise((r) => setTimeout(r, 1000));
   }
   return false;
@@ -51,10 +53,17 @@ void (async () => {
   }
 
   const port = process.env.PORT?.trim() || "3000";
-  const host = process.env.LIFENODE_DEV_HOST?.trim() || "127.0.0.1";
+  /** Browser / OAuth URL (default localhost so http://localhost:3000 works). */
+  const publicHost = process.env.LIFENODE_DEV_HOST?.trim() || "localhost";
+  /**
+   * Bind address for Next.js. 0.0.0.0 accepts both localhost and 127.0.0.1 on Windows
+   * (binding only 127.0.0.1 breaks when the browser resolves localhost to ::1).
+   */
+  const bindHost = process.env.LIFENODE_DEV_BIND_HOST?.trim() || "0.0.0.0";
   const portNum = Number(port);
+  const probeHosts = ["127.0.0.1", "localhost"];
 
-  let portFree = await waitForPortFree(host, portNum, 30_000);
+  let portFree = await waitForPortFreeOnAny(probeHosts, portNum, 30_000);
   if (!portFree) {
     try {
       await killPort(3000, "tcp");
@@ -62,7 +71,7 @@ void (async () => {
     } catch {
       /* ignore */
     }
-    portFree = await waitForPortFree(host, portNum, 30_000);
+    portFree = await waitForPortFreeOnAny(probeHosts, portNum, 30_000);
   }
   if (!portFree) {
     console.error(
@@ -82,23 +91,20 @@ void (async () => {
 
   // Turbopack can hang on some Windows setups; webpack is slower but reliable.
   // Opt in to turbopack with LIFENODE_USE_TURBOPACK=1.
-  const nextArgs = ["dev", "-p", port, "-H", host];
+  const nextArgs = ["dev", "-p", port, "-H", bindHost];
+  const publicUrl = `http://${publicHost}:${port}`;
   if (process.env.LIFENODE_USE_TURBOPACK === "1") {
     nextArgs.push("--turbopack");
     console.log(
-      "[LifeNode OS] Dev server warming up on http://" +
-        host +
-        ":" +
-        port +
+      "[LifeNode OS] Dev server warming up on " +
+        publicUrl +
         " (turbopack).\n",
     );
   } else if (process.platform === "win32") {
     nextArgs.push("--webpack");
     console.log(
-      "[LifeNode OS] Dev server warming up on http://" +
-        host +
-        ":" +
-        port +
+      "[LifeNode OS] Dev server warming up on " +
+        publicUrl +
         " (webpack on Windows — first `/` compile can take several minutes; wait for “✓ Home page compiled”).\n",
     );
   }
@@ -120,25 +126,27 @@ void (async () => {
   });
 
   child.on("spawn", () => {
-    const homeUrl = `http://${host}:${port}/`;
+    const homeUrl = `${publicUrl}/`;
     console.log(
       "[LifeNode OS] Wait for “Ready” below, then open:\n" +
         "  " +
         homeUrl +
         "\n" +
-        "  (Pre-compiling / in the background — do not refresh if the tab is still loading.)\n",
+        "  (Also works at http://127.0.0.1:" +
+        port +
+        "/ — pre-compiling / in the background.)\n",
     );
-    void warmDevServer(host, portNum);
+    void warmDevServer(publicHost, portNum, probeHosts);
   });
 })();
 
 /** Pre-compile key routes after Next binds to the port. */
-async function warmDevServer(host, port) {
+async function warmDevServer(publicHost, port, probeHosts) {
   const routes = ["/", "/pricing"];
-  const base = `http://${host}:${port}`;
+  const base = `http://${publicHost}:${port}`;
   const warmed = new Set();
 
-  const listening = await waitForPortBusy(host, port);
+  const listening = await waitForPortBusyOnAny(probeHosts, port);
   if (!listening) {
     console.warn(
       "\n[LifeNode OS] Dev server did not start listening on " +

@@ -6,9 +6,28 @@ const path = require("node:path");
 const dotenv = require("dotenv");
 
 function localDevOrigin() {
-  const host = process.env.LIFENODE_DEV_HOST?.trim() || "127.0.0.1";
+  const host = process.env.LIFENODE_DEV_HOST?.trim() || "localhost";
   const port = process.env.PORT?.trim() || "3000";
   return `http://${host}:${port}`;
+}
+
+/** True when URL is a loopback dev origin (localhost / 127.0.0.1 / ::1) on the dev port. */
+function isLocalDevOrigin(url) {
+  if (!url?.trim()) return false;
+  try {
+    const { hostname, port, protocol } = new URL(url.trim());
+    if (protocol !== "http:") return false;
+    const devPort = process.env.PORT?.trim() || "3000";
+    const portOk = port === devPort || port === "";
+    const hostOk =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]" ||
+      hostname === "::1";
+    return hostOk && portOk;
+  } catch {
+    return false;
+  }
 }
 
 function isRemoteProductionOrigin(url) {
@@ -28,23 +47,27 @@ function isRemoteProductionOrigin(url) {
 
 /**
  * Vercel-pulled `.env.local` often sets AUTH_URL to production. That breaks
- * Google OAuth and session cookies when developing on 127.0.0.1:3000.
+ * Google OAuth and session cookies when developing on localhost:3000.
+ * Also normalizes 127.0.0.1 ↔ localhost so cookies match the browser URL.
  */
 function applyLocalDevUrlOverrides() {
   const localOrigin = localDevOrigin();
   let patched = false;
 
-  if (isRemoteProductionOrigin(process.env.AUTH_URL) || !process.env.AUTH_URL?.trim()) {
-    process.env.AUTH_URL = localOrigin;
-    patched = true;
-  }
-  if (
-    isRemoteProductionOrigin(process.env.NEXT_PUBLIC_APP_URL) ||
-    !process.env.NEXT_PUBLIC_APP_URL?.trim()
-  ) {
-    process.env.NEXT_PUBLIC_APP_URL = localOrigin;
-    patched = true;
-  }
+  const syncLocal = (key) => {
+    const value = process.env[key]?.trim();
+    if (
+      isRemoteProductionOrigin(value) ||
+      !value ||
+      (isLocalDevOrigin(value) && value !== localOrigin)
+    ) {
+      process.env[key] = localOrigin;
+      patched = true;
+    }
+  };
+
+  syncLocal("AUTH_URL");
+  syncLocal("NEXT_PUBLIC_APP_URL");
 
   if (patched) {
     console.log(

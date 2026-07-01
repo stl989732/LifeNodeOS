@@ -13,7 +13,8 @@ import {
   LANDING_EXPLORE_LINKS,
   LANDING_NODE_LINKS,
   LANDING_POLICY_LINKS,
-  LANDING_SUPPORT_LINKS,
+  LANDING_DOC_LINKS,
+  LANDING_SUPPORT_ACTION_LINKS,
 } from "./landingPublicNav";
 
 type Theme = "light" | "dark";
@@ -198,9 +199,22 @@ function MobileNavDrawer({
           </div>
 
           <div className={`border-t pt-4 ${divider}`}>
+            <p className={`mb-2 px-3 ${sectionLabel}`}>Documentation</p>
+            <ul className="space-y-0.5">
+              {LANDING_DOC_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className={itemClass} onClick={onClose}>
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className={`border-t pt-4 ${divider}`}>
             <p className={`mb-2 px-3 ${sectionLabel}`}>Support</p>
             <ul className="space-y-0.5">
-              {LANDING_SUPPORT_LINKS.map((link) => (
+              {LANDING_SUPPORT_ACTION_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className={itemClass} onClick={onClose}>
                     {link.label}
