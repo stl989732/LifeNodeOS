@@ -3,37 +3,70 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import type { AdminDashboardStats, HealthStatus } from "@/src/lib/admin/getAdminDashboardStats";
+import type { AdminDashboardStats } from "@/src/lib/admin/getAdminDashboardStats";
+import type { AdminUserSegment } from "@/src/lib/admin/getAdminUserDirectory";
 import { ADMIN_SIGNIN_QUERY } from "@/src/lib/admin/adminAuth";
+import AdminUserDirectoryPanel from "@/components/admin/AdminUserDirectoryPanel";
+import AdminHealthPanel from "@/components/admin/AdminHealthPanel";
+import AdminSupportSection from "@/components/admin/AdminSupportSection";
 
-function statusStyles(status: HealthStatus) {
-  switch (status) {
-    case "ok":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    case "warn":
-      return "border-amber-200 bg-amber-50 text-amber-900";
-    case "error":
-      return "border-rose-200 bg-rose-50 text-rose-900";
-  }
-}
+type StatKey = AdminUserSegment;
+
+const STAT_SEGMENTS: { key: StatKey; label: string; hint: string }[] = [
+  {
+    key: "registered",
+    label: "Total registered",
+    hint: "Supabase Auth accounts",
+  },
+  {
+    key: "active",
+    label: "Active accounts",
+    hint: "Registered minus deleted tombstones",
+  },
+  {
+    key: "deleted",
+    label: "Deleted accounts",
+    hint: "Rows in deleted_account_ids",
+  },
+  {
+    key: "subscriptions",
+    label: "Subscription rows",
+    hint: "user_subscriptions table",
+  },
+];
 
 function StatCard({
   label,
   value,
   hint,
+  selected,
+  onSelect,
 }: {
   label: string;
   value: number | string;
   hint?: string;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-5 shadow-sm backdrop-blur-sm">
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`rounded-2xl border bg-white/70 p-5 text-left shadow-sm backdrop-blur-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
+        selected
+          ? "border-teal-400 ring-2 ring-teal-300/60"
+          : "border-slate-200/80 hover:border-teal-200 hover:shadow-md"
+      }`}
+    >
       <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
         {label}
       </p>
       <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">{value}</p>
       {hint ? <p className="mt-1 text-sm text-slate-600">{hint}</p> : null}
-    </div>
+      <p className="mt-2 text-xs font-medium text-teal-700">
+        {selected ? "Showing details below" : "Click to view emails & tools"}
+      </p>
+    </button>
   );
 }
 
@@ -42,6 +75,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedSegment, setSelectedSegment] = useState<StatKey | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +113,24 @@ export default function AdminDashboardPage() {
     }
   }, [status, load]);
 
+  const statValue = (key: StatKey): number => {
+    if (!stats) return 0;
+    switch (key) {
+      case "registered":
+        return stats.users.totalRegistered;
+      case "active":
+        return stats.users.activeAccounts;
+      case "deleted":
+        return stats.users.deletedAccounts;
+      case "subscriptions":
+        return stats.users.subscriptionRows;
+    }
+  };
+
+  const toggleSegment = (key: StatKey) => {
+    setSelectedSegment((prev) => (prev === key ? null : key));
+  };
+
   return (
     <div
       className="min-h-screen px-4 py-10 sm:px-6 lg:px-8"
@@ -96,8 +148,8 @@ export default function AdminDashboardPage() {
               Admin dashboard
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Account totals by plan, active vs deleted users, and production health
-              signals. Local-only access via admin allowlist env vars.
+              Account totals by plan, active vs deleted users, marketing contact
+              lists, support intake, and production health signals.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -134,28 +186,25 @@ export default function AdminDashboardPage() {
 
         {stats ? (
           <>
-            <section className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label="Total registered"
-                value={stats.users.totalRegistered}
-                hint="Supabase Auth accounts"
-              />
-              <StatCard
-                label="Active accounts"
-                value={stats.users.activeAccounts}
-                hint="Registered minus deleted tombstones"
-              />
-              <StatCard
-                label="Deleted accounts"
-                value={stats.users.deletedAccounts}
-                hint="Rows in deleted_account_ids"
-              />
-              <StatCard
-                label="Subscription rows"
-                value={stats.users.subscriptionRows}
-                hint="user_subscriptions table"
-              />
+            <section className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {STAT_SEGMENTS.map(({ key, label, hint }) => (
+                <StatCard
+                  key={key}
+                  label={label}
+                  value={statValue(key)}
+                  hint={hint}
+                  selected={selectedSegment === key}
+                  onSelect={() => toggleSegment(key)}
+                />
+              ))}
             </section>
+
+            {selectedSegment ? (
+              <AdminUserDirectoryPanel
+                segment={selectedSegment}
+                onClose={() => setSelectedSegment(null)}
+              />
+            ) : null}
 
             <section className="mb-8 grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-6 shadow-sm backdrop-blur-sm">
@@ -190,13 +239,13 @@ export default function AdminDashboardPage() {
                 </p>
                 <dl className="mt-5 space-y-3">
                   {Object.keys(stats.users.byStatus).length ? (
-                    Object.entries(stats.users.byStatus).map(([status, count]) => (
+                    Object.entries(stats.users.byStatus).map(([st, count]) => (
                       <div
-                        key={status}
+                        key={st}
                         className="flex items-center justify-between rounded-xl bg-slate-50/80 px-4 py-3"
                       >
                         <dt className="text-sm font-medium capitalize text-slate-700">
-                          {status.replace(/_/g, " ")}
+                          {st.replace(/_/g, " ")}
                         </dt>
                         <dd className="text-xl font-bold tabular-nums text-slate-900">
                           {count}
@@ -210,37 +259,14 @@ export default function AdminDashboardPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200/80 bg-white/70 p-6 shadow-sm backdrop-blur-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    App health monitoring
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Environment and datastore checks for this deployment.
-                  </p>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Updated {new Date(stats.generatedAt).toLocaleString()}
-                </p>
-              </div>
-              <ul className="mt-5 space-y-3">
-                {stats.health.map((check) => (
-                  <li
-                    key={check.name}
-                    className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border px-4 py-3 ${statusStyles(check.status)}`}
-                  >
-                    <div>
-                      <p className="text-sm font-semibold">{check.name}</p>
-                      <p className="mt-0.5 text-sm opacity-90">{check.detail}</p>
-                    </div>
-                    <span className="rounded-full bg-white/60 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide">
-                      {check.status}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <div className="mb-8">
+              <AdminSupportSection />
+            </div>
+
+            <AdminHealthPanel
+              checks={stats.health}
+              generatedAt={stats.generatedAt}
+            />
           </>
         ) : loading ? (
           <div className="rounded-2xl border border-slate-200/80 bg-white/70 px-6 py-16 text-center text-sm text-slate-600 shadow-sm">
