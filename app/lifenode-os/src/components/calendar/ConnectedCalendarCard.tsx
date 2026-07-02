@@ -26,7 +26,11 @@ type ConnectedCalendarCardProps = {
   kindColors: Record<ScheduleItemKind, string>;
   onMoveItem: (itemId: string, newDate: string) => void;
   onSync?: () => void;
+  onDisconnect?: () => void;
+  onExportLocal?: () => void;
   syncing?: boolean;
+  disconnecting?: boolean;
+  exporting?: boolean;
 };
 
 function weekDaysFromAnchor(anchorKey: string): Date[] {
@@ -49,7 +53,11 @@ export default function ConnectedCalendarCard({
   kindColors,
   onMoveItem,
   onSync,
+  onDisconnect,
+  onExportLocal,
   syncing,
+  disconnecting,
+  exporting,
 }: ConnectedCalendarCardProps) {
   const weekDays = weekDaysFromAnchor(anchorDateKey);
 
@@ -89,18 +97,58 @@ export default function ConnectedCalendarCard({
           </p>
         </div>
         {integration.id === "google" && onSync ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-700/30 bg-white px-2.5 py-1.5 text-[11px] font-bold text-emerald-900 hover:bg-emerald-50"
+              onClick={onSync}
+              disabled={syncing || disconnecting || exporting}
+            >
+              {syncing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Sync
+            </button>
+            {onExportLocal ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-400/80 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-800 hover:bg-slate-50"
+                onClick={onExportLocal}
+                disabled={syncing || disconnecting || exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Export local
+              </button>
+            ) : null}
+            {onDisconnect ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-white px-2.5 py-1.5 text-[11px] font-bold text-rose-800 hover:bg-rose-50"
+                onClick={onDisconnect}
+                disabled={syncing || disconnecting || exporting}
+              >
+                {disconnecting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Disconnect
+              </button>
+            ) : null}
+          </div>
+        ) : onDisconnect ? (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-emerald-700/30 bg-white px-2.5 py-1.5 text-[11px] font-bold text-emerald-900 hover:bg-emerald-50"
-            onClick={onSync}
-            disabled={syncing}
+            className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-white px-2.5 py-1.5 text-[11px] font-bold text-rose-800 hover:bg-rose-50"
+            onClick={onDisconnect}
+            disabled={disconnecting}
           >
-            {syncing ? (
+            {disconnecting ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="h-3.5 w-3.5" />
-            )}
-            Sync
+            ) : null}
+            Disconnect
           </button>
         ) : null}
       </div>

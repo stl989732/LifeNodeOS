@@ -72,6 +72,10 @@ export async function fetchGoogleCalendarItems(
   rangeStart: Date,
   rangeEnd: Date,
 ): Promise<ScheduleItem[]> {
+  if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+    throw new Error("Invalid sync date range");
+  }
+
   const params = new URLSearchParams({
     singleEvents: "true",
     orderBy: "startTime",
@@ -98,4 +102,97 @@ export async function fetchGoogleCalendarItems(
     .filter((row): row is ScheduleItem => row !== null);
 
   return mapped;
+}
+
+type GoogleInsertEvent = {
+  summary: string;
+  description?: string;
+  start: { date?: string; dateTime?: string; timeZone?: string };
+  end: { date?: string; dateTime?: string; timeZone?: string };
+};
+
+function localScheduleToGoogleEvent(
+  item: ScheduleItem,
+  timeZone: string,
+): GoogleInsertEvent | null {
+  const summary = item.title.trim();
+  if (!summary || !item.date) return null;
+
+  if (item.allDay) {
+    return {
+      summary,
+      description: item.notes,
+      start: { date: item.date },
+      end: { date: item.date },
+    };
+  }
+
+  const startTime = item.startTime ?? "09:00";
+  const endTime = item.endTime ?? startTime;
+  return {
+    summary,
+    description: item.notes,
+    start: { dateTime: `${item.date}T${startTime}:00`, timeZone },
+    end: { dateTime: `${item.date}T${endTime}:00`, timeZone },
+  };
+}
+
+export async function pushLocalItemsToGoogleCalendar(
+  accessToken: string,
+  items: ScheduleItem[],
+  rangeStart: Date,
+  rangeEnd: Date,
+): Promise<{ pushed: number; skipped: number }> {
+  if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+    throw new Error("Invalid sync date range");
+  }
+
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const startKey = formatDateKey(rangeStart);
+  const endKey = formatDateKey(rangeEnd);
+
+  let pushed = 0;
+  let skipped = 0;
+
+  for (const item of items) {
+    if (item.source !== "local") {
+      skipped += 1;
+      continue;
+    }
+    if (item.date < startKey || item.date > endKey) {
+      skipped += 1;
+      continue;
+    }
+    if (item.externalId) {
+      skipped += 1;
+      continue;
+    }
+
+    const body = localScheduleToGoogleEvent(item, timeZone);
+    if (!body) {
+      skipped += 1;
+      continue;
+    }
+
+    const res = await fetch(
+      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => res.statusText);
+      throw new Error(`Google Calendar export error: ${detail.slice(0, 200)}`);
+    }
+
+    pushed += 1;
+  }
+
+  return { pushed, skipped };
 }

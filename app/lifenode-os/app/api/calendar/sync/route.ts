@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { fetchGoogleCalendarItems } from "@/src/lib/calendar/googleCalendarSync";
+import { monthSyncWindow } from "@/src/lib/calendar/monthWindow";
 import { resolveIntegrationUserId } from "@/src/lib/integrations/resolveIntegrationUserId";
 import { getValidAccessToken } from "@/src/lib/integrations/tokenManager";
 import type { ScheduleProvider } from "@/src/lib/calendar/types";
@@ -11,18 +12,9 @@ const OAUTH_LIVE_PROVIDERS: ScheduleProvider[] = ["google"];
 
 type SyncBody = {
   provider?: ScheduleProvider;
-  /** YYYY-MM-DD anchor for month sync window */
+  /** YYYY-MM or YYYY-MM-DD anchor for month sync window */
   month?: string;
 };
-
-function monthWindow(monthKey?: string): { start: Date; end: Date } {
-  const anchor = monthKey ? new Date(`${monthKey}-01T12:00:00`) : new Date();
-  const y = anchor.getFullYear();
-  const m = anchor.getMonth();
-  const start = new Date(y, m - 1, 1);
-  const end = new Date(y, m + 2, 0, 23, 59, 59);
-  return { start, end };
-}
 
 /** POST — pull external calendar events for connected providers. */
 export async function POST(request: Request) {
@@ -44,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const provider = body.provider ?? "google";
-  const { start, end } = monthWindow(body.month);
+  const { start, end } = monthSyncWindow(body.month);
 
   if (!OAUTH_LIVE_PROVIDERS.includes(provider)) {
     return NextResponse.json({

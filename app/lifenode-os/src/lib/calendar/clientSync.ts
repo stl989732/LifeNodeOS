@@ -36,3 +36,32 @@ export async function syncCalendarProvider(
 
   return data;
 }
+
+export async function pushLocalItemsToGoogle(
+  monthKey: string,
+  items: ScheduleItem[],
+): Promise<{ ok: boolean; pushed?: number; message?: string; error?: string }> {
+  const res = await fetch("/api/calendar/push", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ month: monthKey, items }),
+  });
+
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    pushed?: number;
+    message?: string;
+    error?: string;
+  };
+
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Export failed" };
+  }
+
+  return {
+    ok: true,
+    pushed: data.pushed,
+    message: data.message,
+  };
+}

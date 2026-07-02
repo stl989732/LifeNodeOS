@@ -12,16 +12,20 @@ type ConnectCalendarsModalProps = {
   open: boolean;
   integrations: CalendarIntegration[];
   connectingId: string | null;
+  disconnectingId: string | null;
   onClose: () => void;
   onConnect: (row: CalendarIntegration) => void;
+  onDisconnect: (row: CalendarIntegration) => void;
 };
 
 export default function ConnectCalendarsModal({
   open,
   integrations,
   connectingId,
+  disconnectingId,
   onClose,
   onConnect,
+  onDisconnect,
 }: ConnectCalendarsModalProps) {
   if (!open) return null;
 
@@ -79,21 +83,32 @@ export default function ConnectCalendarsModal({
               </div>
               <button
                 type="button"
-                disabled={connectingId === row.id || row.connected}
+                disabled={
+                  connectingId === row.id ||
+                  disconnectingId === row.id ||
+                  (!row.connected && connectingId !== null)
+                }
                 className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition disabled:cursor-default ${
                   row.connected
-                    ? "border border-emerald-600/40 bg-emerald-50 text-emerald-900"
+                    ? "border border-rose-500/50 bg-rose-50 text-rose-900 hover:bg-rose-100"
                     : "border border-slate-400/80 bg-white text-slate-900 shadow-sm hover:border-teal-600 hover:bg-teal-50"
                 }`}
-                onClick={() => onConnect(row)}
+                onClick={() =>
+                  row.connected ? onDisconnect(row) : onConnect(row)
+                }
               >
                 {connectingId === row.id ? (
                   <span className="inline-flex items-center gap-1">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     Connecting…
                   </span>
+                ) : disconnectingId === row.id ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Disconnecting…
+                  </span>
                 ) : row.connected ? (
-                  "Connected"
+                  "Disconnect"
                 ) : (
                   "Connect"
                 )}

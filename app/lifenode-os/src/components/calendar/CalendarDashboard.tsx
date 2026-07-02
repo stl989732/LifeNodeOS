@@ -24,7 +24,8 @@ import {
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { connectAppToNode } from "@/src/lib/integrations";
 import { appLabelToProvider } from "@/src/lib/integrations/appProviderMap";
-import { syncCalendarProvider } from "@/src/lib/calendar/clientSync";
+import { syncCalendarProvider, pushLocalItemsToGoogle } from "@/src/lib/calendar/clientSync";
+import { disconnectCalendarProvider } from "@/src/lib/calendar/disconnectIntegration";
 import {
   CALENDAR_CONNECT_APPS,
   CALENDAR_TARGET_NODE,
@@ -153,14 +154,19 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [kindFilters, setKindFilters] = useState<Set<ScheduleItemKind>>(
-    () => new Set(),
+    () => new Set(ALL_KINDS),
   );
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [importKinds, setImportKinds] = useState<Set<ScheduleItemKind>>(
+    () => new Set(ALL_KINDS),
+  );
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [syncingProvider, setSyncingProvider] = useState<ScheduleProvider | null>(
     null,
   );
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [exportingToGoogle, setExportingToGoogle] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [shellSyncReady, setShellSyncReady] = useState(!userId);
@@ -288,7 +294,7 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
         integrations: nextIntegrations,
       };
       saveCalendarStore(userId, payload);
-      if (userId && shellSyncReady && nextItems.length > 0) {
+      if (userId && shellSyncReady) {
         scheduleNodeWidgetSave(NODE_WIDGET_KEYS.shell.calendar, payload);
       }
       syncCommitmentSignals(nextItems);
@@ -325,13 +331,25 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
       try {
         const result = await syncCalendarProvider(provider, monthAnchorKey);
         if (!result.ok) {
-          setSyncNotice(result.error ?? "Could not sync calendar.");
+          const err = result.error ?? "Could not sync calendar.";
+          setSyncNotice(
+            err.includes("Invalid time value")
+              ? "Calendar sync failed due to a date range error. Try again or change month."
+              : err,
+          );
           return;
         }
-        if (result.items.length > 0) {
+        if (result.liveSync) {
+          const incoming = result.items.filter((row) => importKinds.has(row.kind));
           setItems((prev) => {
-            const merged = mergeSyncedItems(prev, result.items, provider);
+            const merged = mergeSyncedItems(prev, incoming, provider);
             saveCalendarStore(userId, { items: merged, integrations });
+            if (userId && shellSyncReady) {
+              scheduleNodeWidgetSave(NODE_WIDGET_KEYS.shell.calendar, {
+                items: merged,
+                integrations,
+              });
+            }
             syncCommitmentSignals(merged);
             return merged;
           });
@@ -340,7 +358,7 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
           result.message ??
             (result.liveSync
               ? result.items.length > 0
-                ? `Synced ${result.items.length} event${result.items.length === 1 ? "" : "s"} from ${providerLabel(provider)}.`
+                ? `Synced ${result.items.filter((row) => importKinds.has(row.kind)).length} event${result.items.length === 1 ? "" : "s"} from ${providerLabel(provider)}.`
                 : `No upcoming events found in ${providerLabel(provider)} for this month.`
               : `${providerLabel(provider)} connected — live sync coming soon.`),
         );
@@ -350,7 +368,14 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
         setSyncingProvider(null);
       }
     },
-    [integrations, monthAnchorKey, syncCommitmentSignals, userId],
+    [
+      importKinds,
+      integrations,
+      monthAnchorKey,
+      shellSyncReady,
+      syncCommitmentSignals,
+      userId,
+    ],
   );
 
   function clearIntegrationQueryParams() {
@@ -575,6 +600,72 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     });
   }
 
+  async function syncAllConnected() {
+    const live = connectedIntegrations.filter((row) => row.id === "google");
+    for (const row of live) {
+      await runProviderSync(row.id);
+    }
+    if (live.length === 0) {
+      setSyncNotice("Connect Google Calendar to pull events into your dashboard.");
+    }
+  }
+
+  async function handleExportToGoogle() {
+    if (!userId) return;
+    setExportingToGoogle(true);
+    setSyncNotice(null);
+    try {
+      const result = await pushLocalItemsToGoogle(monthAnchorKey, items);
+      if (!result.ok) {
+        setSyncNotice(result.error ?? "Could not export to Google Calendar.");
+        return;
+      }
+      setSyncNotice(result.message ?? "Exported local items to Google Calendar.");
+      if ((result.pushed ?? 0) > 0) {
+        await runProviderSync("google");
+      }
+    } finally {
+      setExportingToGoogle(false);
+    }
+  }
+
+  async function handleDisconnect(row: CalendarIntegration) {
+    if (row.id === "local") return;
+    if (
+      !window.confirm(
+        `Disconnect ${row.label}? Synced events from this calendar will be removed from your dashboard.`,
+      )
+    ) {
+      return;
+    }
+
+    setDisconnectingId(row.id);
+    setSyncNotice(null);
+    try {
+      const result = await disconnectCalendarProvider(row.id);
+      if (!result.ok) {
+        setSyncNotice(result.error ?? "Could not disconnect calendar.");
+        return;
+      }
+
+      setItems((prev) => {
+        const next = prev.filter((item) => item.source !== row.id);
+        saveCalendarStore(userId, { items: next, integrations });
+        if (userId && shellSyncReady) {
+          scheduleNodeWidgetSave(NODE_WIDGET_KEYS.shell.calendar, {
+            items: next,
+            integrations,
+          });
+        }
+        syncCommitmentSignals(next);
+        return next;
+      });
+      setSyncNotice(`${row.label} disconnected.`);
+    } finally {
+      setDisconnectingId(null);
+    }
+  }
+
   async function handleConnect(row: CalendarIntegration) {
     if (row.id === "local") return;
 
@@ -648,20 +739,39 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
                   </p>
                 </div>
                 {row.id === "google" ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-700/30 bg-white px-2 py-1 text-[10px] font-bold text-emerald-900 hover:bg-emerald-100"
+                      onClick={() => void runProviderSync("google")}
+                      disabled={syncingProvider === "google"}
+                    >
+                      {syncingProvider === "google" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" />
+                      )}
+                      Sync
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-rose-500/40 bg-white px-2 py-1 text-[10px] font-bold text-rose-800 hover:bg-rose-100"
+                      onClick={() => void handleDisconnect(row)}
+                      disabled={disconnectingId === row.id}
+                    >
+                      {disconnectingId === row.id ? "…" : "Disconnect"}
+                    </button>
+                  </div>
+                ) : (
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-700/30 bg-white px-2 py-1 text-[10px] font-bold text-emerald-900 hover:bg-emerald-100"
-                    onClick={() => void runProviderSync("google")}
-                    disabled={syncingProvider === "google"}
+                    className="rounded-lg border border-rose-500/40 bg-white px-2 py-1 text-[10px] font-bold text-rose-800 hover:bg-rose-100"
+                    onClick={() => void handleDisconnect(row)}
+                    disabled={disconnectingId === row.id}
                   >
-                    {syncingProvider === "google" ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3" />
-                    )}
-                    Sync
+                    {disconnectingId === row.id ? "…" : "Disconnect"}
                   </button>
-                ) : null}
+                )}
               </div>
             ))}
             <button
@@ -830,9 +940,80 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
 
         {connectedIntegrations.length > 0 ? (
           <div className="space-y-4">
-            <h2 className={`text-lg font-bold ${AURA_TEXT.title}`}>
-              Connected calendars
-            </h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className={`text-lg font-bold ${AURA_TEXT.title}`}>
+                  Connected calendars
+                </h2>
+                <p className={`mt-1 text-xs ${AURA_TEXT.muted}`}>
+                  Choose which schedule types to import, then sync or export
+                  between your dashboard and connected calendars.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-emerald-700/30 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100"
+                  onClick={() => void syncAllConnected()}
+                  disabled={Boolean(syncingProvider)}
+                >
+                  Sync all connected
+                </button>
+                {connectedIntegrations.some((row) => row.id === "google") ? (
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-500/50 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                    onClick={() => void handleExportToGoogle()}
+                    disabled={exportingToGoogle}
+                  >
+                    {exportingToGoogle ? "Exporting…" : "Export local to Google"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div
+              className={`${AURA_GLASS_CLASS} flex flex-wrap gap-2 p-3`}
+              style={AURA_GLASS_STYLE}
+            >
+              <span className="w-full text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Import &amp; show on calendar
+              </span>
+              {ALL_KINDS.map((k) => {
+                const enabled = importKinds.has(k) && kindFilters.has(k);
+                return (
+                <label
+                  key={k}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/30 bg-white/25 px-2.5 py-1 text-xs font-semibold text-slate-800"
+                >
+                  <input
+                    type="checkbox"
+                    className="rounded border-slate-400"
+                    checked={enabled}
+                    onChange={() => {
+                      if (enabled) {
+                        setImportKinds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(k);
+                          return next;
+                        });
+                        setKindFilters((prev) => {
+                          const next = new Set(prev);
+                          next.delete(k);
+                          return next;
+                        });
+                      } else {
+                        setImportKinds((prev) => new Set(prev).add(k));
+                        setKindFilters((prev) => new Set(prev).add(k));
+                      }
+                    }}
+                  />
+                  {SCHEDULE_KIND_LABELS[k]}
+                </label>
+              );
+              })}
+            </div>
+
             <div className="grid gap-4 lg:grid-cols-2">
               {connectedIntegrations.map((row) => (
                 <ConnectedCalendarCard
@@ -847,7 +1028,15 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
                       ? () => void runProviderSync("google")
                       : undefined
                   }
+                  onDisconnect={() => void handleDisconnect(row)}
+                  onExportLocal={
+                    row.id === "google"
+                      ? () => void handleExportToGoogle()
+                      : undefined
+                  }
                   syncing={syncingProvider === row.id}
+                  disconnecting={disconnectingId === row.id}
+                  exporting={exportingToGoogle}
                 />
               ))}
             </div>
@@ -898,8 +1087,10 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
           open={connectModalOpen}
           integrations={integrations.filter((row) => row.id !== "local")}
           connectingId={connectingId}
+          disconnectingId={disconnectingId}
           onClose={() => setConnectModalOpen(false)}
           onConnect={(row) => void handleConnect(row)}
+          onDisconnect={(row) => void handleDisconnect(row)}
         />
       </div>
     </div>
