@@ -329,9 +329,6 @@ export default function BillableHoursCard({
           </div>
           <div className="mt-2 font-[family-name:var(--font-outfit)] text-3xl font-bold tabular-nums text-slate-900">
             {formatBillableHours(displayMs)}
-            <span className="ml-2 text-sm font-semibold text-slate-500">
-              ({formatBillableDecimalHours(displayMs)} hrs)
-            </span>
           </div>
           {onBreak ? (
             <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-amber-800">

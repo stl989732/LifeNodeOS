@@ -2603,27 +2603,27 @@ export function InvoicingSuiteCard({
       </ul>
 
       {open && (
-        <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/80 p-2 backdrop-blur-md sm:p-3">
+        <div className="fixed inset-0 z-[320] flex items-center justify-center bg-slate-950/80 p-2 sm:p-3">
           <div
-            className="input-section flex h-[min(94dvh,920px)] w-[min(98vw,1400px)] max-w-none flex-col overflow-hidden rounded-3xl border border-solid border-white/10 bg-[rgba(255,255,255,0.06)] shadow-2xl backdrop-blur-[12px] md:flex-row"
+            className="input-section flex h-[min(92dvh,880px)] w-[min(98vw,1320px)] max-w-none flex-col overflow-hidden rounded-2xl border border-slate-700 bg-[#363636] shadow-2xl md:flex-row"
             role="dialog"
             aria-modal
             aria-label="Invoice builder"
           >
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-b border-white/10 p-5 md:w-[44%] md:border-b-0 md:border-r md:p-7">
-              <div className="mb-4 flex items-center justify-between gap-2">
-                <h3 className="font-[family-name:var(--font-outfit)] text-lg font-bold text-[#424242]">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-b border-slate-600 bg-[#363636] p-4 md:w-[44%] md:border-b-0 md:border-r md:p-5">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="font-[family-name:var(--font-outfit)] text-base font-bold text-[#FAFAFA]">
                   Invoice builder
                 </h3>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-lg border border-slate-300/80 px-3 py-1 text-xs font-semibold text-[#424242] hover:bg-white/40"
+                  className="rounded-lg border border-slate-500 px-3 py-1 text-xs font-semibold text-[#FAFAFA] hover:bg-slate-700/80"
                 >
                   Close
                 </button>
               </div>
-              <div className="mb-4 flex gap-2 rounded-xl bg-slate-900/40 p-1 text-xs font-semibold text-slate-200">
+              <div className="mb-3 flex gap-1.5 rounded-lg bg-[#2a2a2a] p-1 text-xs font-semibold text-slate-200">
                 <button
                   type="button"
                   className={`flex-1 rounded-lg py-2 ${mode === "manual" ? "bg-white/15 shadow" : ""}`}
@@ -2641,11 +2641,11 @@ export function InvoicingSuiteCard({
               </div>
 
               {mode === "manual" ? (
-                <div className="grid flex-1 gap-3 text-sm">
+                <div className="grid flex-1 gap-2 text-sm">
                   <label className="font-medium text-slate-200">
                     Client
                     <select
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
+                      className="mt-1 w-full rounded-lg border border-slate-600 bg-[#2a2a2a] px-3 py-2 text-slate-100"
                       value={clientId}
                       onChange={(e) => {
                         const id = e.target.value;
@@ -2666,19 +2666,19 @@ export function InvoicingSuiteCard({
                     </select>
                   </label>
                   <input
-                    className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
+                    className="rounded-lg border border-slate-600 bg-[#2a2a2a] px-3 py-2 text-slate-100"
                     placeholder="Bill to (contact or company name)"
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                   />
                   <input
-                    className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
+                    className="rounded-lg border border-slate-600 bg-[#2a2a2a] px-3 py-2 text-slate-100"
                     placeholder="Business / agency name"
                     value={businessAgencyName}
                     onChange={(e) => setBusinessAgencyName(e.target.value)}
                   />
                   <input
-                    className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
+                    className="rounded-lg border border-slate-600 bg-[#2a2a2a] px-3 py-2 text-slate-100"
                     type="date"
                     value={due}
                     onChange={(e) => setDue(e.target.value)}
@@ -2705,7 +2705,7 @@ export function InvoicingSuiteCard({
                       return (
                       <div key={idx} className="flex gap-2">
                         <input
-                          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-slate-100 placeholder:text-slate-400"
+                          className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-[#2a2a2a] px-2 py-2 text-slate-100 placeholder:text-slate-400"
                           placeholder={
                             unit === "currency"
                               ? "Line item description"
@@ -2731,7 +2731,7 @@ export function InvoicingSuiteCard({
                           type="number"
                           min={0}
                           step={qty ? 1 : 0.01}
-                          className="w-24 shrink-0 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-right text-slate-100 placeholder:text-slate-400"
+                          className="w-24 shrink-0 rounded-lg border border-slate-600 bg-[#2a2a2a] px-2 py-2 text-right text-slate-100 placeholder:text-slate-400"
                           placeholder={qty ? "#" : "Amount ($)"}
                           value={row.amount}
                           onChange={(e) =>
@@ -2762,12 +2762,12 @@ export function InvoicingSuiteCard({
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col gap-3 text-sm text-slate-200">
+                <div className="flex flex-1 flex-col gap-2 text-sm text-slate-200">
                   <p className="text-slate-400">
                     Pull accomplishments from saved EOD logs into one invoice line.
                     Add hours and days below (same as manual).
                   </p>
-                  <ul className="max-h-52 space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-slate-900/30 p-2">
+                  <ul className="max-h-52 space-y-2 overflow-y-auto rounded-lg border border-slate-600 bg-[#2a2a2a] p-2">
                     {eodPickerLogs.map((l) => (
                       <li key={l.id}>
                         <label className="flex cursor-pointer gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
@@ -2793,13 +2793,13 @@ export function InvoicingSuiteCard({
                     )}
                   </ul>
                   <input
-                    className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
+                    className="rounded-lg border border-slate-600 bg-[#2a2a2a] px-3 py-2 text-slate-100"
                     placeholder="Bundle amount (default: 150 × logs)"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                   />
                   <input
-                    className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-slate-100"
+                    className="rounded-lg border border-slate-600 bg-[#2a2a2a] px-3 py-2 text-slate-100"
                     type="date"
                     value={due}
                     onChange={(e) => setDue(e.target.value)}
@@ -2815,14 +2815,14 @@ export function InvoicingSuiteCard({
                         const unit = unitForRow(row);
                         return (
                           <div key={idx} className="flex gap-2">
-                            <span className="flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-slate-900/30 px-2 py-2 text-xs text-slate-300">
+                            <span className="flex min-w-0 flex-1 items-center rounded-lg border border-slate-600 bg-[#2a2a2a] px-2 py-2 text-xs text-slate-300">
                               {row.description}
                             </span>
                             <input
                               type="number"
                               min={0}
                               step={1}
-                              className="w-24 shrink-0 rounded-xl border border-white/10 bg-slate-900/40 px-2 py-2 text-right text-slate-100"
+                              className="w-24 shrink-0 rounded-lg border border-slate-600 bg-[#2a2a2a] px-2 py-2 text-right text-slate-100"
                               placeholder="#"
                               value={row.amount}
                               onChange={(e) =>
@@ -2845,11 +2845,11 @@ export function InvoicingSuiteCard({
                 </div>
               )}
 
-              <div className="mt-4 rounded-xl border border-white/10 bg-slate-900/30 p-3">
+              <div className="mt-3 rounded-lg border border-slate-600 bg-[#2a2a2a] p-2.5">
                 <label className="block text-xs font-medium text-slate-300">
                   Billed by
                   <input
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                    className="mt-1 w-full rounded-lg border border-slate-600 bg-[#363636] px-3 py-2 text-sm text-slate-100"
                     placeholder="Your name"
                     value={ownerFullName}
                     onChange={(e) => setOwnerFullName(e.target.value)}
@@ -2857,8 +2857,8 @@ export function InvoicingSuiteCard({
                 </label>
               </div>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-slate-900/30 p-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-slate-600 bg-[#2a2a2a] p-2.5">
                   <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                     Client signature
                   </div>
@@ -2888,7 +2888,7 @@ export function InvoicingSuiteCard({
                   </div>
                   {clientSigMode === "type" ? (
                     <input
-                      className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                      className="mt-2 w-full rounded-lg border border-slate-600 bg-[#363636] px-3 py-2 text-sm text-slate-100"
                       placeholder={`Client name (${previewClientLabel})`}
                       value={clientSigTypedName}
                       onChange={(e) => setClientSigTypedName(e.target.value)}
@@ -2910,7 +2910,7 @@ export function InvoicingSuiteCard({
                   )}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-slate-900/30 p-3">
+                <div className="rounded-lg border border-slate-600 bg-[#2a2a2a] p-2.5">
                   <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                     Your signature
                   </div>
@@ -2940,7 +2940,7 @@ export function InvoicingSuiteCard({
                   </div>
                   {sigMode === "type" ? (
                     <input
-                      className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                      className="mt-2 w-full rounded-lg border border-slate-600 bg-[#363636] px-3 py-2 text-sm text-slate-100"
                       placeholder="Sign as typed name"
                       value={sigTypedName}
                       onChange={(e) => setSigTypedName(e.target.value)}
@@ -2961,7 +2961,7 @@ export function InvoicingSuiteCard({
                     />
                   )}
                   <input
-                    className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-100"
+                    className="mt-2 w-full rounded-lg border border-slate-600 bg-[#363636] px-3 py-2 text-sm text-slate-100"
                     placeholder="Designation (e.g. Automation Specialist, VA, Accountant)"
                     value={sigDesignation}
                     onChange={(e) => setSigDesignation(e.target.value)}
@@ -2969,10 +2969,10 @@ export function InvoicingSuiteCard({
                 </div>
               </div>
 
-              <label className="mt-4 block text-xs font-medium text-slate-300">
+              <label className="mt-3 block text-xs font-medium text-slate-300">
                 Status
                 <select
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm capitalize text-slate-100"
+                  className="mt-1 w-full rounded-lg border border-slate-600 bg-[#2a2a2a] px-3 py-2 text-sm capitalize text-slate-100"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as InvoiceStatus)}
                 >
