@@ -153,7 +153,9 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 .landing-dark-zone {
   --landing-text-subtitle: #afbaca;
   --landing-text-disclaimer: #bbc9dd;
-  --landing-text-plan-tagline: #96a3b5;
+  --landing-text-plan-tagline: #e6eaef;
+  --landing-text-plan-price-suffix: #e9eaed;
+  --landing-text-plan-features: #d8dbdf;
   --landing-text-feature-label: #90a1b9;
   --landing-text-feature-label-alt: #8b95a8;
 }
@@ -168,6 +170,14 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 
 .text-landing-plan-tagline {
   color: var(--landing-text-plan-tagline);
+}
+
+.text-landing-plan-price-suffix {
+  color: var(--landing-text-plan-price-suffix);
+}
+
+.text-landing-plan-features {
+  color: var(--landing-text-plan-features);
 }
 
 .text-landing-feature-label {

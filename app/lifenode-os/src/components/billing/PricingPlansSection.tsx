@@ -256,7 +256,7 @@ function PlanCard({
       <p className={`mt-3 text-3xl font-bold ${dark ? "text-white" : "text-slate-900"}`}>
         ${price}
         <span
-          className={`text-sm font-medium ${dark ? "text-slate-400" : "text-slate-500"}`}
+          className={`text-sm font-medium ${dark ? landingDarkText.planPriceSuffix : "text-slate-500"}`}
         >
           {price === 0 ? "" : annual ? " / mo billed yearly" : " / mo"}
         </span>
@@ -264,7 +264,7 @@ function PlanCard({
       <p className={`mt-2 text-sm ${dark ? landingDarkText.planTagline : "text-slate-600"}`}>
         {tagline}
       </p>
-      <ul className={`mt-5 space-y-2 text-sm ${dark ? "text-slate-300" : "text-slate-700"}`}>
+      <ul className={`mt-5 space-y-2 text-sm ${dark ? landingDarkText.planFeatures : "text-slate-700"}`}>
         {features.map((f) => (
           <li key={f}>• {f}</li>
         ))}
