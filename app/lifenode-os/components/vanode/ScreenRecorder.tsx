@@ -1,6 +1,7 @@
 "use client";
 
 import { Circle, Mic, MicOff, Square } from "lucide-react";
+import { useEffect } from "react";
 import { useScreenRecording } from "./ScreenRecordingContext";
 
 type Props = {
@@ -17,7 +18,15 @@ export function ScreenRecorder({ onError }: Props) {
     startRecording,
     stopRecording,
     lastSavedId,
+    lastWarning,
+    clearWarning,
   } = useScreenRecording();
+
+  useEffect(() => {
+    if (!lastWarning) return;
+    onError?.(lastWarning);
+    clearWarning();
+  }, [lastWarning, onError, clearWarning]);
 
   return (
     <div className="flex flex-col gap-3">

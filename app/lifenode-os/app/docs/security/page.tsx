@@ -135,8 +135,9 @@ export default function SecurityDocsPage() {
             <li>X-Frame-Options, X-Content-Type-Options, Referrer-Policy</li>
             <li>Cross-Origin-Opener-Policy and Cross-Origin-Resource-Policy</li>
             <li>
-              Permissions-Policy — restricts camera, microphone, geolocation, and
-              payment APIs by default
+              Permissions-Policy — restricts camera, geolocation, and payment APIs
+              by default; microphone is allowed on this site for EOD screen
+              capture narration
             </li>
           </ul>
           <p className="text-sm text-slate-500">

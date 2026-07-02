@@ -32,6 +32,8 @@ type ScreenRecordingState = {
   stopRecording: () => void;
   togglePause: () => void;
   lastSavedId: string | null;
+  lastWarning: string | null;
+  clearWarning: () => void;
 };
 
 const ScreenRecordingContext = createContext<ScreenRecordingState | null>(null);
@@ -232,6 +234,7 @@ export function ScreenRecordingProvider({
   const [saving, setSaving] = useState(false);
   const [includeMic, setIncludeMic] = useState(true);
   const [lastSavedId, setLastSavedId] = useState<string | null>(null);
+  const [lastWarning, setLastWarning] = useState<string | null>(null);
   const [reviewCaptureId, setReviewCaptureIdState] = useState<string | null>(
     () => readReviewCaptureId(),
   );
@@ -240,6 +243,16 @@ export function ScreenRecordingProvider({
     setReviewCaptureIdState(id);
     writeReviewCaptureId(id);
   }, []);
+
+  const clearWarning = useCallback(() => setLastWarning(null), []);
+
+  const notifyWarning = useCallback(
+    (message: string) => {
+      setLastWarning(message);
+      onError?.(message);
+    },
+    [onError],
+  );
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -318,7 +331,7 @@ export function ScreenRecordingProvider({
     try {
       const { stream, cleanup } = await buildRecordingStream(
         includeMicRef.current,
-        (msg) => onError?.(msg),
+        notifyWarning,
       );
       cleanupRef.current = cleanup;
       chunksRef.current = [];
@@ -410,7 +423,7 @@ export function ScreenRecordingProvider({
       onError?.("Screen capture was cancelled or not permitted.");
       stopTracks();
     }
-  }, [active, saving, onError, onSaved, stopRecording, stopTracks]);
+  }, [active, saving, notifyWarning, onSaved, stopRecording, stopTracks]);
 
   return (
     <ScreenRecordingContext.Provider
@@ -425,6 +438,8 @@ export function ScreenRecordingProvider({
         stopRecording,
         togglePause,
         lastSavedId,
+        lastWarning,
+        clearWarning,
       }}
     >
       {children}

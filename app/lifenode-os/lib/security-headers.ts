@@ -31,7 +31,8 @@ export function buildSecurityHeaders(): { key: string; value: string }[] {
     {
       key: "Permissions-Policy",
       value:
-        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+        // microphone=(self) — required for VANode EOD screen capture narration
+        "camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()",
     },
     { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
     { key: "Cross-Origin-Resource-Policy", value: "same-site" },
