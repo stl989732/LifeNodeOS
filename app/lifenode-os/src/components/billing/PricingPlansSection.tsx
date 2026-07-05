@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PLAN_ENTITLEMENTS } from "@/src/lib/billing/planEntitlements";
-import { dailyAiGenerationBullets } from "@/src/lib/billing/planFeatureCopy";
+import { dailyAiGenerationBullets, screenCapturePlanBullets } from "@/src/lib/billing/planFeatureCopy";
+import { PLAN_LIST_PRICES } from "@/src/lib/billing/planPricing";
 import type { BillingInterval, PaidPlanKey } from "@/src/lib/billing/plans";
 import { startPlanCheckout } from "@/src/lib/billing/startPlanCheckout";
 import { landingDarkText } from "@/components/landing/landingDarkTheme";
@@ -13,6 +14,10 @@ const SYNC = PLAN_ENTITLEMENTS.sync;
 const NEXUS = PLAN_ENTITLEMENTS.nexus;
 const CORE_AI = dailyAiGenerationBullets("core");
 const SYNC_AI = dailyAiGenerationBullets("sync");
+const NEXUS_AI = dailyAiGenerationBullets("nexus");
+const CORE_SCREEN = screenCapturePlanBullets("core");
+const SYNC_SCREEN = screenCapturePlanBullets("sync");
+const NEXUS_SCREEN = screenCapturePlanBullets("nexus");
 
 const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
 
@@ -116,19 +121,20 @@ export default function PricingPlansSection({
           features={[
             "Whiteboard",
             "ChefNode in HomeNode · 2 recipe generations / month",
-            "3 LifePulse trackers",
+            "3 LifePulse trackers · 2 LifePulse plan generations / month",
             "2 VANode clients",
             "2 invoices · 2 EOD reports · 2 transcriptions",
             "1 kanban board · 2 integrations",
             "20 AI credits / day",
             ...CORE_AI,
+            ...CORE_SCREEN,
             "Billable hours timetracker — Sync plan and up",
           ]}
         />
         <PlanCard
           variant={variant}
           name={SYNC.displayName}
-          price={annual ? 19 : 24}
+          price={annual ? PLAN_LIST_PRICES.sync.annualPerMonth : PLAN_LIST_PRICES.sync.monthly}
           annual={annual}
           highlight
           tagline="Add VitalNode, logic bridges, and daily AI for operators."
@@ -143,6 +149,7 @@ export default function PricingPlansSection({
             "10 kanban boards",
             "150 AI credits / day",
             ...SYNC_AI,
+            ...SYNC_SCREEN,
             "Billable hours timetracker (multi-client, break alarms, client links)",
             "Logic bridges & Linos alerts",
           ]}
@@ -150,7 +157,11 @@ export default function PricingPlansSection({
         <PlanCard
           variant={variant}
           name={NEXUS.displayName}
-          price={annual ? 39 : 49}
+          price={
+            annual
+              ? PLAN_LIST_PRICES.nexus.annualPerMonth
+              : PLAN_LIST_PRICES.nexus.monthly
+          }
           annual={annual}
           tagline="All six Nodes and generous daily AI for power users."
           ctaLabel="Get Nexus"
@@ -162,6 +173,8 @@ export default function PricingPlansSection({
             "Unlimited clients & integrations",
             "Unlimited invoices, EOD reports & transcriptions / month",
             "1,000 AI credits / day (fair use)",
+            ...NEXUS_AI,
+            ...NEXUS_SCREEN,
             "Priority support",
           ]}
         />

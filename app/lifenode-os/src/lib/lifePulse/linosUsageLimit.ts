@@ -1,5 +1,9 @@
 import { getPlanEntitlements } from "@/src/lib/billing/planEntitlements";
 import { getUserPlan } from "@/src/lib/billing/getUserPlan";
+import {
+  meterLifepulsePlanMonthly,
+  readLifepulsePlansUsedThisMonth,
+} from "@/src/lib/billing/meterLifepulsePlanMonthly";
 import { meterAiUsage } from "@/src/lib/ai-metering/meterAiUsage";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
 import type { MeterFeatureKey } from "@/src/lib/ai-metering/events";
@@ -80,10 +84,11 @@ export async function getLinosUsageStatus(userId: string): Promise<LinosUsageSta
   const intakeLimit = entitlements.features.lifepulse_intake;
   const planLimit = entitlements.features.lifepulse_plan;
 
-  const [intakeCount, planCount] = await Promise.all([
-    readFeatureCount(userId, "lifepulse_intake"),
-    readFeatureCount(userId, "lifepulse_plan"),
-  ]);
+  const intakeCount = await readFeatureCount(userId, "lifepulse_intake");
+  const planCount =
+    entitlements.lifepulsePlanPeriod === "monthly"
+      ? await readLifepulsePlansUsedThisMonth(userId)
+      : await readFeatureCount(userId, "lifepulse_plan");
 
   return {
     intake: buildFeatureUsage(
@@ -107,6 +112,19 @@ export async function meterLinosIntake(userId: string): Promise<LinosFeatureUsag
 }
 
 export async function meterLinosPlan(userId: string): Promise<LinosFeatureUsage> {
+  const plan = await getUserPlan(userId);
+  const entitlements = getPlanEntitlements(plan);
+
+  if (entitlements.lifepulsePlanPeriod === "monthly") {
+    const monthly = await meterLifepulsePlanMonthly(userId);
+    if (!monthly.allowed) {
+      const usage = await getLinosUsageStatus(userId);
+      return { ...usage.plan, locked: true };
+    }
+    await meterAiUsage(userId, "lifepulse_plan");
+    return getLinosUsageStatus(userId).then((u) => u.plan);
+  }
+
   const result = await meterAiUsage(userId, "lifepulse_plan");
   const usage = await getLinosUsageStatus(userId);
   if (!result.allowed) {
@@ -119,7 +137,7 @@ export const LINOS_INTAKE_LOCK_MESSAGE =
   "You've used all your free Linos answers for today. Come back tomorrow, or upgrade to Sync or Nexus for more.";
 
 export const LINOS_PLAN_LOCK_MESSAGE =
-  "You've hit the maximum limit of plan generations for today. Upgrade to Sync or Nexus to keep building plans in LifePulse.";
+  "You've hit the maximum LifePulse plan generations for this period. Upgrade to Sync or Nexus for higher daily limits.";
 
 /** @deprecated Use LINOS_INTAKE_LOCK_MESSAGE or LINOS_PLAN_LOCK_MESSAGE */
 export const LINOS_LOCK_MESSAGE = LINOS_INTAKE_LOCK_MESSAGE;

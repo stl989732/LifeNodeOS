@@ -8,6 +8,8 @@ import { VANODE_STORAGE_KEY } from "@/lib/vanode/constants";
 import { loadVanode } from "@/lib/vanode/storage";
 import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
+import { listScreenCaptures } from "@/lib/vanode/screenCaptureStorage";
+import { countScreenCapturesThisMonth } from "@/src/lib/billing/screenCapturePlan";
 
 type UsageApiResponse = {
   aiCreditsUsed?: number;
@@ -96,6 +98,7 @@ export default function PlanUsageSection() {
   const [loadingUsage, setLoadingUsage] = useState(true);
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [screenCapturesUsed, setScreenCapturesUsed] = useState(0);
 
   const loadUsage = useCallback(async () => {
     setLoadingUsage(true);
@@ -126,6 +129,12 @@ export default function PlanUsageSection() {
   useEffect(() => {
     void loadUsage();
   }, [loadUsage, session?.user?.id]);
+
+  useEffect(() => {
+    void listScreenCaptures().then((rows) => {
+      setScreenCapturesUsed(countScreenCapturesThisMonth(rows));
+    });
+  }, [refreshing, session?.user?.id]);
 
   const refreshAll = async () => {
     setRefreshing(true);
@@ -184,6 +193,15 @@ export default function PlanUsageSection() {
       limit: limits.maxIntegrations ?? entitlements.maxIntegrations,
       hint: "Connected or syncing app cards across nodes.",
     },
+    {
+      id: "screen_captures",
+      label: "EOD screen recordings (this month, UTC)",
+      used: screenCapturesUsed,
+      limit: entitlements.maxScreenCapturesMonthly,
+      hint: entitlements.screenCapturesDownloadable
+        ? `Up to ${entitlements.maxScreenCaptureMinutes} minutes per session. Downloadable on your plan.`
+        : `Up to ${entitlements.maxScreenCaptureMinutes} minutes per session. In-browser review only on Core.`,
+    },
   ];
 
   const planLabel = usage?.displayName ?? displayName;
@@ -201,10 +219,10 @@ export default function PlanUsageSection() {
           </p>
           <p className="mt-1 text-xs text-slate-500">
             {plan === "core"
-              ? "Core — free tier with ChefNode (2 recipes/month), daily AI credits, and capacity limits."
+              ? "Core — free tier with ChefNode (2 recipes/month), 2 LifePulse plans/month, 3 EOD screen recordings/month (no download), and daily AI credits."
               : plan === "sync"
-                ? "Sync — more nodes, AI, and workspace capacity."
-                : "Nexus — full node suite with high daily AI limits."}
+                ? "Sync — VitalNode, 15 downloadable EOD screen recordings/month, and higher AI limits."
+                : "Nexus — $59/mo ($49/mo billed annually) — full node suite, unlimited EOD recordings, highest AI credits."}
           </p>
         </div>
         <button

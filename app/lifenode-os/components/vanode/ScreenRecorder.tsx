@@ -3,6 +3,9 @@
 import { Circle, Mic, MicOff, Square } from "lucide-react";
 import { useEffect } from "react";
 import { useScreenRecording } from "./ScreenRecordingContext";
+import { usePlanEntitlementsOptional } from "@/src/context/PlanEntitlementsContext";
+import { getPlanEntitlements } from "@/src/lib/billing/planEntitlements";
+import { screenCaptureLimitLabel } from "@/src/lib/billing/screenCapturePlan";
 
 type Props = {
   onError?: (message: string) => void;
@@ -21,6 +24,11 @@ export function ScreenRecorder({ onError }: Props) {
     lastWarning,
     clearWarning,
   } = useScreenRecording();
+
+  const planCtx = usePlanEntitlementsOptional();
+  const entitlements =
+    planCtx?.entitlements ?? getPlanEntitlements(planCtx?.plan ?? "core");
+  const captureLimit = screenCaptureLimitLabel(entitlements);
 
   useEffect(() => {
     if (!lastWarning) return;
@@ -53,8 +61,11 @@ export function ScreenRecorder({ onError }: Props) {
       <p className="text-xs text-slate-500">
         Recording continues while you switch LifeNode tabs or client focus. In the
         browser picker, enable <strong>Share tab audio</strong> for system sound.
-        Use the floating pill to stop. Saved captures stay below — download WebM
-        or MP4 anytime.
+        Use the floating pill to stop. {captureLimit}.{" "}
+        {entitlements.maxScreenCaptureMinutes}-minute max per session.
+        {entitlements.screenCapturesDownloadable
+          ? " Download WebM or MP4 from Saved on this device."
+          : " On Core, review in the browser only — downloads unlock on Sync."}
       </p>
       {lastSavedId ? (
         <p className="text-xs text-teal-700">

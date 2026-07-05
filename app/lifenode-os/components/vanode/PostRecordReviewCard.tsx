@@ -19,6 +19,8 @@ import {
 import { remuxBlobToMp4 } from "@/lib/vanode/videoMp4Export";
 import { trimVideoBlob } from "@/lib/vanode/trimVideoBlob";
 import { useDraggableFloatingPosition } from "@/src/components/vanode/useDraggableFloatingPosition";
+import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
+import { screenCaptureDownloadBlockedMessage } from "@/src/lib/billing/screenCapturePlan";
 
 type Props = {
   captureId: string | null;
@@ -27,6 +29,8 @@ type Props = {
 };
 
 export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
+  const { entitlements, promptUpgradeMessage } = usePlanEntitlements();
+  const downloadsAllowed = entitlements.screenCapturesDownloadable;
   const [record, setRecord] = useState<ScreenCaptureRecord | null>(null);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -100,8 +104,20 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     };
   }, [blob, record?.mimeType]);
 
+  const requireDownloadAccess = useCallback(() => {
+    if (downloadsAllowed) return true;
+    const message = screenCaptureDownloadBlockedMessage(entitlements.displayName);
+    onToast?.(message);
+    promptUpgradeMessage({
+      title: "Download recordings",
+      message,
+    });
+    return false;
+  }, [downloadsAllowed, entitlements.displayName, onToast, promptUpgradeMessage]);
+
   const handleDownloadMp4 = useCallback(async () => {
     if (!blob || !record) return;
+    if (!requireDownloadAccess()) return;
     const mimeType = record.mimeType || blob.type || "video/webm";
     const typed = normalizeCaptureBlob(blob, mimeType);
     const isMp4 =
@@ -123,7 +139,7 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     } finally {
       setMp4Exporting(false);
     }
-  }, [blob, onToast, record]);
+  }, [blob, onToast, record, requireDownloadAccess]);
 
   const canTrim = useMemo(
     () => duration > 1 && trimEnd - trimStart >= 0.5,
@@ -132,26 +148,29 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
 
   const handleShare = useCallback(async () => {
     if (!blob || !record) return;
+    if (!requireDownloadAccess()) return;
     const result = await shareScreenCapture(blob, record.filename);
     if (result === "shared") onToast?.("Shared via your device.");
     else if (result === "downloaded")
       onToast?.("Share not supported here — download started instead.");
     else if (result === "cancelled") onToast?.("Share cancelled.");
     else onToast?.("Could not share — try Download.");
-  }, [blob, onToast, record]);
+  }, [blob, onToast, record, requireDownloadAccess]);
 
   const handleDownload = useCallback(() => {
     if (!blob || !record) return;
+    if (!requireDownloadAccess()) return;
     const typed = normalizeCaptureBlob(
       blob,
       record.mimeType || blob.type || "video/webm",
     );
     downloadScreenCapture(typed, record.filename);
     onToast?.("Download started.");
-  }, [blob, onToast, record]);
+  }, [blob, onToast, record, requireDownloadAccess]);
 
   const handleApplyTrim = useCallback(async () => {
     if (!blob || !record || !canTrim) return;
+    if (!requireDownloadAccess()) return;
     setTrimming(true);
     try {
       const trimmed = await trimVideoBlob(
@@ -169,7 +188,7 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     } finally {
       setTrimming(false);
     }
-  }, [blob, canTrim, onToast, record, trimEnd, trimStart]);
+  }, [blob, canTrim, onToast, record, requireDownloadAccess, trimEnd, trimStart]);
 
   if (!captureId || typeof document === "undefined") return null;
 
@@ -284,33 +303,39 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
             </div>
           ) : null}
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
-            >
-              <Download className="h-3.5 w-3.5" />
-              WebM
-            </button>
-            <button
-              type="button"
-              disabled={mp4Exporting}
-              onClick={() => void handleDownloadMp4()}
-              className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
-            >
-              <Download className="h-3.5 w-3.5" />
-              {mp4Exporting ? "MP4…" : "MP4"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleShare()}
-              className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
-            >
-              <Share2 className="h-3.5 w-3.5" />
-              Share
-            </button>
-          </div>
+          {downloadsAllowed ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
+              >
+                <Download className="h-3.5 w-3.5" />
+                WebM
+              </button>
+              <button
+                type="button"
+                disabled={mp4Exporting}
+                onClick={() => void handleDownloadMp4()}
+                className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {mp4Exporting ? "MP4…" : "MP4"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleShare()}
+                className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Share
+              </button>
+            </div>
+          ) : (
+            <p className="text-[10px] text-white/50">
+              Watch here on Core — upgrade to Sync or Nexus to download and share.
+            </p>
+          )}
           {record ? (
             <p className="truncate text-[10px] text-white/50">{record.filename}</p>
           ) : null}

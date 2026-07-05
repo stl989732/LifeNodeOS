@@ -15,6 +15,8 @@ import {
   type ScreenCaptureRecord,
 } from "@/lib/vanode/screenCaptureStorage";
 import { remuxBlobToMp4 } from "@/lib/vanode/videoMp4Export";
+import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
+import { screenCaptureDownloadBlockedMessage } from "@/src/lib/billing/screenCapturePlan";
 
 type Props = {
   refreshKey?: number;
@@ -27,6 +29,8 @@ function downloadAs(blob: Blob, filename: string) {
 
 export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const active = useActiveClientOptional();
+  const { entitlements, promptUpgradeMessage } = usePlanEntitlements();
+  const downloadsAllowed = entitlements.screenCapturesDownloadable;
   const activeClientId = active?.activeClientId ?? null;
   const [rows, setRows] = useState<ScreenCaptureRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,10 +131,22 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
     setPlayError(false);
   };
 
+  const requireDownloadAccess = useCallback(() => {
+    if (downloadsAllowed) return true;
+    const message = screenCaptureDownloadBlockedMessage(entitlements.displayName);
+    onToast?.(message);
+    promptUpgradeMessage({
+      title: "Download recordings",
+      message,
+    });
+    return false;
+  }, [downloadsAllowed, entitlements.displayName, onToast, promptUpgradeMessage]);
+
   const handleDownload = async (
     row: ScreenCaptureRecord,
     format: "native" | "mp4" | "webm",
   ) => {
+    if (!requireDownloadAccess()) return;
     const blob = await getScreenCaptureBlob(row.id);
     if (!blob) {
       onToast?.("Capture file missing — it may have been cleared from this browser.");
@@ -171,6 +187,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   };
 
   const handleShare = async (row: ScreenCaptureRecord) => {
+    if (!requireDownloadAccess()) return;
     const blob = await getScreenCaptureBlob(row.id);
     if (!blob) {
       onToast?.("Capture file missing.");
@@ -199,8 +216,10 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   if (visibleRows.length === 0 && !loading) {
     return (
       <p className="text-xs text-slate-500">
-        Finished recordings appear here as video files — download WebM or MP4
-        (when supported) anytime; files stay until you delete them.
+        Finished recordings appear here — watch in the browser anytime.
+        {downloadsAllowed
+          ? " Download WebM or MP4 from the list."
+          : " Downloads unlock on Sync and Nexus."}
       </p>
     );
   }
@@ -251,39 +270,43 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
               >
                 <Play className="h-3.5 w-3.5" />
               </button>
-              <button
-                type="button"
-                title="Download WebM"
-                onClick={() => void handleDownload(row, "webm")}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-teal-50"
-              >
-                WebM
-              </button>
-              <button
-                type="button"
-                title="Download MP4 (converts WebM when needed)"
-                disabled={mp4Exporting}
-                onClick={() => void handleDownload(row, "mp4")}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-teal-50 disabled:opacity-40"
-              >
-                {mp4Exporting ? "…" : "MP4"}
-              </button>
-              <button
-                type="button"
-                title="Download original file"
-                onClick={() => void handleDownload(row, "native")}
-                className="rounded-lg p-2 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
-              >
-                <Download className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                title="Share to apps"
-                onClick={() => void handleShare(row)}
-                className="rounded-lg p-2 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
-              >
-                <Share2 className="h-4 w-4" />
-              </button>
+              {downloadsAllowed ? (
+                <>
+                  <button
+                    type="button"
+                    title="Download WebM"
+                    onClick={() => void handleDownload(row, "webm")}
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-teal-50"
+                  >
+                    WebM
+                  </button>
+                  <button
+                    type="button"
+                    title="Download MP4 (converts WebM when needed)"
+                    disabled={mp4Exporting}
+                    onClick={() => void handleDownload(row, "mp4")}
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-teal-50 disabled:opacity-40"
+                  >
+                    {mp4Exporting ? "…" : "MP4"}
+                  </button>
+                  <button
+                    type="button"
+                    title="Download original file"
+                    onClick={() => void handleDownload(row, "native")}
+                    className="rounded-lg p-2 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Share to apps"
+                    onClick={() => void handleShare(row)}
+                    className="rounded-lg p-2 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
+                  >
+                    <Share2 className="h-4 w-4" />
+                  </button>
+                </>
+              ) : null}
               <button
                 type="button"
                 title="Delete from this device"

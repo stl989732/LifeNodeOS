@@ -190,7 +190,7 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     category: "Subscription",
     question: "How do Core, Sync, and Nexus differ?",
     answer:
-      "Core is free with essential nodes and tight AI/integration limits. Sync adds VitalNode, more clients, integrations, and Logic Bridges. Nexus unlocks every node (including Trader and Pro), highest AI credits, and generous caps for agencies.",
+      "Core is free: BizNode, VANode, and HomeNode, 2 LifePulse plan generations per month, 3 EOD screen recordings per month (in-browser only), and tight AI/integration limits. Sync ($24/mo or $19/mo billed annually) adds VitalNode, 15 downloadable EOD recordings per month, Logic Bridges, and higher caps. Nexus ($59/mo or $49/mo billed annually) unlocks every node including Trader and Pro, unlimited EOD recordings (15 min max per session), and the highest AI credits.",
   },
   {
     id: "sub-billing",
@@ -211,7 +211,7 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     category: "Subscription",
     question: "What happens when I hit a plan limit?",
     answer:
-      "You'll see a clear gate or upgrade prompt — for example, extra VA clients, integrations, invoices, or daily AI credits. Existing data stays intact; new actions above the cap wait until you upgrade or the daily reset.",
+      "You'll see a clear gate or upgrade prompt — for example, extra VA clients, integrations, invoices, daily AI credits, or monthly EOD screen recordings. On Core, recordings are in-browser only (no download). Existing data stays intact; new actions above the cap wait until you upgrade or the period resets.",
   },
   {
     id: "sub-trial",
@@ -225,7 +225,7 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
     category: "Subscription",
     question: "Do AI credits reset?",
     answer:
-      "Daily AI credits reset on a UTC schedule per plan. Chef recipe generations use a separate monthly counter. Check Settings → Plan usage for a snapshot of remaining allowance.",
+      "Daily AI credits reset on a UTC schedule per plan. Chef recipe generations and EOD screen recordings use separate monthly counters on applicable tiers. Core LifePulse plan generations reset monthly (2/month). Check Settings → Plan usage for a snapshot of remaining allowance.",
   },
   // Cancellation & refunds
   {

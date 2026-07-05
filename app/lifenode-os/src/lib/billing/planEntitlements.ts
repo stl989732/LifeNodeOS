@@ -1,6 +1,8 @@
 import type { ShellHatKey } from "@/lib/node-mappings";
 import type { PlanKey } from "./plans";
 
+export type LifepulsePlanPeriod = "daily" | "monthly";
+
 export type PlanEntitlements = {
   plan: PlanKey;
   displayName: string;
@@ -14,6 +16,8 @@ export type PlanEntitlements = {
     chef_text: number;
     chef_image: number;
   };
+  /** Core uses monthly LifePulse plan generations; Sync/Nexus use daily caps. */
+  lifepulsePlanPeriod: LifepulsePlanPeriod;
   nodes: ShellHatKey[];
   maxIntegrations: number;
   maxVaClients: number;
@@ -22,6 +26,12 @@ export type PlanEntitlements = {
   maxInvoices: number;
   maxEodRecords: number;
   maxTranscriptions: number;
+  /** EOD screen recordings per UTC calendar month. */
+  maxScreenCapturesMonthly: number;
+  /** Core: in-browser review only; Sync+ can download/share exports. */
+  screenCapturesDownloadable: boolean;
+  /** Max length per screen recording session (minutes). */
+  maxScreenCaptureMinutes: number;
   /** Full recipe generations per UTC month (recipe + chef_execute). */
   maxChefRecipesMonthly: number;
   whiteboardEnabled: boolean;
@@ -42,6 +52,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       chef_text: 3,
       chef_image: 0,
     },
+    lifepulsePlanPeriod: "monthly",
     nodes: ["work", "va", "home"],
     maxIntegrations: 2,
     maxVaClients: 2,
@@ -50,6 +61,9 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
     maxInvoices: 2,
     maxEodRecords: 2,
     maxTranscriptions: 2,
+    maxScreenCapturesMonthly: 3,
+    screenCapturesDownloadable: false,
+    maxScreenCaptureMinutes: 15,
     maxChefRecipesMonthly: 2,
     whiteboardEnabled: true,
     logicBridges: false,
@@ -67,6 +81,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       chef_text: 20,
       chef_image: 10,
     },
+    lifepulsePlanPeriod: "daily",
     nodes: ["work", "va", "home", "vital"],
     maxIntegrations: 12,
     maxVaClients: 8,
@@ -75,6 +90,9 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
     maxInvoices: 20,
     maxEodRecords: 20,
     maxTranscriptions: 20,
+    maxScreenCapturesMonthly: 15,
+    screenCapturesDownloadable: true,
+    maxScreenCaptureMinutes: 15,
     maxChefRecipesMonthly: 20,
     whiteboardEnabled: true,
     logicBridges: true,
@@ -92,6 +110,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       chef_text: 60,
       chef_image: 40,
     },
+    lifepulsePlanPeriod: "daily",
     nodes: ["work", "va", "home", "vital", "trader", "pro"],
     maxIntegrations: 999,
     maxVaClients: 999,
@@ -100,6 +119,9 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
     maxInvoices: 999,
     maxEodRecords: 999,
     maxTranscriptions: 999,
+    maxScreenCapturesMonthly: 999,
+    screenCapturesDownloadable: true,
+    maxScreenCaptureMinutes: 15,
     maxChefRecipesMonthly: 40,
     whiteboardEnabled: true,
     logicBridges: true,

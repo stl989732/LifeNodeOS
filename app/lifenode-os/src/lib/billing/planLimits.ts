@@ -35,7 +35,8 @@ export type PlanLimitKey =
   | "eod_records"
   | "transcriptions"
   | "kanban_boards"
-  | "chef_recipes";
+  | "chef_recipes"
+  | "screen_captures";
 
 export const PLAN_LIMIT_LABELS: Record<PlanLimitKey, string> = {
   trackers: "LifePulse trackers",
@@ -46,6 +47,7 @@ export const PLAN_LIMIT_LABELS: Record<PlanLimitKey, string> = {
   transcriptions: "meeting transcriptions",
   kanban_boards: "kanban boards",
   chef_recipes: "ChefNode recipe generations",
+  screen_captures: "EOD screen recordings",
 };
 
 export function planLimitMessage(

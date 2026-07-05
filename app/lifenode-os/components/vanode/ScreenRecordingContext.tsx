@@ -18,8 +18,16 @@ import {
   pickScreenRecorderMime,
   saveScreenCapture,
   normalizeCaptureBlob,
+  listScreenCaptures,
   type ScreenCaptureRecord,
 } from "@/lib/vanode/screenCaptureStorage";
+import { usePlanEntitlementsOptional } from "@/src/context/PlanEntitlementsContext";
+import { getPlanEntitlements } from "@/src/lib/billing/planEntitlements";
+import {
+  maxScreenRecordingSeconds,
+  screenCaptureLimitMessage,
+  screenCaptureLimitReached,
+} from "@/src/lib/billing/screenCapturePlan";
 
 type ScreenRecordingState = {
   active: boolean;
@@ -228,6 +236,16 @@ export function ScreenRecordingProvider({
   onSaved?: (record: ScreenCaptureRecord) => void;
   onError?: (message: string) => void;
 }) {
+  const planCtx = usePlanEntitlementsOptional();
+  const entitlements =
+    planCtx?.entitlements ?? getPlanEntitlements(planCtx?.plan ?? "core");
+  const maxRecordingSeconds = maxScreenRecordingSeconds(entitlements);
+  const maxRecordingSecondsRef = useRef(maxRecordingSeconds);
+
+  useEffect(() => {
+    maxRecordingSecondsRef.current = maxScreenRecordingSeconds(entitlements);
+  }, [entitlements]);
+
   const [active, setActive] = useState(false);
   const [paused, setPaused] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -295,6 +313,23 @@ export function ScreenRecordingProvider({
     }
   }, []);
 
+  const beginDurationTick = useCallback(() => {
+    if (tickRef.current) clearInterval(tickRef.current);
+    tickRef.current = setInterval(() => {
+      setSeconds((s) => {
+        const next = s + 1;
+        durationRef.current = next;
+        if (next >= maxRecordingSecondsRef.current) {
+          stopRecording();
+          notifyWarning(
+            `Recording stopped at ${entitlements.maxScreenCaptureMinutes} minutes — your plan limit per session.`,
+          );
+        }
+        return next;
+      });
+    }, 1000);
+  }, [entitlements.maxScreenCaptureMinutes, notifyWarning, stopRecording]);
+
   const togglePause = useCallback(() => {
     const rec = mediaRecorderRef.current;
     if (!rec || rec.state === "inactive") return;
@@ -312,22 +347,28 @@ export function ScreenRecordingProvider({
         rec.resume();
         setPaused(false);
         if (!tickRef.current) {
-          tickRef.current = setInterval(() => {
-            setSeconds((s) => {
-              const next = s + 1;
-              durationRef.current = next;
-              return next;
-            });
-          }, 1000);
+          beginDurationTick();
         }
       } catch {
         /* ignore */
       }
     }
-  }, []);
+  }, [beginDurationTick]);
 
   const startRecording = useCallback(async () => {
     if (active || saving) return;
+
+    const existing = await listScreenCaptures();
+    if (screenCaptureLimitReached(entitlements, existing)) {
+      const message = screenCaptureLimitMessage(entitlements.displayName);
+      notifyWarning(message);
+      planCtx?.promptUpgradeMessage({
+        title: "EOD screen recording limit",
+        message,
+      });
+      return;
+    }
+
     try {
       const { stream, cleanup } = await buildRecordingStream(
         includeMicRef.current,
@@ -412,18 +453,24 @@ export function ScreenRecordingProvider({
       setPaused(false);
       setSeconds(0);
       durationRef.current = 0;
-      tickRef.current = setInterval(() => {
-        setSeconds((s) => {
-          const next = s + 1;
-          durationRef.current = next;
-          return next;
-        });
-      }, 1000);
+      beginDurationTick();
     } catch {
       onError?.("Screen capture was cancelled or not permitted.");
       stopTracks();
     }
-  }, [active, saving, notifyWarning, onSaved, stopRecording, stopTracks]);
+  }, [
+    active,
+    saving,
+    entitlements,
+    notifyWarning,
+    planCtx,
+    onSaved,
+    onError,
+    stopRecording,
+    stopTracks,
+    beginDurationTick,
+    setReviewCaptureId,
+  ]);
 
   return (
     <ScreenRecordingContext.Provider

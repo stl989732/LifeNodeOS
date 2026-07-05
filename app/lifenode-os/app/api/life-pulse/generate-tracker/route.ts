@@ -4,8 +4,8 @@ import { appendNotification } from "@/lib/user-state-store";
 import {
   getLinosUsageStatus,
   LINOS_PLAN_LOCK_MESSAGE,
+  meterLinosPlan,
 } from "@/src/lib/lifePulse/linosUsageLimit";
-import { meterAiUsage } from "@/src/lib/ai-metering/meterAiUsage";
 import {
   generateLinosTrackerPlan,
   planFromBlueprint,
@@ -111,8 +111,8 @@ export async function POST(request: Request) {
         due_date: dueHint,
         qualifyingAnswers,
       });
-      const metered = await meterAiUsage(userId, "lifepulse_plan");
-      if (!metered.allowed) {
+      const planUsage = await meterLinosPlan(userId);
+      if (planUsage.locked) {
         return NextResponse.json(
           { error: LINOS_PLAN_LOCK_MESSAGE, usage: await getLinosUsageStatus(userId) },
           { status: 429 },

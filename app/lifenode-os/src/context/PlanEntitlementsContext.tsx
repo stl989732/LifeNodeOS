@@ -78,6 +78,8 @@ function limitMax(
       return entitlements.maxKanbanBoards;
     case "chef_recipes":
       return entitlements.maxChefRecipesMonthly;
+    case "screen_captures":
+      return entitlements.maxScreenCapturesMonthly;
     default:
       return 0;
   }

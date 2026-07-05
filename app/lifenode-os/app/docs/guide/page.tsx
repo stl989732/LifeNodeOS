@@ -100,18 +100,19 @@ export default function UserGuidePage() {
           <ul className="list-disc space-y-2 pl-5 marker:text-slate-600">
             <li>
               <strong className="text-slate-200">Core (free)</strong> — BizNode,
-              VANode, and HomeNode (including ChefNode recipes). Great for solo
-              operators and households getting organized.
+              VANode, and HomeNode (including ChefNode recipes). 2 LifePulse plan
+              generations per month, 3 EOD screen recordings per month (in-browser
+              review only). Great for solo operators and households getting organized.
             </li>
             <li>
-              <strong className="text-slate-200">Sync</strong> — Unlocks
-              VitalNode and TraderNode, raises AI and integration limits, and
-              adds VANode billable-hours tracking.
+              <strong className="text-slate-200">Sync ($24/mo or $19/mo billed annually)</strong> — Unlocks
+              VitalNode, raises AI and integration limits, 15 downloadable EOD screen
+              recordings per month, and adds VANode billable-hours tracking.
             </li>
             <li>
-              <strong className="text-slate-200">Nexus</strong> — Full access
-              including ProNode, highest AI credits, and expanded client and vault
-              capacity for agencies and power users.
+              <strong className="text-slate-200">Nexus ($59/mo or $49/mo billed annually — $588/year)</strong> — Full access
+              including TraderNode and ProNode, unlimited EOD screen recordings (15 min
+              max per session), highest AI credits, and expanded capacity for agencies.
             </li>
           </ul>
           <p className="text-sm text-slate-500">
