@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { LogOut } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { signOutWithClientCleanup } from "@/src/lib/sessionClientIsolation";
 import type { AdminDashboardStats } from "@/src/lib/admin/getAdminDashboardStats";
 import type { AdminUserSegment } from "@/src/lib/admin/getAdminUserDirectory";
 import { ADMIN_SIGNIN_QUERY } from "@/src/lib/admin/adminAuth";
@@ -71,7 +73,7 @@ function StatCard({
 }
 
 export default function AdminDashboardPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,6 +163,20 @@ export default function AdminDashboardPage() {
             >
               {loading ? "Refreshing…" : "Refresh"}
             </button>
+            {status === "authenticated" ? (
+              <button
+                type="button"
+                onClick={() =>
+                  void signOutWithClientCleanup(session?.user?.id, {
+                    callbackUrl: "/",
+                  })
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-white"
+              >
+                <LogOut className="h-4 w-4" aria-hidden />
+                Log out
+              </button>
+            ) : null}
             <Link
               href="/shell"
               className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
