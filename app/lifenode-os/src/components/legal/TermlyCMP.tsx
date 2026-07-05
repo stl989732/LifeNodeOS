@@ -1,19 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 /**
- * Re-runs Termly initialization after client-side navigations so the CMP
- * stays in sync on SPA route changes. The resource-blocker script is loaded
- * from root layout via next/script (beforeInteractive).
+ * Bootstraps Termly once per browser session. The resource-blocker script loads
+ * from root layout (beforeInteractive). Re-calling initialize on SPA navigations
+ * was re-showing the consent banner after Accept/Decline.
  */
 export default function TermlyCMP() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (initializedRef.current || typeof window === "undefined") return;
+    initializedRef.current = true;
     const termly = (window as Window & { Termly?: { initialize?: () => void } })
       .Termly;
     try {
@@ -21,7 +20,7 @@ export default function TermlyCMP() {
     } catch {
       /* Termly not ready yet */
     }
-  }, [pathname, searchParams]);
+  }, []);
 
   return null;
 }

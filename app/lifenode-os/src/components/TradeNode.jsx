@@ -1885,7 +1885,7 @@ function TraderInitialization({
             <div className="pointer-events-none absolute -top-10 left-1/2 h-32 w-32 -translate-x-1/2 rounded-full bg-[#06B6D4]/15 blur-2xl" />
             <Sparkles className="mx-auto mb-3 h-6 w-6 text-[#06B6D4]" />
             <p className="text-[10px] uppercase tracking-[0.3em] text-[#06B6D4]">
-              Lino — Edge Protector
+              Linos — Edge Protector
             </p>
             <h2 className="mx-auto mt-3 max-w-2xl text-2xl font-bold leading-snug text-zinc-100 md:text-3xl">
               Welcome to the Pit, {firstName}.
@@ -2058,7 +2058,7 @@ function TraderInitialization({
             </p>
             <h2 className="mt-1 text-2xl font-bold">Define your guardrails.</h2>
             <p className="mt-1 text-xs text-zinc-500">
-              Lino enforces these. Hit the daily loss limit and the Log Trade
+              Linos enforces these. Hit the daily loss limit and the Log Trade
               button locks until tomorrow.
             </p>
 
@@ -2107,7 +2107,7 @@ function TraderInitialization({
                   />
                 </div>
                 <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
-                  Example: $250 means Lino locks new entries the moment your
+                  Example: $250 means Linos locks new entries the moment your
                   intraday P&amp;L hits -$250.
                 </p>
               </div>
@@ -2139,7 +2139,7 @@ function TraderInitialization({
                   })}
                 </div>
                 <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
-                  Lino keeps an eye on position size relative to this ceiling.
+                  Linos keeps an eye on position size relative to this ceiling.
                 </p>
               </div>
 
@@ -2149,7 +2149,7 @@ function TraderInitialization({
                   Trading session hours
                 </h3>
                 <p className="mt-1 text-[10px] text-zinc-500">
-                  Pick the sessions you actually take entries in. Lino mutes
+                  Pick the sessions you actually take entries in. Linos mutes
                   alerts outside these windows.
                 </p>
                 <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">

@@ -551,7 +551,7 @@ export async function patchNodeOnboardingDraft(
           (s) => typeof s === "string",
         ),
         workflowName: draft.workflowName.slice(0, 120),
-        stepIdx: Math.max(0, Math.min(2, Math.floor(draft.stepIdx))),
+        stepIdx: Math.max(0, Math.min(1, Math.floor(draft.stepIdx))),
       },
     },
     updatedAt: nowIso(),

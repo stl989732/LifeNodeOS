@@ -128,7 +128,7 @@ export async function PUT(request: Request) {
         typeof raw.workflowName === "string" ? raw.workflowName.slice(0, 120) : "",
       stepIdx:
         typeof raw.stepIdx === "number" && Number.isFinite(raw.stepIdx)
-          ? Math.max(0, Math.min(2, Math.floor(raw.stepIdx)))
+          ? Math.max(0, Math.min(1, Math.floor(raw.stepIdx)))
           : 0,
     };
     patch.nodeOnboardingDraft = {

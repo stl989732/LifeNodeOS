@@ -23,15 +23,13 @@ import {
   type NodeOnboardingStep,
 } from "@/lib/node-mappings";
 import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
-import AppCategoryRequestFooter from "@/src/components/AppCategoryRequestFooter";
 
 /**
- * Per-node onboarding content. Each node ships its own three-step copy:
- *   1. Stack Sync   — connect the apps that feed this node
- *   2. KPI Setup    — pick the signals you want to see
- *   3. First Workflow — name the first cross-node automation
+ * Per-node onboarding content. Each node ships its own two-step copy:
+ *   1. KPI Setup    — pick the signals you want to see
+ *   2. First Workflow — name the first cross-node automation
  *
- * Copy stays warm and "calm chief of staff" — never robotic, never sales-y.
+ * Tool stack sync happens inside each node after onboarding.
  */
 
 type NodeContent = {
@@ -40,7 +38,6 @@ type NodeContent = {
   intro: string;
   greeting: string;
   steps: {
-    stackSync: { title: string; helper: string; suggestions: string[] };
     kpiSetup: { title: string; helper: string; suggestions: string[] };
     firstWorkflow: { title: string; helper: string; placeholder: string };
   };
@@ -52,23 +49,8 @@ const CONTENT: Record<ActiveNodeName, NodeContent> = {
     accent: "from-cyan-300/40 to-indigo-300/40",
     intro: "BizNode",
     greeting:
-      "Welcome. I'm Lino. Let's set up your business command center together — three quiet steps, no fire hose.",
+      "Welcome. I'm Linos. Let's set up your business command center together — two quiet steps, no fire hose.",
     steps: {
-      stackSync: {
-        title: "Sync your work stack",
-        helper:
-          "Pick the tools your operations actually live in. We'll route the signals so you only see what needs you.",
-        suggestions: [
-          "HubSpot",
-          "GoHighLevel",
-          "Gmail",
-          "Slack",
-          "Stripe",
-          "Notion",
-          "ClickUp",
-          "QuickBooks",
-        ],
-      },
       kpiSetup: {
         title: "Choose the KPIs you trust",
         helper:
@@ -95,21 +77,8 @@ const CONTENT: Record<ActiveNodeName, NodeContent> = {
     accent: "from-emerald-300/40 to-teal-300/40",
     intro: "HomeNode",
     greeting:
-      "Welcome home. I'm Lino — your calm second brain for the household. Three light steps to set this up.",
+      "Welcome home. I'm Linos — your calm second brain for the household. Two light steps to set this up.",
     steps: {
-      stackSync: {
-        title: "Sync your household tools",
-        helper:
-          "Calendars, grocery apps, anything that helps the family move. We'll keep them quietly in sync.",
-        suggestions: [
-          "Apple Calendar",
-          "Google Calendar",
-          "Instacart",
-          "Whoop",
-          "Apple Health",
-          "iCloud Reminders",
-        ],
-      },
       kpiSetup: {
         title: "Pick the household signals",
         helper:
@@ -135,22 +104,8 @@ const CONTENT: Record<ActiveNodeName, NodeContent> = {
     accent: "from-rose-300/40 to-amber-300/40",
     intro: "VitalNode",
     greeting:
-      "Hi. I'm Lino. We're going to set up your recovery dashboard — calm, private, just for you. Three steps.",
+      "Hi. I'm Linos. We're going to set up your recovery dashboard — calm, private, just for you. Two steps.",
     steps: {
-      stackSync: {
-        title: "Sync your wellness stack",
-        helper:
-          "Wearables, sleep trackers, mindfulness apps. VitalNode never broadcasts — it just listens.",
-        suggestions: [
-          "Apple Health",
-          "Whoop",
-          "Oura",
-          "Garmin",
-          "Strava",
-          "Calm",
-          "Headspace",
-        ],
-      },
       kpiSetup: {
         title: "Choose the signals to surface",
         helper:
@@ -177,21 +132,8 @@ const CONTENT: Record<ActiveNodeName, NodeContent> = {
     accent: "from-amber-300/40 to-rose-300/40",
     intro: "TraderNode",
     greeting:
-      "Welcome. I'm Lino — your edge protector. Three steps and we're in. Sniper mode is one click away.",
+      "Welcome. I'm Linos — your edge protector. Two steps and we're in. Sniper mode is one click away.",
     steps: {
-      stackSync: {
-        title: "Sync your trading stack",
-        helper:
-          "Brokerage, charting, journaling — everything stays on your machine. P&L blurs by default.",
-        suggestions: [
-          "TradingView",
-          "MetaTrader",
-          "ThinkOrSwim",
-          "Edgewonk",
-          "Tradervue",
-          "IBKR",
-        ],
-      },
       kpiSetup: {
         title: "Choose the signals you watch",
         helper:
@@ -218,22 +160,8 @@ const CONTENT: Record<ActiveNodeName, NodeContent> = {
     accent: "from-indigo-300/40 to-cyan-300/40",
     intro: "VANode",
     greeting:
-      "Hi. I'm Lino. Let's make every client feel like they're your only one. Three steps, then we're live.",
+      "Hi. I'm Linos. Let's make every client feel like they're your only one. Two steps, then we're live.",
     steps: {
-      stackSync: {
-        title: "Sync your client stack",
-        helper:
-          "Slack channels, time tracker, invoicing tool. We'll silo everything by client and never cross streams.",
-        suggestions: [
-          "Slack",
-          "Loom",
-          "Toggl",
-          "Stripe",
-          "Notion",
-          "Google Drive",
-          "QuickBooks",
-        ],
-      },
       kpiSetup: {
         title: "Choose your delivery signals",
         helper:
@@ -260,22 +188,8 @@ const CONTENT: Record<ActiveNodeName, NodeContent> = {
     accent: "from-sky-300/40 to-indigo-300/40",
     intro: "ProNode",
     greeting:
-      "Welcome. I'm Lino — your case-context co-pilot. We'll get you into deep work in three quiet steps.",
+      "Welcome. I'm Linos — your case-context co-pilot. We'll get you into deep work in two quiet steps.",
     steps: {
-      stackSync: {
-        title: "Sync your professional stack",
-        helper:
-          "Knowledge base, comms, specialty tools. ProNode keeps citations and case context one click away.",
-        suggestions: [
-          "Notion",
-          "Google Drive",
-          "Slack",
-          "Gmail",
-          "Clio (Legal)",
-          "Epic (Medical)",
-          "Jira",
-        ],
-      },
       kpiSetup: {
         title: "Choose your case signals",
         helper:
@@ -309,7 +223,6 @@ export default function LinoOnboarding({ node }: Props) {
   const Icon = content.Icon;
 
   const [stepIdx, setStepIdx] = useState(0);
-  const [stackSelections, setStackSelections] = useState<string[]>([]);
   const [kpiSelections, setKpiSelections] = useState<string[]>([]);
   const [workflowName, setWorkflowName] = useState("");
   const [savingStep, setSavingStep] = useState<NodeOnboardingStep | null>(null);
@@ -321,7 +234,6 @@ export default function LinoOnboarding({ node }: Props) {
   const persistDraft = useCallback(
     async (
       draft: {
-        stackSelections: string[];
         kpiSelections: string[];
         workflowName: string;
         stepIdx: number;
@@ -347,7 +259,6 @@ export default function LinoOnboarding({ node }: Props) {
   const queueDraftSave = useCallback(
     (
       draft: {
-        stackSelections: string[];
         kpiSelections: string[];
         workflowName: string;
         stepIdx: number;
@@ -408,9 +319,6 @@ export default function LinoOnboarding({ node }: Props) {
         if (cancelled) return;
         const draft = data.state?.nodeOnboardingDrafts?.[node];
         if (!draft) return;
-        if (Array.isArray(draft.stackSelections)) {
-          setStackSelections(draft.stackSelections);
-        }
         if (Array.isArray(draft.kpiSelections)) {
           setKpiSelections(draft.kpiSelections);
         }
@@ -418,7 +326,10 @@ export default function LinoOnboarding({ node }: Props) {
           setWorkflowName(draft.workflowName);
         }
         if (typeof draft.stepIdx === "number") {
-          setStepIdx(Math.max(0, Math.min(2, draft.stepIdx)));
+          const legacyIdx = draft.stepIdx;
+          const migrated =
+            legacyIdx <= 0 ? 0 : Math.min(1, legacyIdx - 1);
+          setStepIdx(migrated);
         }
       } catch {
         /* start fresh */
@@ -435,7 +346,6 @@ export default function LinoOnboarding({ node }: Props) {
   useEffect(() => {
     if (!draftReadyRef.current) return;
     queueDraftSave({
-      stackSelections,
       kpiSelections,
       workflowName,
       stepIdx,
@@ -443,7 +353,6 @@ export default function LinoOnboarding({ node }: Props) {
   }, [
     kpiSelections,
     queueDraftSave,
-    stackSelections,
     stepIdx,
     workflowName,
   ]);
@@ -545,10 +454,6 @@ export default function LinoOnboarding({ node }: Props) {
     }
   }, [node, workflowName, persistStep]);
 
-  const toggleStack = (label: string) =>
-    setStackSelections((prev) =>
-      prev.includes(label) ? prev.filter((s) => s !== label) : [...prev, label]
-    );
   const toggleKpi = (label: string) =>
     setKpiSelections((prev) =>
       prev.includes(label) ? prev.filter((s) => s !== label) : [...prev, label]
@@ -623,25 +528,6 @@ export default function LinoOnboarding({ node }: Props) {
         <main className="rounded-3xl border border-white/12 bg-white/[0.04] p-6 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-9">
           {stepIdx === 0 && (
             <StepBlock
-              title={content.steps.stackSync.title}
-              helper={content.steps.stackSync.helper}
-            >
-              <SuggestionGrid
-                options={content.steps.stackSync.suggestions}
-                selected={stackSelections}
-                onToggle={toggleStack}
-              />
-              <AppCategoryRequestFooter
-                category="Your stack"
-                nodeLabel={content.intro}
-                variant="dark"
-                className="mt-4"
-              />
-            </StepBlock>
-          )}
-
-          {stepIdx === 1 && (
-            <StepBlock
               title={content.steps.kpiSetup.title}
               helper={content.steps.kpiSetup.helper}
             >
@@ -653,7 +539,7 @@ export default function LinoOnboarding({ node }: Props) {
             </StepBlock>
           )}
 
-          {stepIdx === 2 && (
+          {stepIdx === 1 && (
             <StepBlock
               title={content.steps.firstWorkflow.title}
               helper={content.steps.firstWorkflow.helper}

@@ -78,8 +78,8 @@ export const NODE_LABEL: Record<ActiveNodeName, string> = {
 
 export type NodeOnboardingStep = "stack-sync" | "kpi-setup" | "first-workflow";
 
+/** Active onboarding flow — stack-sync removed (tools connect inside each node). */
 export const NODE_ONBOARDING_STEPS: NodeOnboardingStep[] = [
-  "stack-sync",
   "kpi-setup",
   "first-workflow",
 ];
