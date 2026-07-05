@@ -444,6 +444,16 @@ export default function Onboarding() {
           >
             Continue
           </button>
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Need VitalNode, TraderNode, or ProNode?{" "}
+            <Link
+              href="/pricing"
+              className="font-semibold text-teal-700 underline underline-offset-2 hover:text-teal-800"
+            >
+              Compare Sync &amp; Nexus plans
+            </Link>{" "}
+            — no node selection required.
+          </p>
         </div>
       )}
 

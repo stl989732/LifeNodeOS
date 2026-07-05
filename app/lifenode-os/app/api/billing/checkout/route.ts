@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createLemonSqueezyCheckout } from "@/src/lib/billing/lemonsqueezy/client";
-import { isLemonSqueezyConfigured } from "@/src/lib/billing/lemonsqueezy/config";
+import {
+  getBillingConfigDiagnostic,
+  isLemonSqueezyConfigured,
+} from "@/src/lib/billing/lemonsqueezy/config";
 import { isPaidPlanKey, type BillingInterval } from "@/src/lib/billing/plans";
 import { ensureCoreSubscription } from "@/src/lib/billing/subscriptionStore";
 
@@ -9,7 +12,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function unauthorized() {
-  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  return NextResponse.json(
+    {
+      error: "UNAUTHORIZED",
+      message: "Sign in to subscribe to a paid plan.",
+    },
+    { status: 401 },
+  );
 }
 
 export async function POST(request: Request) {
@@ -19,8 +28,14 @@ export async function POST(request: Request) {
   if (!userId || !userEmail) return unauthorized();
 
   if (!isLemonSqueezyConfigured()) {
+    const diagnostic = getBillingConfigDiagnostic();
     return NextResponse.json(
-      { error: "BILLING_NOT_CONFIGURED", message: "Checkout is not available yet." },
+      {
+        error: "BILLING_NOT_CONFIGURED",
+        message:
+          "Checkout is not configured. Set billing env vars in Vercel and redeploy.",
+        missing: diagnostic.missing,
+      },
       { status: 503 },
     );
   }
@@ -68,7 +83,13 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "CHECKOUT_FAILED";
     console.error("[billing/checkout]", message);
     return NextResponse.json(
-      { error: message, message: "Could not start checkout." },
+      {
+        error: message,
+        message:
+          message === "BILLING_NOT_CONFIGURED"
+            ? "Checkout is not configured."
+            : `Could not start checkout: ${message}`,
+      },
       { status: 500 },
     );
   }

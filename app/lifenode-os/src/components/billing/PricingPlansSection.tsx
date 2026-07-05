@@ -5,25 +5,8 @@ import { useState } from "react";
 import { PLAN_ENTITLEMENTS } from "@/src/lib/billing/planEntitlements";
 import { dailyAiGenerationBullets } from "@/src/lib/billing/planFeatureCopy";
 import type { BillingInterval, PaidPlanKey } from "@/src/lib/billing/plans";
+import { startPlanCheckout } from "@/src/lib/billing/startPlanCheckout";
 import { landingDarkText } from "@/components/landing/landingDarkTheme";
-
-async function startCheckout(plan: PaidPlanKey, interval: BillingInterval) {
-  const res = await fetch("/api/billing/checkout", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan, interval }),
-  });
-  const data = (await res.json().catch(() => ({}))) as {
-    url?: string;
-    message?: string;
-  };
-  if (!res.ok || !data.url) {
-    window.alert(data.message ?? "Checkout is not available yet.");
-    return;
-  }
-  window.location.href = data.url;
-}
 
 const CORE = PLAN_ENTITLEMENTS.core;
 const SYNC = PLAN_ENTITLEMENTS.sync;
@@ -150,7 +133,7 @@ export default function PricingPlansSection({
           highlight
           tagline="Add VitalNode, logic bridges, and daily AI for operators."
           ctaLabel="Get Sync"
-          onCta={() => void startCheckout("sync", annual ? "annual" : "monthly")}
+          onCta={() => void startPlanCheckout("sync", annual ? "annual" : "monthly")}
           features={[
             "Everything in Core",
             "VitalNode unlocked",
@@ -171,7 +154,7 @@ export default function PricingPlansSection({
           annual={annual}
           tagline="All six Nodes and generous daily AI for power users."
           ctaLabel="Get Nexus"
-          onCta={() => void startCheckout("nexus", annual ? "annual" : "monthly")}
+          onCta={() => void startPlanCheckout("nexus", annual ? "annual" : "monthly")}
           features={[
             "Everything in Sync",
             "TraderNode + ProNode",

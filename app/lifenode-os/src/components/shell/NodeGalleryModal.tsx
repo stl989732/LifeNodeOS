@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Lock } from "lucide-react";
 import type { ActiveNodeName } from "@/lib/node-mappings";
 import type { ActiveNode } from "@/src/context/LifeNodeContext";
@@ -28,20 +29,19 @@ export default function NodeGalleryModal({
   onToggleHat,
 }: Props) {
   const titleId = useId();
-  const { entitlements, promptUpgradeMessage } = usePlanEntitlements();
+  const router = useRouter();
+  const { entitlements } = usePlanEntitlements();
 
   const handleToggle = useCallback(
     (node: ActiveNode, selected: boolean) => {
       if (!selected && !activeNodeAllowed(entitlements, node)) {
-        promptUpgradeMessage({
-          title: `${node} requires ${nodeUpgradeLabel(node)}`,
-          message: `Your ${entitlements.displayName} plan includes BizNode, VANode, and HomeNode. Upgrade to enable ${node}.`,
-        });
+        onClose();
+        router.push("/pricing");
         return;
       }
       onToggleHat(node);
     },
-    [entitlements, onToggleHat, promptUpgradeMessage],
+    [entitlements, onClose, onToggleHat, router],
   );
   const onKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -113,7 +113,18 @@ export default function NodeGalleryModal({
 
         {activeHats.length === 0 ? (
           <p className="mb-6 rounded-2xl border border-dashed border-teal-400/35 bg-teal-500/10 px-4 py-6 text-center text-sm text-teal-100/90">
-            Choose your first Node to begin orchestrating.
+            Choose your first Node to begin orchestrating — or{" "}
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                router.push("/pricing");
+              }}
+              className="font-semibold text-teal-200 underline underline-offset-2 transition hover:text-white"
+            >
+              view Sync &amp; Nexus plans
+            </button>{" "}
+            first.
           </p>
         ) : null}
 

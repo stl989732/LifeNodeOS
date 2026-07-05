@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -21,6 +22,7 @@ import { DEV_FRESH_SESSION } from "@/lib/dev-flags";
 import { hydrateConfiguredHatKeys, clearPendingShellHats } from "@/lib/pending-shell-hats";
 import NotificationsBell from "@/src/components/NotificationsBell";
 import CheckoutSuccessBanner from "@/src/components/billing/CheckoutSuccessBanner";
+import { startPlanCheckout } from "@/src/lib/billing/startPlanCheckout";
 import { ACTIVE_TO_HAT_KEY } from "@/lib/node-mappings";
 
 const ONBOARDING_TOTAL_STEPS = 3;
@@ -499,6 +501,39 @@ export default function LifeNodeShell() {
               {savingHats ? "Saving..." : "Enter Unified Hub"}
               <ArrowRight className="h-4 w-4" />
             </button>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Paid plans
+              </p>
+              <p className="mt-2 text-sm text-slate-300">
+                Subscribe before you pick nodes — Sync and Nexus unlock VitalNode,
+                TraderNode, and ProNode when you are ready.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08]"
+                >
+                  View plans
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void startPlanCheckout("sync")}
+                  className="inline-flex items-center justify-center rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-500"
+                >
+                  Get Sync
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void startPlanCheckout("nexus")}
+                  className="inline-flex items-center justify-center rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.06]"
+                >
+                  Get Nexus
+                </button>
+              </div>
+            </div>
+
             {setupWarning ? (
               <p className="text-xs text-amber-200">{setupWarning}</p>
             ) : null}
