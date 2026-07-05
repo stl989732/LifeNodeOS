@@ -19,6 +19,9 @@ import {
   saveScreenCapture,
   normalizeCaptureBlob,
   listScreenCaptures,
+  persistRecordingDraft,
+  loadRecordingDraft,
+  clearRecordingDraft,
   type ScreenCaptureRecord,
 } from "@/lib/vanode/screenCaptureStorage";
 import { usePlanEntitlementsOptional } from "@/src/context/PlanEntitlementsContext";
@@ -130,7 +133,7 @@ function ScreenRecordingFloatingPill({
         </span>
       </div>
       <span className="text-xs text-white/50">
-        {includeMic ? "Screen + mic" : "Screen"} · stays on all tabs
+        {includeMic ? "Screen + mic" : "Screen"} · use Window share to hop nodes
         {paused ? " · paused" : ""}
       </span>
       <button
@@ -276,9 +279,104 @@ export function ScreenRecordingProvider({
   const chunksRef = useRef<BlobPart[]>([]);
   const cleanupRef = useRef<(() => void) | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const draftRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoStopRef = useRef(false);
   const durationRef = useRef(0);
   const includeMicRef = useRef(includeMic);
   const mimeRef = useRef({ mimeType: "video/webm", ext: "webm" });
+  const savingRef = useRef(false);
+
+  useEffect(() => {
+    savingRef.current = saving;
+  }, [saving]);
+
+  const clearDraftInterval = useCallback(() => {
+    if (draftRef.current) clearInterval(draftRef.current);
+    draftRef.current = null;
+  }, []);
+
+  const persistDraftFromChunks = useCallback(async () => {
+    if (chunksRef.current.length < 1) return;
+    const rawBlob = new Blob(chunksRef.current, {
+      type: mimeRef.current.mimeType,
+    });
+    const blob = normalizeCaptureBlob(rawBlob, mimeRef.current.mimeType);
+    await persistRecordingDraft(blob, {
+      mimeType: mimeRef.current.mimeType,
+      durationSec: Math.max(1, durationRef.current || 1),
+      includeMic: includeMicRef.current,
+      clientId: readActiveClientSession(),
+    });
+  }, []);
+
+  const finalizeCapture = useCallback(
+    async (blob: Blob, options?: { autoStopped?: boolean }) => {
+      if (blob.size < 512) {
+        const draft = await loadRecordingDraft();
+        if (draft && draft.blob.size >= 512) {
+          const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const ext = draft.meta.mimeType.includes("mp4") ? "mp4" : "webm";
+          const record = await saveScreenCapture(
+            normalizeCaptureBlob(draft.blob, draft.meta.mimeType),
+            {
+              filename: `lifenode-capture-${stamp}.${ext}`,
+              mimeType: draft.meta.mimeType,
+              durationSec: draft.meta.durationSec,
+              includeMic: draft.meta.includeMic,
+              clientId: draft.meta.clientId ?? readActiveClientSession(),
+            },
+          );
+          setLastSavedId(record.id);
+          setReviewCaptureId(record.id);
+          onSaved?.(record);
+          notifyWarning(
+            "Screen share ended early — recovered your capture from backup. Open VANode → EOD proof of work → Saved on this device.",
+          );
+          return;
+        }
+        onError?.(
+          options?.autoStopped
+            ? "Screen share ended before any video was saved — pick Window or Entire screen (not Tab) when switching LifeNode areas."
+            : "No video data captured — keep the shared surface open until you stop.",
+        );
+        return;
+      }
+
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `lifenode-capture-${stamp}.${mimeRef.current.ext}`;
+      const durationSec = Math.max(1, durationRef.current || 1);
+      const usedMic = includeMicRef.current;
+
+      setSaving(true);
+      try {
+        const record = await saveScreenCapture(blob, {
+          filename,
+          mimeType: mimeRef.current.mimeType,
+          durationSec,
+          includeMic: usedMic,
+          clientId: readActiveClientSession(),
+        });
+        setLastSavedId(record.id);
+        setReviewCaptureId(record.id);
+        onSaved?.(record);
+        if (options?.autoStopped) {
+          notifyWarning(
+            "Recording auto-saved after screen share ended. Find it in VANode → EOD proof of work → Saved on this device.",
+          );
+        }
+      } catch (e) {
+        const msg =
+          e instanceof DOMException && e.name === "QuotaExceededError"
+            ? "Recording too large for this browser storage — try a shorter capture."
+            : "Could not save capture locally.";
+        onError?.(msg);
+      } finally {
+        setSaving(false);
+        chunksRef.current = [];
+      }
+    },
+    [notifyWarning, onError, onSaved, setReviewCaptureId],
+  );
 
   useEffect(() => {
     includeMicRef.current = includeMic;
@@ -292,12 +390,31 @@ export function ScreenRecordingProvider({
   useEffect(() => {
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
+      clearDraftInterval();
     };
+  }, [clearDraftInterval]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const draft = await loadRecordingDraft();
+      if (cancelled || !draft || draft.blob.size < 512) return;
+      await finalizeCapture(
+        normalizeCaptureBlob(draft.blob, draft.meta.mimeType),
+        { autoStopped: true },
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Recover interrupted recordings once per app load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopRecording = useCallback(() => {
     if (tickRef.current) clearInterval(tickRef.current);
     tickRef.current = null;
+    clearDraftInterval();
     setPaused(false);
     const rec = mediaRecorderRef.current;
     if (rec && rec.state !== "inactive") {
@@ -311,7 +428,7 @@ export function ScreenRecordingProvider({
       setActive(false);
       setSeconds(0);
     }
-  }, []);
+  }, [clearDraftInterval]);
 
   const beginDurationTick = useCallback(() => {
     if (tickRef.current) clearInterval(tickRef.current);
@@ -398,6 +515,7 @@ export function ScreenRecordingProvider({
       rec.onstop = async () => {
         if (tickRef.current) clearInterval(tickRef.current);
         tickRef.current = null;
+        clearDraftInterval();
         setActive(false);
         setSeconds(0);
 
@@ -405,46 +523,25 @@ export function ScreenRecordingProvider({
           type: mimeRef.current.mimeType,
         });
         const blob = normalizeCaptureBlob(rawBlob, mimeRef.current.mimeType);
-        if (blob.size < 1) {
-          onError?.(
-            "No video data captured — keep the shared tab open until you stop.",
-          );
-          stopTracks();
-          chunksRef.current = [];
-          return;
-        }
-
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const filename = `lifenode-capture-${stamp}.${mimeRef.current.ext}`;
-        const durationSec = Math.max(1, durationRef.current || 1);
-        const usedMic = includeMicRef.current;
-
-        setSaving(true);
-        try {
-          const record = await saveScreenCapture(blob, {
-            filename,
-            mimeType: mimeRef.current.mimeType,
-            durationSec,
-            includeMic: usedMic,
-            clientId: readActiveClientSession(),
-          });
-          setLastSavedId(record.id);
-          setReviewCaptureId(record.id);
-          onSaved?.(record);
-        } catch (e) {
-          const msg =
-            e instanceof DOMException && e.name === "QuotaExceededError"
-              ? "Recording too large for this browser storage — try a shorter capture."
-              : "Could not save capture locally.";
-          onError?.(msg);
-        } finally {
-          setSaving(false);
-          chunksRef.current = [];
-        }
+        const autoStopped = autoStopRef.current;
+        autoStopRef.current = false;
+        await finalizeCapture(blob, { autoStopped });
         stopTracks();
       };
 
       stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+        if (savingRef.current) return;
+        autoStopRef.current = true;
+        const rec = mediaRecorderRef.current;
+        if (rec && rec.state !== "inactive") {
+          try {
+            rec.requestData();
+          } catch {
+            /* ignore */
+          }
+          window.setTimeout(() => stopRecording(), 300);
+          return;
+        }
         stopRecording();
       });
 
@@ -453,7 +550,13 @@ export function ScreenRecordingProvider({
       setPaused(false);
       setSeconds(0);
       durationRef.current = 0;
+      autoStopRef.current = false;
+      void clearRecordingDraft();
       beginDurationTick();
+      clearDraftInterval();
+      draftRef.current = setInterval(() => {
+        void persistDraftFromChunks();
+      }, 12_000);
     } catch {
       onError?.("Screen capture was cancelled or not permitted.");
       stopTracks();
@@ -470,6 +573,9 @@ export function ScreenRecordingProvider({
     stopTracks,
     beginDurationTick,
     setReviewCaptureId,
+    clearDraftInterval,
+    persistDraftFromChunks,
+    finalizeCapture,
   ]);
 
   return (

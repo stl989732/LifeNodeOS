@@ -12,7 +12,6 @@ import {
   parseVanodePersisted,
 } from "@/lib/vanode/parseVanodePersisted";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
-import { setScreenCaptureUserScope } from "@/lib/vanode/screenCaptureStorage";
 import { hydrateScreenCaptureManifestFromServer } from "@/lib/vanode/screenCaptureSync";
 import {
   NODE_WIDGET_KEYS,
@@ -54,10 +53,6 @@ export function useVanodeStore() {
   );
   const persistReady = useRef(false);
   const [bootstrapped, setBootstrapped] = useState(false);
-
-  useEffect(() => {
-    setScreenCaptureUserScope(userId);
-  }, [userId]);
 
   useEffect(() => {
     if (sessionStatus === "loading") return;

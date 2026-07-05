@@ -59,12 +59,15 @@ export function ScreenRecorder({ onError }: Props) {
         </span>
       </label>
       <p className="text-xs text-slate-500">
-        Recording continues while you switch LifeNode tabs or client focus. In the
-        browser picker, enable <strong>Share tab audio</strong> for system sound.
-        Use the floating pill to stop. {captureLimit}.{" "}
-        {entitlements.maxScreenCaptureMinutes}-minute max per session.
+        Recording keeps running when you open other LifeNode areas. In the browser
+        picker, choose <strong>Window</strong> or <strong>Entire screen</strong>{" "}
+        (not <strong>Tab</strong>) if you plan to hop nodes — Tab share often stops
+        when you leave VANode. Enable <strong>Share tab audio</strong> for system
+        sound. Use the floating pill to stop. {captureLimit}.{" "}
+        {entitlements.maxScreenCaptureMinutes}-minute max per session. Captures auto-save
+        to VANode → EOD proof of work → Saved on this device.
         {entitlements.screenCapturesDownloadable
-          ? " Download WebM or MP4 from Saved on this device."
+          ? " Download WebM or MP4 from there."
           : " On Core, review in the browser only — downloads unlock on Sync."}
       </p>
       {lastSavedId ? (

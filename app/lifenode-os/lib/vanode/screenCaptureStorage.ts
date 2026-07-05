@@ -35,6 +35,19 @@ function dbName() {
 const DB_VERSION = 1;
 const STORE = "videos";
 
+/** In-progress backup while MediaRecorder is running (survives abrupt tab/share stop). */
+export const RECORDING_DRAFT_ID = "__lifenode-recording-draft__";
+
+const DRAFT_META_SESSION_KEY = "lifenode.vanode.recording-draft-meta";
+
+export type RecordingDraftMeta = {
+  mimeType: string;
+  durationSec: number;
+  includeMic: boolean;
+  clientId?: string | null;
+  updatedAt: string;
+};
+
 function readManifest(): ScreenCaptureRecord[] {
   if (typeof window === "undefined") return [];
   try {
@@ -98,6 +111,74 @@ export function normalizeCaptureBlob(blob: Blob, mimeType: string): Blob {
   return blob.type === type ? blob : new Blob([blob], { type });
 }
 
+export async function persistRecordingDraft(
+  blob: Blob,
+  meta: Omit<RecordingDraftMeta, "updatedAt">,
+): Promise<void> {
+  if (typeof window === "undefined" || blob.size < 512) return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore(STORE).put(blob, RECORDING_DRAFT_ID);
+  });
+  db.close();
+  try {
+    sessionStorage.setItem(
+      DRAFT_META_SESSION_KEY,
+      JSON.stringify({
+        ...meta,
+        updatedAt: new Date().toISOString(),
+      } satisfies RecordingDraftMeta),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function loadRecordingDraft(): Promise<{
+  blob: Blob;
+  meta: RecordingDraftMeta;
+} | null> {
+  if (typeof window === "undefined") return null;
+  let meta: RecordingDraftMeta | null = null;
+  try {
+    const raw = sessionStorage.getItem(DRAFT_META_SESSION_KEY);
+    if (raw) meta = JSON.parse(raw) as RecordingDraftMeta;
+  } catch {
+    meta = null;
+  }
+  const db = await openDb();
+  const blob = await new Promise<Blob | null>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readonly");
+    tx.onerror = () => reject(tx.error);
+    const req = tx.objectStore(STORE).get(RECORDING_DRAFT_ID);
+    req.onsuccess = () => resolve((req.result as Blob) ?? null);
+    req.onerror = () => reject(req.error);
+  });
+  db.close();
+  if (!blob || blob.size < 512 || !meta) return null;
+  return { blob, meta };
+}
+
+export async function clearRecordingDraft(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(DRAFT_META_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore(STORE).delete(RECORDING_DRAFT_ID);
+  });
+  db.close();
+}
+
 export async function saveScreenCapture(
   blob: Blob,
   meta: {
@@ -140,6 +221,7 @@ export async function saveScreenCapture(
       writeManifest(synced);
     });
   }
+  void clearRecordingDraft();
   return record;
 }
 
