@@ -3,6 +3,7 @@
  * are merged with `app/lifenode-os/.env.local` (Next app overrides on conflict).
  */
 const path = require("node:path");
+const fs = require("node:fs");
 const dotenv = require("dotenv");
 
 function localDevOrigin() {
@@ -81,6 +82,40 @@ function applyLocalDevUrlOverrides() {
 }
 
 /**
+ * Ensure NEXT_PUBLIC_SUPABASE_URL matches supabase/project-ref (fixes dqu vs dqq typo).
+ */
+function applySupabaseUrlFromProjectRef(appRoot) {
+  const refPath = path.join(appRoot, "supabase", "project-ref");
+  let canonicalRef = process.env.SUPABASE_PROJECT_REF?.trim();
+  if (!canonicalRef) {
+    try {
+      canonicalRef = fs.readFileSync(refPath, "utf8").trim();
+    } catch {
+      return;
+    }
+  }
+  if (!canonicalRef) return;
+
+  const canonicalUrl = `https://${canonicalRef}.supabase.co`;
+  const current = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+
+  if (!current) {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = canonicalUrl;
+    console.log(
+      `[LifeNode OS] NEXT_PUBLIC_SUPABASE_URL → ${canonicalUrl} (from project-ref)`,
+    );
+    return;
+  }
+
+  if (current !== canonicalUrl) {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = canonicalUrl;
+    console.log(
+      `[LifeNode OS] Corrected NEXT_PUBLIC_SUPABASE_URL → ${canonicalUrl} (repo project-ref)`,
+    );
+  }
+}
+
+/**
  * @param {string} appRoot Absolute path to the Next.js app root (directory containing package.json).
  */
 function loadEnv(appRoot) {
@@ -91,6 +126,7 @@ function loadEnv(appRoot) {
   dotenv.config({ path: workspaceRootEnv });
   dotenv.config({ path: appEnv, override: true });
 
+  applySupabaseUrlFromProjectRef(appRoot);
   applyLocalDevUrlOverrides();
 }
 

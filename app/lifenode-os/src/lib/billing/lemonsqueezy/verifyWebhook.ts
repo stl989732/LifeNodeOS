@@ -7,7 +7,7 @@ export function verifyLemonSqueezyWebhookSignature(
 ): boolean {
   const secret = getLemonSqueezyWebhookSecret();
   if (!secret) {
-    console.error("[billing] LEMONSQUEEZY_WEBHOOK_SECRET is not set");
+    console.error("[billing] BILLING_WEBHOOK_SECRET is not set");
     return false;
   }
   if (!signatureHeader?.trim()) return false;

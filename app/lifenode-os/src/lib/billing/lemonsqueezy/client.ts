@@ -22,7 +22,7 @@ export async function createLemonSqueezyCheckout(input: {
   const variant = resolveCheckoutVariant(input.plan, input.interval);
 
   if (!apiKey || !storeId || !variant) {
-    throw new Error("LEMONSQUEEZY_NOT_CONFIGURED");
+    throw new Error("BILLING_NOT_CONFIGURED");
   }
 
   const appUrl =
@@ -69,7 +69,18 @@ export async function createLemonSqueezyCheckout(input: {
   if (!res.ok) {
     const errText = await res.text();
     console.error("[billing] Lemon Squeezy checkout failed:", errText);
-    throw new Error("CHECKOUT_CREATE_FAILED");
+    let detail = "CHECKOUT_CREATE_FAILED";
+    try {
+      const parsed = JSON.parse(errText) as {
+        errors?: Array<{ detail?: string; title?: string }>;
+      };
+      const first = parsed.errors?.[0];
+      if (first?.detail) detail = first.detail;
+      else if (first?.title) detail = first.title;
+    } catch {
+      /* keep default */
+    }
+    throw new Error(detail);
   }
 
   const json = (await res.json()) as {
