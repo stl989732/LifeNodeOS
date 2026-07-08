@@ -9,6 +9,7 @@ import LandingCatalogTeaser from "@/components/landing/LandingCatalogTeaser";
 import LandingFeatureSections from "@/components/landing/LandingFeatureSections";
 import PricingPlansSection from "@/src/components/billing/PricingPlansSection";
 import LandingFaqSection from "@/components/landing/LandingFaqSection";
+import LandingComparisonSection from "@/components/landing/LandingComparisonSection";
 import {
   savePendingShellHats,
   persistConfiguredHatsToApi,
@@ -395,6 +396,7 @@ export default function Onboarding() {
             <section className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-12 pt-8 md:px-6">
               <PricingPlansSection variant="dark" />
             </section>
+            <LandingComparisonSection />
             <LandingFaqSection />
             <LandingCatalogTeaser />
           </section>

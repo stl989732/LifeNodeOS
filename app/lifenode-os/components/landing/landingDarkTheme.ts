@@ -16,6 +16,10 @@ export const LANDING_DARK_ZONE_CLASS = "landing-dark-zone";
 
 export const landingDarkText = {
   subtitle: "text-landing-subtitle",
+  /** Comparison pages — darker body copy for gradient readability */
+  comparisonSummary: "text-landing-comparison-summary",
+  comparisonCompetitorLabel: "text-landing-comparison-competitor-label",
+  comparisonBreadcrumbCurrent: "text-landing-comparison-breadcrumb-current",
   disclaimer: "text-landing-disclaimer",
   planTagline: "text-landing-plan-tagline",
   planPriceSuffix: "text-landing-plan-price-suffix",

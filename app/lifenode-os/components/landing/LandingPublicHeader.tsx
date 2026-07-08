@@ -17,6 +17,8 @@ import {
   LANDING_SUPPORT_ACTION_LINKS,
 } from "./landingPublicNav";
 
+const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
+
 type Theme = "light" | "dark";
 
 type Props = {
@@ -99,7 +101,7 @@ function MobileNavDrawer({
         onClick={onClose}
       />
       <div
-        className={`absolute inset-x-3 top-3 bottom-3 z-10 flex flex-col overflow-hidden rounded-2xl border shadow-2xl ${panelBg} ${
+        className={`${FONT_OUTFIT} absolute inset-x-3 top-3 bottom-3 z-10 flex flex-col overflow-hidden rounded-2xl border shadow-2xl ${panelBg} ${
           theme === "dark" ? "border-slate-800" : "border-slate-200"
         }`}
       >
@@ -239,7 +241,7 @@ export default function LandingPublicHeader({ theme = "light", className = "" }:
   return (
     <>
       <header
-        className={`relative z-50 flex w-full items-center justify-between gap-3 px-4 py-5 md:px-6 ${className}`}
+        className={`${FONT_OUTFIT} relative z-50 flex w-full items-center justify-between gap-3 px-4 py-5 md:px-6 ${className}`}
       >
         <Link href="/" className="flex min-w-0 shrink-0 items-center gap-2.5">
           <Image
@@ -256,7 +258,9 @@ export default function LandingPublicHeader({ theme = "light", className = "" }:
           </span>
         </Link>
 
-        <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-6 text-sm font-semibold">
+        <nav
+          className={`${FONT_OUTFIT} hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-6 text-sm font-semibold`}
+        >
           {LANDING_EXPLORE_LINKS.map((link) => (
             <Link key={link.href} href={link.href} className={t.navLink}>
               {link.label}

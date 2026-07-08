@@ -152,6 +152,9 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 /* Landing — dark gradient band (features, pricing, FAQ on home + /pricing) */
 .landing-dark-zone {
   --landing-text-subtitle: #afbaca;
+  --landing-text-comparison-summary: #454f5e;
+  --landing-text-comparison-competitor-label: #d6dae1;
+  --landing-text-comparison-breadcrumb-current: #696d72;
   --landing-text-disclaimer: #bbc9dd;
   --landing-text-plan-tagline: #e6eaef;
   --landing-text-plan-price-suffix: #e9eaed;
@@ -162,6 +165,18 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 
 .text-landing-subtitle {
   color: var(--landing-text-subtitle);
+}
+
+.text-landing-comparison-summary {
+  color: var(--landing-text-comparison-summary);
+}
+
+.text-landing-comparison-competitor-label {
+  color: var(--landing-text-comparison-competitor-label);
+}
+
+.text-landing-comparison-breadcrumb-current {
+  color: var(--landing-text-comparison-breadcrumb-current);
 }
 
 .text-landing-disclaimer {

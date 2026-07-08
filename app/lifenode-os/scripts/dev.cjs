@@ -142,7 +142,7 @@ void (async () => {
 
 /** Pre-compile key routes after Next binds to the port. */
 async function warmDevServer(publicHost, port, probeHosts) {
-  const routes = ["/", "/pricing"];
+  const routes = ["/", "/pricing", "/compare/notion"];
   const base = `http://${publicHost}:${port}`;
   const warmed = new Set();
 

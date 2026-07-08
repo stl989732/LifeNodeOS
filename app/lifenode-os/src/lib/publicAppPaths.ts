@@ -9,6 +9,7 @@ export const LINOS_HIDDEN_PATH_PREFIXES = [
   "/cookie-policy",
   "/docs",
   "/pricing",
+  "/compare",
   "/catalog",
   "/support",
 ] as const;
