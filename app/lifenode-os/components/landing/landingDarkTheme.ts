@@ -18,6 +18,8 @@ export const landingDarkText = {
   subtitle: "text-landing-subtitle",
   /** Comparison pages — darker body copy for gradient readability */
   comparisonSummary: "text-landing-comparison-summary",
+  comparisonTagline: "text-landing-comparison-tagline",
+  comparisonCompetitorCell: "text-landing-comparison-competitor-cell",
   comparisonCompetitorLabel: "text-landing-comparison-competitor-label",
   comparisonBreadcrumbCurrent: "text-landing-comparison-breadcrumb-current",
   disclaimer: "text-landing-disclaimer",

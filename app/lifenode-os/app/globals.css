@@ -153,6 +153,8 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 .landing-dark-zone {
   --landing-text-subtitle: #afbaca;
   --landing-text-comparison-summary: #454f5e;
+  --landing-text-comparison-tagline: #303236;
+  --landing-text-comparison-competitor-cell: #bac2ce;
   --landing-text-comparison-competitor-label: #d6dae1;
   --landing-text-comparison-breadcrumb-current: #696d72;
   --landing-text-disclaimer: #bbc9dd;
@@ -169,6 +171,14 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 
 .text-landing-comparison-summary {
   color: var(--landing-text-comparison-summary);
+}
+
+.text-landing-comparison-tagline {
+  color: var(--landing-text-comparison-tagline);
+}
+
+.text-landing-comparison-competitor-cell {
+  color: var(--landing-text-comparison-competitor-cell);
 }
 
 .text-landing-comparison-competitor-label {

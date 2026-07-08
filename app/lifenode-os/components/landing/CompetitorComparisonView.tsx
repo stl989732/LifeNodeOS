@@ -86,7 +86,7 @@ export default function CompetitorComparisonView({ competitor }: Props) {
           >
             {competitor.name}
           </p>
-          <p className={`mt-2 text-sm italic ${landingDarkText.comparisonSummary}`}>
+          <p className={`mt-2 text-sm italic ${landingDarkText.comparisonTagline}`}>
             {competitor.tagline}
           </p>
           <dl className="mt-4 space-y-3 text-sm">
@@ -140,7 +140,7 @@ export default function CompetitorComparisonView({ competitor }: Props) {
                       <td className={`px-4 py-3 ${landingDarkText.planFeatures}`}>
                         {row.lifenode}
                       </td>
-                      <td className={`px-4 py-3 ${landingDarkText.comparisonSummary}`}>
+                      <td className={`px-4 py-3 ${landingDarkText.comparisonCompetitorCell}`}>
                         {row.competitor}
                       </td>
                     </tr>
