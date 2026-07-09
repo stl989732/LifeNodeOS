@@ -18,6 +18,7 @@ import {
 } from "@/lib/vanode/screenCaptureStorage";
 import { remuxBlobToMp4 } from "@/lib/vanode/videoMp4Export";
 import { trimVideoBlob } from "@/lib/vanode/trimVideoBlob";
+import { fixCaptureBlobDuration } from "@/lib/vanode/fixCaptureBlobDuration";
 import { useDraggableFloatingPosition } from "@/src/components/vanode/useDraggableFloatingPosition";
 import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 import { screenCaptureDownloadBlockedMessage } from "@/src/lib/billing/screenCapturePlan";
@@ -50,6 +51,14 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     "lifenode.vanode.post-record-review",
     { width: 420, height: minimized ? 48 : 380 },
   );
+
+  const syncTrimFromVideo = useCallback((video: HTMLVideoElement) => {
+    const d = video.duration;
+    if (Number.isFinite(d) && d > 0) {
+      setDuration(d);
+      setTrimEnd(d);
+    }
+  }, []);
 
   useEffect(() => {
     if (!captureId) {
@@ -102,23 +111,38 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
       setPlayError(false);
       return;
     }
+
+    let cancelled = false;
     const mimeType = record?.mimeType || blob.type || "video/webm";
-    const urlKey = `${captureId}:${blob.size}:${mimeType}`;
-    if (blobUrlKeyRef.current === urlKey && videoUrlRef.current) {
-      setVideoUrl(videoUrlRef.current);
-      return;
-    }
-    if (videoUrlRef.current) {
-      URL.revokeObjectURL(videoUrlRef.current);
-      videoUrlRef.current = null;
-    }
-    setPlayError(false);
-    const typed = normalizeCaptureBlob(blob, mimeType);
-    const url = URL.createObjectURL(typed);
-    blobUrlKeyRef.current = urlKey;
-    videoUrlRef.current = url;
-    setVideoUrl(url);
-  }, [blob, captureId, record?.mimeType]);
+    const durationHint = record?.durationSec ?? 0;
+    const urlKey = `${captureId}:${blob.size}:${mimeType}:${durationHint}`;
+
+    void (async () => {
+      if (blobUrlKeyRef.current === urlKey && videoUrlRef.current) {
+        if (!cancelled) setVideoUrl(videoUrlRef.current);
+        return;
+      }
+      if (videoUrlRef.current) {
+        URL.revokeObjectURL(videoUrlRef.current);
+        videoUrlRef.current = null;
+      }
+      setPlayError(false);
+      const typed = normalizeCaptureBlob(blob, mimeType);
+      const playable =
+        durationHint > 0
+          ? await fixCaptureBlobDuration(typed, durationHint, mimeType)
+          : typed;
+      if (cancelled) return;
+      const url = URL.createObjectURL(playable);
+      blobUrlKeyRef.current = urlKey;
+      videoUrlRef.current = url;
+      setVideoUrl(url);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [blob, captureId, record?.durationSec, record?.mimeType]);
 
   const requireDownloadAccess = useCallback(() => {
     if (downloadsAllowed) return true;
@@ -255,16 +279,11 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
               src={videoUrl}
               controls
               playsInline
-              preload="metadata"
+              preload="auto"
               className="max-h-48 w-full rounded-xl bg-black"
               onError={() => setPlayError(true)}
-              onLoadedMetadata={(e) => {
-                const d = e.currentTarget.duration;
-                if (Number.isFinite(d) && d > 0) {
-                  setDuration((prev) => (prev > 0 ? prev : d));
-                  setTrimEnd((prev) => (prev <= 0 ? d : prev));
-                }
-              }}
+              onLoadedMetadata={(e) => syncTrimFromVideo(e.currentTarget)}
+              onDurationChange={(e) => syncTrimFromVideo(e.currentTarget)}
             />
           ) : (
             <p className="text-xs text-white/60">Loading preview…</p>

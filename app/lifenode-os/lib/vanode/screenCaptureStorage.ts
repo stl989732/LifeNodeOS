@@ -9,6 +9,7 @@ import {
   uploadScreenCaptureToCloud,
   type ScreenCaptureRecord,
 } from "./screenCaptureSync";
+import { fixCaptureBlobDuration } from "./fixCaptureBlobDuration";
 
 export type { ScreenCaptureRecord } from "./screenCaptureSync";
 
@@ -189,6 +190,11 @@ export async function saveScreenCapture(
     clientId?: string | null;
   },
 ): Promise<ScreenCaptureRecord> {
+  const storeBlob = await fixCaptureBlobDuration(
+    blob,
+    meta.durationSec,
+    meta.mimeType,
+  );
   const id = crypto.randomUUID();
   const record: ScreenCaptureRecord = {
     id,
@@ -197,7 +203,7 @@ export async function saveScreenCapture(
     createdAt: new Date().toISOString(),
     durationSec: meta.durationSec,
     includeMic: meta.includeMic,
-    sizeBytes: blob.size,
+    sizeBytes: storeBlob.size,
     clientId: meta.clientId ?? null,
   };
 
@@ -206,14 +212,14 @@ export async function saveScreenCapture(
     const tx = db.transaction(STORE, "readwrite");
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
-    tx.objectStore(STORE).put(blob, id);
+    tx.objectStore(STORE).put(storeBlob, id);
   });
   db.close();
 
   const next = [record, ...readManifest()];
   writeManifest(next);
   if (cloudSyncOptIn) {
-    void uploadScreenCaptureToCloud(record, blob).then((ok) => {
+    void uploadScreenCaptureToCloud(record, storeBlob).then((ok) => {
       if (!ok) return;
       const synced = next.map((r) =>
         r.id === record.id ? { ...r, cloudSynced: true } : r,

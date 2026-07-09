@@ -29,6 +29,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "bcryptjs": "^2.4.3",
     "docx": "^9.6.1",
+    "fix-webm-duration": "^1.0.6",
     "html-to-text": "^10.0.0",
     "html2canvas": "^1.4.1",
     "isomorphic-dompurify": "^3.17.0",

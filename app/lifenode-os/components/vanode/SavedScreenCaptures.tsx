@@ -15,6 +15,7 @@ import {
   type ScreenCaptureRecord,
 } from "@/lib/vanode/screenCaptureStorage";
 import { remuxBlobToMp4 } from "@/lib/vanode/videoMp4Export";
+import { fixCaptureBlobDuration } from "@/lib/vanode/fixCaptureBlobDuration";
 import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 import { screenCaptureDownloadBlockedMessage } from "@/src/lib/billing/screenCapturePlan";
 
@@ -91,7 +92,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
     let cancelled = false;
     setPlayLoading(true);
     setPlayError(false);
-    void getScreenCaptureBlob(playingId).then((blob) => {
+    void getScreenCaptureBlob(playingId).then(async (blob) => {
       if (cancelled) return;
       if (!blob) {
         onToast?.("Video file missing — try downloading instead.");
@@ -115,7 +116,15 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
           ? "video/mp4"
           : "video/webm");
       const typedBlob = normalizeCaptureBlob(blob, mimeType);
-      const objectUrl = URL.createObjectURL(typedBlob);
+      const playable =
+        playingRow.durationSec > 0
+          ? await fixCaptureBlobDuration(
+              typedBlob,
+              playingRow.durationSec,
+              mimeType,
+            )
+          : typedBlob;
+      const objectUrl = URL.createObjectURL(playable);
       playUrlRef.current = objectUrl;
       loadedPlayRef.current = { id: playingId, size: blob.size };
       setPlayUrl(objectUrl);
@@ -373,7 +382,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
                     controls
                     playsInline
                     autoPlay
-                    preload="metadata"
+                    preload="auto"
                     className="max-h-[70vh] w-full rounded-xl bg-black"
                     onError={() => setPlayError(true)}
                   >
