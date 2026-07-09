@@ -28,4 +28,5 @@ export const landingDarkText = {
   planFeatures: "text-landing-plan-features",
   featureLabel: "text-landing-feature-label",
   featureLabelAlt: "text-landing-feature-label-alt",
+  featureBody: "text-landing-feature-body",
 } as const;

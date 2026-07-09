@@ -4,6 +4,8 @@ import Link from "next/link";
 import ConsentPreferencesLink from "@/src/components/legal/ConsentPreferencesLink";
 import { FOOTER_COLUMNS } from "./landingPublicNav";
 
+const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
+
 type Variant = "light" | "dark";
 
 type Props = {
@@ -16,7 +18,7 @@ export default function LandingSiteFooter({ variant = "dark", className = "" }: 
 
   return (
     <footer
-      className={`relative z-10 w-full border-t px-6 py-12 md:px-8 md:py-14 ${
+      className={`${FONT_OUTFIT} relative z-10 w-full border-t px-6 py-12 md:px-8 md:py-14 ${
         isDark
           ? "border-slate-800 bg-[#0B0F17] text-[#90A1B9]"
           : "border-slate-200 bg-white text-slate-600"

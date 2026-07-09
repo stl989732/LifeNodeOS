@@ -11,7 +11,10 @@ import {
 } from "@/lib/product-catalog";
 import { DOC_ROUTES } from "@/lib/docs/routes";
 
+import { landingDarkText } from "./landingDarkTheme";
+
 const FONT_PLAYFAIR = "font-[family-name:var(--font-playfair)]";
+const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
 const MOBILE_FEATURE_LIMIT = 5;
 
 function CatalogCard({ surface }: { surface: ProductSurface }) {
@@ -95,7 +98,7 @@ function CatalogGrid({
 
 export default function LandingNodesCatalog() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-8 md:pb-32">
+    <div className={`${FONT_OUTFIT} mx-auto w-full max-w-6xl px-4 pb-24 pt-8 md:pb-32`}>
       <div className="mb-14 text-center md:mb-16">
         <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#677589]">
           Full catalog
@@ -105,7 +108,7 @@ export default function LandingNodesCatalog() {
         >
           All Nodes &amp; Features
         </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[#DFFFE7]">
+        <p className={`mx-auto mt-4 max-w-2xl text-base leading-relaxed ${landingDarkText.featureBody}`}>
           One shell for calendar, inbox, and LifePulse — plus six domain nodes you
           enable as hats. Every surface below is available when you sign in.
         </p>

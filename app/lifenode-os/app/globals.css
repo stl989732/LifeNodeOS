@@ -163,6 +163,7 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
   --landing-text-plan-features: #d8dbdf;
   --landing-text-feature-label: #90a1b9;
   --landing-text-feature-label-alt: #8b95a8;
+  --landing-text-feature-body: #555858;
 }
 
 .text-landing-subtitle {
@@ -211,6 +212,10 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 
 .text-landing-feature-label-alt {
   color: var(--landing-text-feature-label-alt);
+}
+
+.text-landing-feature-body {
+  color: var(--landing-text-feature-body);
 }
 
 /* HomeNode + Kitchen — Crisp Mint & Cream (shared module background) */

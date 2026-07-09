@@ -17,7 +17,7 @@ const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
 
 export default function CatalogPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#f8fafc] via-slate-900/95 to-[#0B0F17] text-slate-50">
+    <main className="landing-dark-zone min-h-screen bg-gradient-to-b from-[#f8fafc] via-slate-900/95 to-[#0B0F17] text-slate-50">
       <LandingPublicHeader theme="dark" />
 
       <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-2 md:px-6">

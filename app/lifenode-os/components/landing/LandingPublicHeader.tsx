@@ -29,9 +29,9 @@ type Props = {
 function themeClasses(theme: Theme) {
   if (theme === "dark") {
     return {
-      brand: "text-white",
-      brandMuted: "text-slate-400",
-      navLink: "text-slate-300 transition hover:text-white",
+      brand: "text-[#1F1E24]",
+      brandMuted: "text-[#67707E]",
+      navLink: "text-[#67707E] transition hover:text-white",
       signInPill:
         "rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20",
       signOut: "text-slate-300 transition hover:text-white",

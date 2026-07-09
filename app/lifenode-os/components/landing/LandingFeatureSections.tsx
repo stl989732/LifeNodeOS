@@ -4,6 +4,7 @@ import { Activity, Clock, HeartPulse, Home, Layers, Moon, RefreshCw } from "luci
 import { landingDarkText } from "./landingDarkTheme";
 
 const FONT_PLAYFAIR = "font-[family-name:var(--font-playfair)]";
+const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
 
 const LANDING_FEATURES = [
   {
@@ -90,7 +91,7 @@ function FeaturePreviewCard({ variant }: { variant: "schedule" | "vitals" | "wor
 
 export default function LandingFeatureSections() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pt-[3px] pb-20 md:pt-[3px] md:pb-20">
+    <div className={`${FONT_OUTFIT} mx-auto w-full max-w-6xl px-4 pt-[3px] pb-20 md:pt-[3px] md:pb-20`}>
       <div className="space-y-24 md:space-y-32">
         {LANDING_FEATURES.map((feature) => (
           <section
@@ -121,7 +122,7 @@ export default function LandingFeatureSections() {
               >
                 {feature.headline}
               </h2>
-              <p className="mt-4 max-w-lg text-base leading-relaxed text-[#DFFFE7]">
+              <p className={`mt-4 max-w-lg text-base leading-relaxed ${landingDarkText.featureBody}`}>
                 {feature.subtext}
               </p>
             </div>
