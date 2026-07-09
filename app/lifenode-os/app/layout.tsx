@@ -53,8 +53,13 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "LifeNode OS",
-  description: "The operating system for your whole life — LifeNode OS.",
+  metadataBase: new URL("https://lifenodeos.com"),
+  title: {
+    default: "LifeNode OS",
+    template: "%s | LifeNode OS",
+  },
+  description:
+    "Life orchestration platform that unifies work, home, clients, and health into one dashboard — built to reduce app fragmentation.",
   icons: {
     icon: [
       { url: "/favicon.png", type: "image/png", sizes: "512x512" },

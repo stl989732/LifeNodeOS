@@ -6,6 +6,42 @@ export type LandingFaqItem = {
 };
 
 export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
+  // Product — AEO / LLM extractable definitions
+  {
+    id: "product-what",
+    category: "Product",
+    question: "What is LifeNode OS?",
+    answer:
+      "LifeNode OS is a life orchestration platform and life OS for multi-hat operators. It connects Gmail, Slack, Google Calendar, Notion, Stripe, and health tools into role-based Nodes (BizNode, HomeNode, VANode, VitalNode, TraderNode, ProNode) inside one dashboard — so you orchestrate tools instead of fighting app fragmentation across 10–15 separate apps.",
+  },
+  {
+    id: "product-fragmentation",
+    category: "Product",
+    question: "What is app fragmentation and how does LifeNode OS help?",
+    answer:
+      "App fragmentation is when your work, home, client, and health stacks live in disconnected SaaS tools that do not share context — Gmail here, Slack there, Notion somewhere else. LifeNode OS reduces that fragmentation by syncing integrations into Nodes, triaging noise with Linos AI, and letting you switch hats without losing momentum in a single command center.",
+  },
+  {
+    id: "product-orchestration",
+    category: "Product",
+    question: "Is LifeNode OS a tool orchestration app?",
+    answer:
+      "Yes. LifeNode OS orchestrates the tools you already use (where official APIs allow) — inbox, calendar, business apps, and health connectors — through one signed-in dashboard. Logic Bridges on Sync and Nexus plans connect workflows across Nodes so actions in one role can surface in another.",
+  },
+  {
+    id: "product-vs-notion",
+    category: "Product",
+    question: "How is LifeNode OS different from Notion or Sunsama?",
+    answer:
+      "Notion and Coda are blank canvases you must architect yourself; LifeNode OS ships opinionated role Nodes with native integrations and AI triage. Sunsama, Motion, and Akiflow are calendar-first daily planners; LifeNode OS is a multi-domain life OS covering business, household, client VA work, trading, and health — not just tasks and time blocking.",
+  },
+  {
+    id: "product-who",
+    category: "Product",
+    question: "Who is LifeNode OS for?",
+    answer:
+      "Founders juggling pipeline and family logistics, parents coordinating households, virtual assistants managing multiple clients, traders who need focus mode plus a side business, and health-focused operators who want recovery data beside their calendar. Core is free; Sync and Nexus unlock more Nodes, integrations, and AI credits.",
+  },
   // Nodes
   {
     id: "nodes-what",

@@ -7,6 +7,7 @@ import LandingPublicHeader from "@/components/landing/LandingPublicHeader";
 import LandingSiteFooter from "@/components/landing/LandingSiteFooter";
 import LandingCatalogTeaser from "@/components/landing/LandingCatalogTeaser";
 import LandingFeatureSections from "@/components/landing/LandingFeatureSections";
+import LandingOrchestrationIntro from "@/components/landing/LandingOrchestrationIntro";
 import PricingPlansSection from "@/src/components/billing/PricingPlansSection";
 import LandingFaqSection from "@/components/landing/LandingFaqSection";
 import LandingComparisonSection from "@/components/landing/LandingComparisonSection";
@@ -344,10 +345,10 @@ export default function Onboarding() {
         <>
           <div className="flex flex-col items-center p-6 text-center z-10 fade-in pt-[50px] pb-16 md:pt-[50px]">
             <div className="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-8 border border-slate-200 shadow-sm">
-              Meet LifeNode OS
+              Life orchestration · beat app fragmentation
             </div>
             <h1 className="text-5xl md:text-7xl font-bold text-[#0F172A] max-w-4xl tracking-tight mb-6 leading-[1.1] transition-all duration-500">
-              The Operating System for <br />
+              The life OS that orchestrates your tools for <br />
               <span
                 className={`${FONT_PLAYFAIR} italic text-[#1E293B] transition-colors duration-500 ${demographics[heroIndex].color}`}
               >
@@ -355,11 +356,12 @@ export default function Onboarding() {
               </span>
             </h1>
             <p className="text-lg text-[#475569] max-w-2xl mb-10 leading-relaxed min-h-[4.5rem] md:min-h-[4rem]">
-              Stop toggling between 15 different apps. Unify your{" "}
+              Stop paying the tax of app fragmentation. Orchestrate{" "}
               <span className="font-bold text-[#1E293B]">
                 {demographics[heroIndex].highlight}
               </span>
-              , physical recovery, and daily tasks into one intelligent dashboard.
+              , Gmail, Slack, calendars, and recovery signals in one unified
+              dashboard — not fifteen disconnected tabs.
             </p>
             <button
               type="button"
@@ -370,7 +372,8 @@ export default function Onboarding() {
             </button>
 
             <p className="mt-5 text-[11px] font-medium tracking-wide text-[#90A1B9] md:text-xs">
-              Join 200+ busy parents orchestrating their household logistics.
+              Join 200+ multi-hat operators orchestrating work, home, and client tools
+              in one place.
             </p>
 
             <div className="mt-10 w-full max-w-6xl overflow-hidden relative opacity-40 grayscale before:absolute before:left-0 before:top-0 before:w-32 before:h-full before:bg-gradient-to-r before:from-[#FDFDFD] before:to-transparent before:z-10 after:absolute after:right-0 after:top-0 after:w-32 after:h-full after:bg-gradient-to-l after:from-[#FDFDFD] after:to-transparent after:z-10">
@@ -392,6 +395,7 @@ export default function Onboarding() {
             <div className="mb-16 md:mb-24">
               <LandingProductMock />
             </div>
+            <LandingOrchestrationIntro />
             <LandingFeatureSections />
             <section className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-12 pt-8 md:px-6">
               <PricingPlansSection variant="dark" />

@@ -30,7 +30,8 @@ export default function LandingComparisonSection() {
       <p
         className={`mx-auto mt-4 max-w-2xl text-center text-sm md:text-base ${landingDarkText.subtitle}`}
       >
-        Side-by-side pricing and features vs tools you may already use.
+        Compare LifeNode OS as a life orchestration and anti-fragmentation platform vs
+        tools you may already pay for separately.
       </p>
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/40 backdrop-blur-sm">

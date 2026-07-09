@@ -9,24 +9,24 @@ const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
 const LANDING_FEATURES = [
   {
     id: "household",
-    headline: "Your entire home, quietly in sync.",
+    headline: "Orchestrate home logistics — not another siloed app.",
     subtext:
-      "Consolidate shared family calendars, grocery lists, and school tracking into a single command deck. No more fragmented threads.",
+      "Consolidate family calendars, groceries, and school tracking into one command deck. LifeNode OS reduces household app fragmentation so shared context lives in HomeNode, not scattered threads.",
     preview: "schedule" as const,
   },
   {
     id: "recovery",
-    headline: "Prioritize the parents.",
+    headline: "Connect health tools to the rest of your life OS.",
     subtext:
-      "Track your personal wellness, sleep data via Whoop/Apple Health, and physical recovery milestones alongside your daily family tasks.",
+      "Orchestrate sleep and recovery from Whoop or Apple Health alongside family and work calendars. VitalNode keeps wellness signals in the same dashboard as the roles you switch between.",
     preview: "vitals" as const,
     reverse: true,
   },
   {
     id: "workspace",
-    headline: "Bridge work and life natively.",
+    headline: "Orchestrate Slack, Gmail, and Notion from one workspace.",
     subtext:
-      "Connect your professional stack like Slack, Gmail, and Notion. Let Lino triage the noise so you can focus on being present.",
+      "Connect your professional stack once. Linos triages inbox and workflow noise so BizNode becomes your tool orchestration layer — fewer tabs, less context-switching.",
     preview: "workspace" as const,
   },
 ];

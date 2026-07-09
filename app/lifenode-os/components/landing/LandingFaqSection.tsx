@@ -10,6 +10,7 @@ import { SUPPORT_ROUTES } from "@/lib/support/routes";
 const FONT_OUTFIT = "font-[family-name:var(--font-outfit)]";
 
 const CATEGORY_ORDER = [
+  "Product",
   "Nodes",
   "Integrations",
   "Features",
@@ -19,8 +20,8 @@ const CATEGORY_ORDER = [
 ] as const;
 
 export default function LandingFaqSection() {
-  const [openId, setOpenId] = useState<string | null>(LANDING_FAQ_ITEMS[0]?.id ?? null);
-  const [activeCategory, setActiveCategory] = useState<string>("Nodes");
+  const [openId, setOpenId] = useState<string | null>("product-what");
+  const [activeCategory, setActiveCategory] = useState<string>("Product");
 
   const categories = useMemo(() => {
     const fromData = [...new Set(LANDING_FAQ_ITEMS.map((item) => item.category))];
@@ -49,8 +50,8 @@ export default function LandingFaqSection() {
       <p
         className={`mx-auto mt-4 max-w-2xl text-center text-sm md:text-base ${landingDarkText.subtitle}`}
       >
-        Nodes, integrations, billing, and support — including why some mobile apps
-        cannot connect yet.
+        Product definitions, tool orchestration, Nodes, integrations, billing, and
+        support — written for humans and search engines.
       </p>
 
       <div
