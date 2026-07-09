@@ -40,6 +40,10 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const [playError, setPlayError] = useState(false);
   const [mp4Exporting, setMp4Exporting] = useState(false);
   const playUrlRef = useRef<string | null>(null);
+  const playingRowRef = useRef<ScreenCaptureRecord | null>(null);
+  const loadedPlayRef = useRef<{ id: string; size: number } | null>(null);
+
+  playingRowRef.current = playingRow;
 
   const visibleRows = useMemo(() => {
     if (!activeClientId) return rows;
@@ -63,18 +67,22 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
 
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") void reload();
+      if (document.visibilityState === "visible" && !playingRowRef.current) {
+        void reload();
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [reload]);
 
   useEffect(() => {
-    if (!playingRow) {
+    const playingId = playingRow?.id ?? null;
+    if (!playingRow || !playingId) {
       if (playUrlRef.current) {
         URL.revokeObjectURL(playUrlRef.current);
         playUrlRef.current = null;
       }
+      loadedPlayRef.current = null;
       setPlayUrl(null);
       setPlayError(false);
       setPlayLoading(false);
@@ -83,11 +91,20 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
     let cancelled = false;
     setPlayLoading(true);
     setPlayError(false);
-    void getScreenCaptureBlob(playingRow.id).then((blob) => {
+    void getScreenCaptureBlob(playingId).then((blob) => {
       if (cancelled) return;
       if (!blob) {
         onToast?.("Video file missing — try downloading instead.");
         setPlayingRow(null);
+        setPlayLoading(false);
+        return;
+      }
+      if (
+        loadedPlayRef.current?.id === playingId &&
+        loadedPlayRef.current?.size === blob.size &&
+        playUrlRef.current
+      ) {
+        setPlayUrl(playUrlRef.current);
         setPlayLoading(false);
         return;
       }
@@ -100,13 +117,14 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
       const typedBlob = normalizeCaptureBlob(blob, mimeType);
       const objectUrl = URL.createObjectURL(typedBlob);
       playUrlRef.current = objectUrl;
+      loadedPlayRef.current = { id: playingId, size: blob.size };
       setPlayUrl(objectUrl);
       setPlayLoading(false);
     });
     return () => {
       cancelled = true;
     };
-  }, [onToast, playingRow]);
+  }, [onToast, playingRow?.id]);
 
   useEffect(() => {
     return () => {
@@ -126,6 +144,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
       URL.revokeObjectURL(playUrlRef.current);
       playUrlRef.current = null;
     }
+    loadedPlayRef.current = null;
     setPlayingRow(null);
     setPlayUrl(null);
     setPlayError(false);
@@ -350,7 +369,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
               ) : (
                 <>
                   <video
-                    key={playUrl}
+                    key={playingRow.id}
                     controls
                     playsInline
                     autoPlay

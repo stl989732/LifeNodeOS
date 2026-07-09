@@ -41,8 +41,10 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
   const [trimming, setTrimming] = useState(false);
   const [mp4Exporting, setMp4Exporting] = useState(false);
   const [playError, setPlayError] = useState(false);
-  const [loadGen, setLoadGen] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrlRef = useRef<string | null>(null);
+  const loadedBlobRef = useRef<{ captureId: string; size: number } | null>(null);
+  const blobUrlKeyRef = useRef<string | null>(null);
 
   const { position, style, dragHandleProps } = useDraggableFloatingPosition(
     "lifenode.vanode.post-record-review",
@@ -53,6 +55,8 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     if (!captureId) {
       setRecord(null);
       setBlob(null);
+      loadedBlobRef.current = null;
+      blobUrlKeyRef.current = null;
       return;
     }
     let cancelled = false;
@@ -61,6 +65,14 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
       const row = rows.find((r) => r.id === captureId) ?? null;
       const b = row ? await getScreenCaptureBlob(captureId) : null;
       if (cancelled) return;
+      if (
+        b &&
+        loadedBlobRef.current?.captureId === captureId &&
+        loadedBlobRef.current?.size === b.size
+      ) {
+        return;
+      }
+      loadedBlobRef.current = b ? { captureId, size: b.size } : null;
       setRecord(row);
       setBlob(b);
       if (row) {
@@ -72,37 +84,41 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [captureId, loadGen]);
+  }, [captureId]);
 
   useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") setLoadGen((g) => g + 1);
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("pageshow", onVisible);
     return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("pageshow", onVisible);
+      if (videoUrlRef.current) {
+        URL.revokeObjectURL(videoUrlRef.current);
+        videoUrlRef.current = null;
+      }
+      blobUrlKeyRef.current = null;
     };
-  }, []);
+  }, [captureId]);
 
   useEffect(() => {
-    if (!blob) {
+    if (!blob || !captureId) {
       setVideoUrl(null);
       setPlayError(false);
       return;
     }
-    setPlayError(false);
     const mimeType = record?.mimeType || blob.type || "video/webm";
+    const urlKey = `${captureId}:${blob.size}:${mimeType}`;
+    if (blobUrlKeyRef.current === urlKey && videoUrlRef.current) {
+      setVideoUrl(videoUrlRef.current);
+      return;
+    }
+    if (videoUrlRef.current) {
+      URL.revokeObjectURL(videoUrlRef.current);
+      videoUrlRef.current = null;
+    }
+    setPlayError(false);
     const typed = normalizeCaptureBlob(blob, mimeType);
     const url = URL.createObjectURL(typed);
+    blobUrlKeyRef.current = urlKey;
     videoUrlRef.current = url;
     setVideoUrl(url);
-    return () => {
-      URL.revokeObjectURL(url);
-      if (videoUrlRef.current === url) videoUrlRef.current = null;
-    };
-  }, [blob, record?.mimeType]);
+  }, [blob, captureId, record?.mimeType]);
 
   const requireDownloadAccess = useCallback(() => {
     if (downloadsAllowed) return true;
@@ -234,7 +250,8 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
         <div className="space-y-3 p-3">
           {videoUrl ? (
             <video
-              key={videoUrl}
+              key={captureId}
+              ref={videoRef}
               src={videoUrl}
               controls
               playsInline
@@ -244,7 +261,7 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
               onLoadedMetadata={(e) => {
                 const d = e.currentTarget.duration;
                 if (Number.isFinite(d) && d > 0) {
-                  setDuration(d);
+                  setDuration((prev) => (prev > 0 ? prev : d));
                   setTrimEnd((prev) => (prev <= 0 ? d : prev));
                 }
               }}
