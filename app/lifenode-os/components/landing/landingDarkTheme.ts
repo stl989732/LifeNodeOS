@@ -26,6 +26,7 @@ export const landingDarkText = {
   planTagline: "text-landing-plan-tagline",
   planPriceSuffix: "text-landing-plan-price-suffix",
   planFeatures: "text-landing-plan-features",
+  planToggleInactive: "text-landing-plan-toggle-inactive",
   featureLabel: "text-landing-feature-label",
   featureLabelAlt: "text-landing-feature-label-alt",
   featureBody: "text-landing-feature-body",

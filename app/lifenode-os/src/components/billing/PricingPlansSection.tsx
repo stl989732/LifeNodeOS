@@ -77,7 +77,7 @@ export default function PricingPlansSection({
                 ? "bg-white text-slate-900"
                 : "bg-slate-900 text-white"
               : dark
-                ? "bg-white/10 text-slate-300"
+                ? `bg-white/10 ${landingDarkText.planToggleInactive}`
                 : "bg-slate-100 text-slate-600"
           }`}
         >
@@ -92,7 +92,7 @@ export default function PricingPlansSection({
                 ? "bg-white text-slate-900"
                 : "bg-slate-900 text-white"
               : dark
-                ? "bg-white/10 text-slate-300"
+                ? `bg-white/10 ${landingDarkText.planToggleInactive}`
                 : "bg-slate-100 text-slate-600"
           }`}
         >

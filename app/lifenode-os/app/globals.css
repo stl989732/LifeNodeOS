@@ -161,6 +161,7 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
   --landing-text-plan-tagline: #e6eaef;
   --landing-text-plan-price-suffix: #e9eaed;
   --landing-text-plan-features: #d8dbdf;
+  --landing-text-plan-toggle-inactive: #7b828e;
   --landing-text-feature-label: #90a1b9;
   --landing-text-feature-label-alt: #8b95a8;
   --landing-text-feature-body: #555858;
@@ -204,6 +205,10 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 
 .text-landing-plan-features {
   color: var(--landing-text-plan-features);
+}
+
+.text-landing-plan-toggle-inactive {
+  color: var(--landing-text-plan-toggle-inactive);
 }
 
 .text-landing-feature-label {
