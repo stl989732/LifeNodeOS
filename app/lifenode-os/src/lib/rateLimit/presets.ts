@@ -27,7 +27,7 @@ export const AI_RATE_LIMIT_BY_PLAN: Record<
 > = {
   core: { burstPerMinute: 12, requestsPerHour: 60 },
   sync: { burstPerMinute: 24, requestsPerHour: 120 },
-  nexus: { burstPerMinute: 48, requestsPerHour: 240 },
+  nexus: { burstPerMinute: 60, requestsPerHour: 300 },
 };
 
 export function aiRateLimitsForPlan(plan: PlanKey) {
