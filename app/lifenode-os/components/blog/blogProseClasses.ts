@@ -1,4 +1,7 @@
 /** Shared typography for dark-zone blog articles (browser-preview tuned). */
+export const BLOG_INDEX_SUBTITLE_CLASS =
+  "mt-4 text-base leading-relaxed text-[#e0f2f5]";
+
 export const BLOG_LEAD_CLASS =
   "mt-6 text-lg leading-relaxed text-[#ededed]";
 

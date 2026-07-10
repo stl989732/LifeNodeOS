@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import LandingPublicHeader from "@/components/landing/LandingPublicHeader";
 import LandingSiteFooter from "@/components/landing/LandingSiteFooter";
+import { BLOG_INDEX_SUBTITLE_CLASS } from "@/components/blog/blogProseClasses";
 import { BLOG_POSTS } from "@/lib/blog/posts";
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export default function BlogIndexPage() {
         <h1 className="mt-3 text-3xl font-bold text-white md:text-4xl">
           Life Orchestration &amp; Productivity
         </h1>
-        <p className="mt-4 text-base leading-relaxed text-slate-400">
+        <p className={BLOG_INDEX_SUBTITLE_CLASS}>
           Practical guides for operators fighting app fragmentation — how to unify
           tools without adding another subscription tab.
         </p>
