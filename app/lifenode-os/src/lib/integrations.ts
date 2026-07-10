@@ -2,7 +2,7 @@ import {
   resolveAppConnectProvider,
   toConnectedAppId,
 } from "@/src/lib/integrations/appProviderMap";
-import { integrationRedirectPathSegment } from "@/src/lib/integrations/oauthProviders";
+import { integrationRedirectPathSegment } from "@/src/lib/integrations/oauthRedirectPaths";
 import { CONNECTED_APPS_CHANGED_EVENT } from "@/src/lib/useConnectedApps";
 
 function notifyConnectedAppsChanged(): void {

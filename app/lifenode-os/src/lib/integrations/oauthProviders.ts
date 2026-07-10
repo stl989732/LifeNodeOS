@@ -1,4 +1,7 @@
 import type { IntegrationProviderId } from "./types";
+import { integrationRedirectPathSegment } from "./oauthRedirectPaths";
+
+export { integrationRedirectPathSegment } from "./oauthRedirectPaths";
 
 export type OAuthProviderConfig = {
   id: IntegrationProviderId;
@@ -17,20 +20,6 @@ function appBaseUrl(): string {
     process.env.AUTH_URL?.trim() ??
     "http://localhost:3000"
   ).replace(/\/$/, "");
-}
-
-/**
- * OAuth redirect path segment (console-safe); may differ from internal provider id.
- * GoHighLevel Marketplace rejects "ghl" / "highlevel" in redirect URLs — use `hl`.
- */
-const OAUTH_REDIRECT_PATH: Partial<Record<IntegrationProviderId, string>> = {
-  gohighlevel: "hl",
-};
-
-export function integrationRedirectPathSegment(
-  provider: IntegrationProviderId,
-): string {
-  return OAUTH_REDIRECT_PATH[provider] ?? provider;
 }
 
 export function integrationRedirectUri(provider: IntegrationProviderId): string {

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { meterDeniedResponse } from "@/src/lib/ai-metering/errors";
 import { meterAiUsage } from "@/src/lib/ai-metering/meterAiUsage";
+import { enforceAiRateLimit } from "@/src/lib/rateLimit/enforceRateLimit";
 import { getChefTextModelId } from "@/src/lib/chefKitchenConfig";
 import { geminiGenerateContentUrl } from "@/src/lib/geminiModels";
 
@@ -102,6 +103,9 @@ export async function POST(request: Request) {
     const session = await auth();
     const userId = session?.user?.id;
     if (!userId) return unauthorized();
+
+    const rateLimited = await enforceAiRateLimit(userId);
+    if (rateLimited) return rateLimited;
 
     const body = (await request.json()) as {
       mode?: VanodeAiMode;

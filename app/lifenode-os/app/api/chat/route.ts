@@ -6,6 +6,7 @@ import {
   meterAiUsage,
   resolveChatMeterEvent,
 } from "@/src/lib/ai-metering/meterAiUsage";
+import { enforceAiRateLimit } from "@/src/lib/rateLimit/enforceRateLimit";
 
 export const runtime = "nodejs";
 import { getGeminiTextModel, geminiGenerateContentUrl } from "@/src/lib/geminiModels";
@@ -73,6 +74,9 @@ export async function POST(request: Request) {
     const session = await auth();
     const userId = session?.user?.id;
     if (!userId) return unauthorized();
+
+    const rateLimited = await enforceAiRateLimit(userId);
+    if (rateLimited) return rateLimited;
 
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {

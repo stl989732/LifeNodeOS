@@ -19,6 +19,7 @@ import {
 } from "@/src/lib/lifePulse/trackerDb";
 import type { LifePulseCategoryId } from "@/src/lib/lifePulse/types";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
+import { enforceAiRateLimit } from "@/src/lib/rateLimit/enforceRateLimit";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,9 @@ export async function POST(request: Request) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return unauthorized();
+
+  const rateLimited = await enforceAiRateLimit(userId);
+  if (rateLimited) return rateLimited;
 
   let body: unknown;
   try {

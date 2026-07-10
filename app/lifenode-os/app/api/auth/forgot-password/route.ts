@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { issuePasswordResetToken } from "@/lib/auth-users-store";
 import { sendPasswordResetEmail } from "@/lib/email";
+import {
+  enforceAuthEmailRateLimit,
+  enforceAuthIpRateLimit,
+} from "@/src/lib/rateLimit/enforceRateLimit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,6 +22,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export async function POST(request: Request) {
   try {
+    const ipLimited = await enforceAuthIpRateLimit(request, "forgot-password");
+    if (ipLimited) return ipLimited;
+
     const body = (await request.json()) as { email?: string };
     const email = body.email?.trim() ?? "";
     if (!email || !EMAIL_RE.test(email)) {
@@ -26,6 +33,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const emailLimited = await enforceAuthEmailRateLimit(email, "forgot-password");
+    if (emailLimited) return emailLimited;
 
     let issued: Awaited<ReturnType<typeof issuePasswordResetToken>> = null;
     try {

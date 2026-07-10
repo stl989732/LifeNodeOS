@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth-users-store";
 import { sendVerificationEmail } from "@/lib/email";
 import { ensureCoreSubscription } from "@/src/lib/billing/subscriptionStore";
+import { enforceAuthIpRateLimit } from "@/src/lib/rateLimit/enforceRateLimit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,6 +26,9 @@ const ERROR_COPY: Record<string, string> = {
 
 export async function POST(request: Request) {
   try {
+    const rateLimited = await enforceAuthIpRateLimit(request, "register");
+    if (rateLimited) return rateLimited;
+
     const body = (await request.json()) as {
       email?: string;
       password?: string;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildPollinationsDishUrl } from "@/src/lib/kitchenDishImage";
+import { enforcePublicProxyRateLimit } from "@/src/lib/rateLimit/enforceRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,9 @@ const UPSTREAM_TIMEOUT_MS = 20_000;
 
 /** Same-origin proxy for Pollinations dish photos (avoids client ad-blocker blocks). */
 export async function GET(request: Request) {
+  const rateLimited = await enforcePublicProxyRateLimit(request, "kitchen-image");
+  if (rateLimited) return rateLimited;
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";
   const attemptRaw = Number(searchParams.get("attempt") ?? "0");

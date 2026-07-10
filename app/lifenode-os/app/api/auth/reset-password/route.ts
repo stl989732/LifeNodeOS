@@ -4,6 +4,7 @@ import {
   publicSecurityQuestions,
   resetPasswordWithToken,
 } from "@/lib/auth-users-store";
+import { enforceAuthIpRateLimit } from "@/src/lib/rateLimit/enforceRateLimit";
 
 /**
  * Endpoint for the password reset funnel.
@@ -16,6 +17,13 @@ import {
  *                                              the stored bcrypt hashes
  */
 export async function GET(request: Request) {
+  const ipLimited = await enforceAuthIpRateLimit(
+    request,
+    "reset-password-get",
+    "auth_moderate",
+  );
+  if (ipLimited) return ipLimited;
+
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
   if (!token) {
@@ -38,6 +46,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const ipLimited = await enforceAuthIpRateLimit(
+      request,
+      "reset-password",
+      "auth_moderate",
+    );
+    if (ipLimited) return ipLimited;
+
     const body = (await request.json()) as {
       token?: string;
       newPassword?: string;

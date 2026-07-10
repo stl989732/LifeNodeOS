@@ -30,7 +30,7 @@ import {
   hydrateWidgetsFromServer,
   scheduleNodeWidgetSave,
 } from "@/src/lib/nodeWidgetSync";
-import { integrationRedirectPathSegment } from "@/src/lib/integrations/oauthProviders";
+import { integrationRedirectPathSegment } from "@/src/lib/integrations/oauthRedirectPaths";
 import {
   filterAppsForDataHub,
   readPrimaryDataTool,

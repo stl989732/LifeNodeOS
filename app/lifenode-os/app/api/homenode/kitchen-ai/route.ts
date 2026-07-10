@@ -16,6 +16,10 @@ import {
   NANO_BANANA_2_MODEL_ID,
 } from "@/src/lib/chefKitchenConfig";
 import { geminiGenerateContentUrl } from "@/src/lib/geminiModels";
+import {
+  enforceAiIpRateLimit,
+  enforceAiRateLimit,
+} from "@/src/lib/rateLimit/enforceRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -454,6 +458,9 @@ async function enforceChefRecipePlanLimit(
 }
 
 export async function POST(request: Request) {
+  const ipLimited = await enforceAiIpRateLimit(request);
+  if (ipLimited) return ipLimited;
+
   const apiKey = process.env.GOOGLE_API_KEY?.trim();
   const parsedBody = await readKitchenAiBody(request);
   if (!parsedBody.ok) return parsedBody.response;
@@ -498,6 +505,9 @@ export async function POST(request: Request) {
     if (!userId) {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
+
+    const userLimited = await enforceAiRateLimit(userId);
+    if (userLimited) return userLimited;
 
     const skipCap =
       process.env.SKIP_KITCHEN_IMAGE_CAP === "1" ||
@@ -698,6 +708,8 @@ JSON only.`,
       if (!userId) {
         return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
       }
+      const userLimited = await enforceAiRateLimit(userId);
+      if (userLimited) return userLimited;
       const recipeLimitResponse = await enforceChefRecipePlanLimit(userId);
       if (recipeLimitResponse) return recipeLimitResponse;
 
@@ -926,6 +938,8 @@ Each recipe: ingredients = array of 6-14 objects { "item", "amount" }; steps = a
       if (!userId) {
         return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
       }
+      const userLimited = await enforceAiRateLimit(userId);
+      if (userLimited) return userLimited;
       const recipeLimitResponse = await enforceChefRecipePlanLimit(userId);
       if (recipeLimitResponse) return recipeLimitResponse;
 

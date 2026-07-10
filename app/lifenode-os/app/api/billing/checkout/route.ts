@@ -7,6 +7,7 @@ import {
 } from "@/src/lib/billing/lemonsqueezy/config";
 import { isPaidPlanKey, type BillingInterval } from "@/src/lib/billing/plans";
 import { ensureCoreSubscription } from "@/src/lib/billing/subscriptionStore";
+import { enforceBillingCheckoutRateLimit } from "@/src/lib/rateLimit/enforceRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,9 @@ export async function POST(request: Request) {
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
   if (!userId || !userEmail) return unauthorized();
+
+  const rateLimited = await enforceBillingCheckoutRateLimit(userId);
+  if (rateLimited) return rateLimited;
 
   if (!isLemonSqueezyConfigured()) {
     const diagnostic = getBillingConfigDiagnostic();

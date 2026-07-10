@@ -3,6 +3,7 @@ import {
   findCredentialUserByEmail,
   verifyCredentialPassword,
 } from "@/lib/auth-users-store";
+import { enforceAuthIpRateLimit } from "@/src/lib/rateLimit/enforceRateLimit";
 
 /**
  * POST /api/auth/check-credentials
@@ -18,6 +19,13 @@ import {
  */
 export async function POST(request: Request) {
   try {
+    const rateLimited = await enforceAuthIpRateLimit(
+      request,
+      "check-credentials",
+      "auth_moderate",
+    );
+    if (rateLimited) return rateLimited;
+
     const body = (await request.json()) as {
       email?: string;
       password?: string;
