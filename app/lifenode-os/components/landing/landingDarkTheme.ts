@@ -7,8 +7,8 @@
  * Browser-preview targets (Jun 2026):
  * - plan tagline: #e6eaef
  * - plan price suffix: #e9eaed
- * - plan feature list: #d8dbdf
- * - disclaimer: #BBC9DD
+ * - plan feature list: #e2f3ef
+ * - disclaimer: #dadfe7
  * - FAQ subtitle: #AFBACA
  * - VitalNode kicker: #757D95 → bumped to --landing-text-feature-label-alt
  */
@@ -23,6 +23,10 @@ export const landingDarkText = {
   comparisonCompetitorLabel: "text-landing-comparison-competitor-label",
   comparisonBreadcrumbCurrent: "text-landing-comparison-breadcrumb-current",
   disclaimer: "text-landing-disclaimer",
+  /** “LifeNode OS” in orchestration intro subtitle */
+  subtitleStrongBrand: "text-landing-subtitle-strong-brand",
+  /** “Nodes” and similar emphasis in orchestration intro subtitle */
+  subtitleStrongEmphasis: "text-landing-subtitle-strong-emphasis",
   planTagline: "text-landing-plan-tagline",
   planPriceSuffix: "text-landing-plan-price-suffix",
   planFeatures: "text-landing-plan-features",

@@ -42,11 +42,17 @@ export default function LandingOrchestrationIntro() {
       <p
         className={`mx-auto mt-5 max-w-3xl text-center text-base leading-relaxed md:text-lg ${landingDarkText.subtitle}`}
       >
-        <strong className="font-semibold text-slate-200">LifeNode OS</strong> is a
+        <strong className={`font-semibold ${landingDarkText.subtitleStrongBrand}`}>
+          LifeNode OS
+        </strong>{" "}
+        is a
         life orchestration platform for founders, parents, virtual assistants, and
         traders who run multiple roles at once. It connects Gmail, Slack, Google
         Calendar, Notion, Stripe, and health tools into focused{" "}
-        <strong className="font-semibold text-slate-200">Nodes</strong> — so your
+        <strong className={`font-semibold ${landingDarkText.subtitleStrongEmphasis}`}>
+          Nodes
+        </strong>{" "}
+        — so your
         work, home, client, and recovery stacks share one intelligent dashboard
         instead of fifteen browser tabs.
       </p>

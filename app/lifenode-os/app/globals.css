@@ -157,10 +157,12 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
   --landing-text-comparison-competitor-cell: #bac2ce;
   --landing-text-comparison-competitor-label: #d6dae1;
   --landing-text-comparison-breadcrumb-current: #696d72;
-  --landing-text-disclaimer: #bbc9dd;
+  --landing-text-disclaimer: #dadfe7;
   --landing-text-plan-tagline: #e6eaef;
   --landing-text-plan-price-suffix: #e9eaed;
-  --landing-text-plan-features: #d8dbdf;
+  --landing-text-plan-features: #e2f3ef;
+  --landing-text-subtitle-strong-brand: #385e66;
+  --landing-text-subtitle-strong-emphasis: #17191c;
   --landing-text-plan-toggle-inactive: #7b828e;
   --landing-text-feature-label: #90a1b9;
   --landing-text-feature-label-alt: #8b95a8;
@@ -205,6 +207,14 @@ html[data-lifenode-density="spacious"] .ln-density-pad {
 
 .text-landing-plan-features {
   color: var(--landing-text-plan-features);
+}
+
+.text-landing-subtitle-strong-brand {
+  color: var(--landing-text-subtitle-strong-brand);
+}
+
+.text-landing-subtitle-strong-emphasis {
+  color: var(--landing-text-subtitle-strong-emphasis);
 }
 
 .text-landing-plan-toggle-inactive {
