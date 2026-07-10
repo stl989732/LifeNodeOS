@@ -182,10 +182,10 @@ function CheckoutSuccessBannerInner() {
           If limits look unchanged, refresh once — billing can take a few
           seconds. Questions?{" "}
           <a
-            href="mailto:support@lifenodeos.com"
+            href="mailto:support@los.lifenodeos.com"
             className="underline underline-offset-2 hover:text-emerald-100"
           >
-            support@lifenodeos.com
+            support@los.lifenodeos.com
           </a>
         </p>
       </div>

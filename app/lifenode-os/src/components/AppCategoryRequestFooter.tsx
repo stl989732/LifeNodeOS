@@ -70,7 +70,7 @@ export default function AppCategoryRequestFooter({
     const body = encodeURIComponent(
       `Please add this app to LifeNode OS.\n\nApp: ${name}\nCategory: ${category}\nNode: ${nodeLabel}\n`,
     );
-    window.location.href = `mailto:support@lifenodeos.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:support@los.lifenodeos.com?subject=${subject}&body=${body}`;
     setSent(true);
     window.setTimeout(close, 1400);
   }, [appName, category, close, nodeLabel]);
