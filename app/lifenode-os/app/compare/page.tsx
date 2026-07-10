@@ -6,7 +6,7 @@ import LandingSiteFooter from "@/components/landing/LandingSiteFooter";
 export const metadata: Metadata = {
   title: "Compare — LifeNode OS",
   description:
-    "Side-by-side pricing and features: LifeNode OS vs Notion, Motion, Sunsama, HoneyBook, and Dubsado.",
+    "Side-by-side pricing and features: LifeNode OS vs Notion, Motion, Sunsama, Akiflow, ClickUp, HoneyBook, and Dubsado — life orchestration vs app fragmentation.",
 };
 
 export default function CompareHubPage() {

@@ -32,6 +32,9 @@ LifeNode OS (https://lifenodeos.com) is a web application for multi-hat operator
 - Home / product: https://lifenodeos.com/
 - Pricing: https://lifenodeos.com/#pricing (on homepage)
 - Compare alternatives: https://lifenodeos.com/compare
+- App fragmentation guide: https://lifenodeos.com/blog/app-fragmentation
+- Life OS vs productivity apps: https://lifenodeos.com/blog/life-os-vs-productivity-apps
+- Blog: https://lifenodeos.com/blog
 - Documentation: https://lifenodeos.com/docs
 - User guide: https://lifenodeos.com/docs/guide
 - About: https://lifenodeos.com/docs/about

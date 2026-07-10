@@ -7,6 +7,8 @@ export type CompetitorSlug =
   | "notion"
   | "motion"
   | "sunsama"
+  | "akiflow"
+  | "clickup"
   | "honeybook"
   | "dubsado";
 
@@ -40,6 +42,8 @@ export const COMPETITOR_SLUGS: CompetitorSlug[] = [
   "notion",
   "motion",
   "sunsama",
+  "akiflow",
+  "clickup",
   "honeybook",
   "dubsado",
 ];
@@ -160,6 +164,130 @@ export const COMPETITORS: Record<CompetitorSlug, CompetitorProfile> = {
         feature: "Free tier",
         lifenode: "Permanent Core plan — manual + limited AI",
         competitor: "No ongoing free tier",
+      },
+    ],
+  },
+  akiflow: {
+    slug: "akiflow",
+    name: "Akiflow",
+    tagline: "Calendar & task aggregation across apps",
+    summary:
+      "Akiflow unifies tasks and calendars from Notion, ClickUp, Gmail, and more into one daily queue. LifeNode OS goes further as a life orchestration platform — native Nodes for clients (VANode), business (BizNode), home (HomeNode), and health (VitalNode) with OAuth integrations and Linos AI, not just imported task lists.",
+    pricing: {
+      free: "7-day trial — no permanent free tier",
+      paid: "~$19/mo (annual) or ~$34/mo monthly",
+      top: "Single premium tier",
+    },
+    rows: [
+      {
+        category: "Focus",
+        feature: "Primary job",
+        lifenode: "Life OS — orchestrate tools by role (work, clients, home, health)",
+        competitor: "Aggregate tasks/calendars from other apps into one inbox",
+      },
+      {
+        category: "App fragmentation",
+        feature: "Root problem solved",
+        lifenode: "Connect apps once; work in role-based Nodes with shared shell state",
+        competitor: "Surface tasks from many apps — underlying silos remain",
+      },
+      {
+        category: "Product model",
+        feature: "Structure",
+        lifenode: "Six opinionated Nodes with widgets and integrations per domain",
+        competitor: "Unified daily planner — you still manage source apps separately",
+      },
+      {
+        category: "VANode / clients",
+        feature: "Client delivery",
+        lifenode: "Per-client workspaces, EOD reports, screen capture, invoicing",
+        competitor: "Import client tasks — no native CRM or proof-of-work",
+      },
+      {
+        category: "BizNode",
+        feature: "Founder / deal ops",
+        lifenode: "Deal triage, pipelines, executive summaries",
+        competitor: "Task labels and calendar blocks only",
+      },
+      {
+        category: "Home / family",
+        feature: "Household logistics",
+        lifenode: "HomeNode + ChefNode on Core (free)",
+        competitor: "Not designed for family ops",
+      },
+      {
+        category: "AI",
+        feature: "Assistant",
+        lifenode: "Linos — triage, drafts, EOD summaries across Nodes",
+        competitor: "Scheduling UX focus — limited generative AI",
+      },
+      {
+        category: "Pricing",
+        feature: "Free wedge",
+        lifenode: "Core $0 — Biz + VA + Home Nodes forever",
+        competitor: "Paid subscription after trial",
+      },
+    ],
+  },
+  clickup: {
+    slug: "clickup",
+    name: "ClickUp",
+    tagline: "All-in-one project & task management",
+    summary:
+      "ClickUp packs docs, tasks, goals, and chat into one workspace for teams. LifeNode OS targets multi-hat individuals — founders, VAs, and parents — with role-based Nodes, OAuth integrations to Gmail and Slack, client EOD proof, and home logistics on a free Core tier, not team PM sprawl.",
+    pricing: {
+      free: "Free Forever plan — limited storage & guests",
+      paid: "Unlimited ~$7–10/user/mo",
+      top: "Business / Enterprise ~$12–19+/user/mo",
+    },
+    rows: [
+      {
+        category: "Focus",
+        feature: "Primary buyer",
+        lifenode: "Solo & multi-hat operators (founder, VA, parent, trader)",
+        competitor: "Teams and agencies managing projects in one workspace",
+      },
+      {
+        category: "App fragmentation",
+        feature: "Problem solved",
+        lifenode: "Orchestrate Gmail, Slack, calendars & roles — not just tasks in ClickUp",
+        competitor: "Consolidate PM inside ClickUp — email & client apps often stay external",
+      },
+      {
+        category: "Product model",
+        feature: "Structure",
+        lifenode: "Six role Nodes (Biz, VA, Home, Vital, Trader, Pro)",
+        competitor: "Spaces, folders, lists — you architect the system",
+      },
+      {
+        category: "VANode / clients",
+        feature: "Client delivery",
+        lifenode: "Per-client workspaces, EOD screen capture, invoicing limits",
+        competitor: "Guest access & time tracking — no native EOD video proof",
+      },
+      {
+        category: "Home / family",
+        feature: "Household logistics",
+        lifenode: "HomeNode + ChefNode on Core (free)",
+        competitor: "Personal task lists — no family Node",
+      },
+      {
+        category: "Integrations",
+        feature: "Connected apps",
+        lifenode: "OAuth per Node (email, chat, calendar, commerce)",
+        competitor: "Imports & integrations — still centered on ClickUp as hub",
+      },
+      {
+        category: "AI",
+        feature: "Assistant",
+        lifenode: "Linos — cross-Node triage, drafts, LifePulse",
+        competitor: "ClickUp Brain on paid tiers — workspace-scoped",
+      },
+      {
+        category: "Pricing",
+        feature: "Solo operator",
+        lifenode: "Core $0 with 3 Nodes; no per-seat math for one person",
+        competitor: "Per-seat pricing scales with team size",
       },
     ],
   },

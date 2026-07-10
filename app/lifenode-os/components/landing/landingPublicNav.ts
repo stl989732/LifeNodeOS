@@ -50,6 +50,7 @@ export const FOOTER_COLUMNS = [
       { href: "/catalog", label: "Full Catalog" },
       { href: "/pricing", label: "Pricing" },
       { href: "/#comparison", label: "Compare" },
+      { href: "/blog", label: "Blog" },
       { href: "/#faq", label: "FAQ" },
       { href: DOC_ROUTES.hub, label: "Documentation" },
       { href: DOC_ROUTES.guide, label: "User Guide" },
