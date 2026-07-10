@@ -16,6 +16,7 @@ export default function KitchenCameraCapture({
   onCapture,
 }) {
   const videoRef = useRef(null);
+  const fileInputRef = useRef(null);
   const streamRef = useRef(null);
   const [facingMode, setFacingMode] = useState("environment");
   const [busy, setBusy] = useState(false);
@@ -45,11 +46,20 @@ export default function KitchenCameraCapture({
         await el.play();
       }
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Camera permission denied or unavailable on this device.",
-      );
+      const name = e instanceof Error ? e.name : "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        setError(
+          "Camera blocked by the browser or site policy. Try “Choose photo” below, or allow Camera for this site in browser settings and refresh.",
+        );
+      } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        setError("No camera found on this device. Use “Choose photo” to pick an image instead.");
+      } else {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Camera permission denied or unavailable on this device.",
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -90,6 +100,17 @@ export default function KitchenCameraCapture({
       0.88,
     );
   }, [onCapture, onClose]);
+
+  const handleFilePick = useCallback(
+    (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      onCapture(file);
+      onClose();
+    },
+    [onCapture, onClose],
+  );
 
   if (!open || typeof document === "undefined") return null;
 
@@ -149,16 +170,33 @@ export default function KitchenCameraCapture({
           </p>
         )}
 
-        <div className="flex gap-2 px-5 py-4">
-          <button
-            type="button"
-            onClick={capture}
-            disabled={busy || Boolean(error)}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#3F5E58] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#325048] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Camera size={16} />
-            Capture
-          </button>
+        <div className="flex flex-col gap-2 px-5 py-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            onChange={handleFilePick}
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={capture}
+              disabled={busy || Boolean(error)}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#3F5E58] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#325048] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Camera size={16} />
+              Capture
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-[#3F5E58]/30 bg-white px-4 py-3 text-sm font-semibold text-[#3F5E58] transition hover:bg-[#3F5E58]/5"
+            >
+              Choose photo
+            </button>
+          </div>
           <button
             type="button"
             onClick={onClose}
