@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import BlogArticleShell from "@/components/blog/BlogArticleShell";
+import { BLOG_BODY_CLASS, BLOG_LEAD_CLASS } from "@/components/blog/blogProseClasses";
 import { getBlogPost } from "@/lib/blog/posts";
 
 const SITE_URL = "https://lifenodeos.com";
@@ -43,8 +44,6 @@ function articleJsonLd() {
   };
 }
 
-const articleBodyClass =
-  "mt-10 space-y-10 text-base leading-relaxed text-slate-300 [&_a]:font-semibold [&_a]:text-[#17C4B3] [&_a]:hover:text-[#00ffc8] [&_a]:hover:underline [&_strong]:text-slate-200 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:text-white [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-white [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-5";
 
 export default function LifeOsVsProductivityAppsPage() {
   return (
@@ -71,10 +70,10 @@ export default function LifeOsVsProductivityAppsPage() {
           </time>{" "}
           · {post.readingMinutes} min read
         </p>
-        <p className="mt-6 text-lg leading-relaxed text-slate-300">{post.description}</p>
+        <p className={BLOG_LEAD_CLASS}>{post.description}</p>
       </header>
 
-      <div className={articleBodyClass}>
+      <div className={BLOG_BODY_CLASS}>
         <section className="space-y-4">
           <h2>Productivity apps vs a life OS — what is the difference?</h2>
           <p>

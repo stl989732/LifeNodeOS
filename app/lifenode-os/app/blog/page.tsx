@@ -20,7 +20,7 @@ export default function BlogIndexPage() {
           Blog
         </p>
         <h1 className="mt-3 text-3xl font-bold text-white md:text-4xl">
-          Life orchestration &amp; productivity
+          Life Orchestration &amp; Productivity
         </h1>
         <p className="mt-4 text-base leading-relaxed text-slate-400">
           Practical guides for operators fighting app fragmentation — how to unify
