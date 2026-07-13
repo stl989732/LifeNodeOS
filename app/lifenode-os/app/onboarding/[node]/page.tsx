@@ -14,10 +14,14 @@ export const dynamic = "force-dynamic";
 
 export default async function NodeOnboardingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ node: string }>;
+  searchParams: Promise<{ resync?: string }>;
 }) {
   const { node: param } = await params;
+  const { resync } = await searchParams;
+  const allowResync = resync === "1" || resync === "true";
   if (!isShellHatKey(param)) notFound();
 
   const session = await auth();
@@ -33,7 +37,7 @@ export default async function NodeOnboardingPage({
       const resolved = await resolveSessionPersistence(session);
       const userId = resolved?.userId ?? session.user.id;
       const status = await getNodeOnboarding(userId, activeNode);
-      if (status.onboardingCompleted) {
+      if (status.onboardingCompleted && !allowResync) {
         redirect(NODE_ROUTE[activeNode]);
       }
     } catch {

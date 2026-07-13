@@ -37,6 +37,7 @@ export const NODE_WIDGET_KEYS = {
   pro: {
     setup: "pro.setup",
     billableSessions: "pro.billable_sessions",
+    projectsCrm: "pro.projects_crm",
   },
 } as const;
 

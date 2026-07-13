@@ -19,15 +19,17 @@ export default function ProClauseLibrary({
   onInsertSmartChain,
 }: ProClauseLibraryProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
-        <Blocks className="h-4 w-4 text-indigo-500" />
-        <h3 className="text-sm font-bold text-[#1E293B]">Clause Library</h3>
+    <div className="border-t border-slate-100 pt-4">
+      <div className="mb-2 flex items-center gap-2">
+        <Blocks className="h-4 w-4 shrink-0 text-indigo-500" />
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+          Clause Library
+        </h3>
       </div>
-      <p className="mb-3 text-[11px] text-slate-500">
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
         Modular blocks — drag or click to insert. Smart-Chain suggests matching follow-ups.
       </p>
-      <ul className="max-h-52 space-y-2 overflow-y-auto">
+      <ul className="max-h-64 space-y-2 overflow-y-auto pr-0.5">
         {clauses.map((clause) => (
           <li key={clause.id}>
             <button
@@ -42,7 +44,7 @@ export default function ProClauseLibrary({
             >
               <p className="text-xs font-bold text-slate-800">{clause.title}</p>
               <p className="text-[10px] uppercase tracking-wide text-slate-400">{clause.category}</p>
-              <p className="mt-1 line-clamp-2 text-[11px] text-slate-600">{clause.body}</p>
+              <p className="mt-1 text-[11px] leading-snug text-slate-600">{clause.body}</p>
             </button>
           </li>
         ))}

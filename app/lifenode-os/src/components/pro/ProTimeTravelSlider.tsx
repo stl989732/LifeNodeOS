@@ -32,6 +32,10 @@ export default function ProTimeTravelSlider({ value, onChange }: ProTimeTravelSl
           </button>
         ))}
       </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+        Rewinds the Auto-Timeline and redline checks to what your stack had recorded by that date — useful
+        before depositions, audits, or “what did we know then?” reviews.
+      </p>
     </div>
   );
 }

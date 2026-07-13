@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLnFeatureParam, scrollToLnFeature } from "@/src/hooks/useLnFeatureParam";
 import {
   Command,
@@ -34,6 +35,7 @@ import ProTechCostBadge from "@/src/components/pro/ProTechCostBadge";
 import ProVaultWorkspace from "@/src/components/pro/vault/ProVaultWorkspace";
 import ProTimeTravelSlider from "@/src/components/pro/ProTimeTravelSlider";
 import ProFocusDiscoveryCard from "@/src/components/pro/ProFocusDiscoveryCard";
+import ProProjectsCrmTable from "@/src/components/pro/ProProjectsCrmTable";
 import { ProDiscoveryCategoryTools } from "@/src/components/pro/ProDiscoveryCategoryTools";
 import { filterDiscoveryCatalog, getDiscoveryCatalog } from "@/src/lib/proNode/discoveryCatalog";
 import { clausesForRole } from "@/src/lib/proNode/clauses";
@@ -50,6 +52,14 @@ import { getSmartChainSuggestions } from "@/src/lib/proNode/smartChain";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { useProTimeline } from "@/src/hooks/useProTimeline";
 import { getNodeTypesForProRole, readProWorkspaceRole } from "@/src/lib/proNode/workspaceContext";
+import {
+  crmRowLabel,
+  defaultProCrmState,
+  loadProCrmFromLocal,
+  parseProCrmPayload,
+  persistProCrm,
+  PRO_CRM_STORAGE_KEY,
+} from "@/src/lib/proNode/projectsCrm";
 
 const proTheme = getNodeTheme("ProNode");
 
@@ -86,10 +96,12 @@ function persistBillableSessions(storageKey, sessions) {
 }
 
 export default function ProNode() {
+  const router = useRouter();
   const { data: session } = useSession();
   const userId = session?.user?.id ?? "";
   const billableStorageKey = userScopedStorageKey(BILLABLE_SESSIONS_KEY, userId);
   const setupStorageKey = userScopedStorageKey(PRO_SETUP_STORAGE_KEY, userId);
+  const crmStorageKey = userScopedStorageKey(PRO_CRM_STORAGE_KEY, userId);
   const { proWorkspaceRole: role, setProWorkspaceRole } = useLifeNodeContext();
   const [setupStep, setSetupStep] = useState(1);
   const [setupHydrated, setSetupHydrated] = useState(false);
@@ -115,6 +127,9 @@ export default function ProNode() {
   const [billablePulseEnabled, setBillablePulseEnabled] = useState(false);
   const [billablePulsePaused, setBillablePulsePaused] = useState(false);
   const [savedBillableSessions, setSavedBillableSessions] = useState([]);
+  const [crmState, setCrmState] = useState(defaultProCrmState);
+  const [activeCrmRowId, setActiveCrmRowId] = useState(null);
+  const [crmHydrated, setCrmHydrated] = useState(false);
   const [briefing, setBriefing] = useState(
     "Your AI briefing will appear here once you add case context and timeline events.",
   );
@@ -219,6 +234,58 @@ export default function ProNode() {
   }, [userId, billableStorageKey]);
 
   useEffect(() => {
+    if (!userId) {
+      setCrmHydrated(true);
+      return;
+    }
+    let cancelled = false;
+    const local = loadProCrmFromLocal(crmStorageKey);
+    setCrmState(local);
+
+    void (async () => {
+      const merged = await hydrateWidgetsFromServer(
+        [NODE_WIDGET_KEYS.pro.projectsCrm],
+        { [NODE_WIDGET_KEYS.pro.projectsCrm]: local },
+      );
+      if (cancelled) return;
+      const remote = merged[NODE_WIDGET_KEYS.pro.projectsCrm];
+      if (remote) {
+        setCrmState(parseProCrmPayload(remote));
+      }
+      setCrmHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, crmStorageKey]);
+
+  const persistCrmState = useCallback(
+    (nextState) => {
+      setCrmState(nextState);
+      if (!userId) return;
+      persistProCrm(crmStorageKey, nextState);
+    },
+    [crmStorageKey, userId],
+  );
+
+  const focusCrmRow = useCallback((row) => {
+    setActiveCrmRowId(row.id);
+    setActiveFile(crmRowLabel(row));
+    setSmartChainSuggestions([]);
+  }, []);
+
+  const sidebarCases = useMemo(() => {
+    if (crmState.rows.length > 0) {
+      return crmState.rows.map((row) => ({
+        id: row.id,
+        label: crmRowLabel(row),
+      }));
+    }
+    return roleConfig.cases.map((file) => ({ id: file, label: file }));
+  }, [crmState.rows, roleConfig.cases]);
+
+  useEffect(() => {
     if (setupStep !== 3 || !nativeToolkit.pulse || !billablePulseEnabled || billablePulsePaused) {
       return;
     }
@@ -261,14 +328,8 @@ export default function ProNode() {
   }, [role, query]);
 
   const handleResyncDiscovery = useCallback(() => {
-    setFocusDiscoveryMinimized(false);
-    requestAnimationFrame(() => {
-      document.getElementById("pro-focus-discovery")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-  }, []);
+    router.push("/onboarding/pro?resync=1");
+  }, [router]);
 
   const toggleConnectedTool = (name) => {
     setConnectedTools((prev) => {
@@ -557,7 +618,7 @@ export default function ProNode() {
                 type="button"
                 onClick={handleResyncDiscovery}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                title="Open app discovery to connect another tool"
+                title="Re-run ProNode onboarding and app discovery"
               >
                 <RefreshCw className="h-4 w-4" />
                 <span className="hidden sm:inline">Re-sync Discovery</span>
@@ -586,10 +647,21 @@ export default function ProNode() {
           />
         </div>
 
+        {setupStep === 3 && crmHydrated ? (
+          <div id="ln-feature-crm">
+            <ProProjectsCrmTable
+              state={crmState}
+              onChange={persistCrmState}
+              activeRowId={activeCrmRowId}
+              onSelectRow={focusCrmRow}
+            />
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
           <aside
             id="ln-feature-cases"
-            className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 xl:col-span-2 ${
+            className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 xl:col-span-3 ${
               isDeepWork ? "opacity-20 blur-[1px]" : ""
             }`}
           >
@@ -600,38 +672,43 @@ export default function ProNode() {
               </h2>
             </div>
             <div className="space-y-2">
-              {roleConfig.cases.map((file) => (
+              {sidebarCases.map((file) => (
                 <button
-                  key={file}
+                  key={file.id}
                   type="button"
-                  onClick={() => setActiveFile(file)}
+                  onClick={() => {
+                    if (crmState.rows.length > 0) {
+                      const row = crmState.rows.find((r) => r.id === file.id);
+                      if (row) focusCrmRow(row);
+                    } else {
+                      setActiveFile(file.label);
+                    }
+                  }}
                   className={`w-full rounded-xl border px-3 py-2.5 text-left text-xs transition ${
-                    file === activeFile
+                    (crmState.rows.length > 0 ? activeCrmRowId === file.id : file.label === activeFile)
                       ? "border-[#1E293B] bg-[#1E293B] text-white"
                       : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300"
                   }`}
                 >
-                  {file}
+                  {file.label}
                 </button>
               ))}
             </div>
-            {nativeToolkit.sidecar && (
-              <div className="mt-4">
-                <ProClauseLibrary
-                  clauses={clauseBlocks}
-                  onInsert={insertClause}
-                  smartChainSuggestions={smartChainSuggestions}
-                  onDismissSmartChain={dismissSmartChain}
-                  onInsertSmartChain={insertSmartChainClause}
-                />
-              </div>
-            )}
+            {nativeToolkit.sidecar ? (
+              <ProClauseLibrary
+                clauses={clauseBlocks}
+                onInsert={insertClause}
+                smartChainSuggestions={smartChainSuggestions}
+                onDismissSmartChain={dismissSmartChain}
+                onInsertSmartChain={insertSmartChainClause}
+              />
+            ) : null}
           </aside>
 
           <section
             id="ln-feature-editor"
             ref={editorSurfaceRef}
-            className="flex flex-col gap-5 xl:col-span-6"
+            className="flex flex-col gap-5 xl:col-span-5"
           >
             <ProVaultWorkspace proRole={role} />
 
