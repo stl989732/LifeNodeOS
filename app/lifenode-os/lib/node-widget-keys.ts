@@ -35,6 +35,7 @@ export const NODE_WIDGET_KEYS = {
     dataHub: "biz.data_hub",
   },
   pro: {
+    setup: "pro.setup",
     billableSessions: "pro.billable_sessions",
   },
 } as const;

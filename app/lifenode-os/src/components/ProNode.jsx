@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { getNodeTheme } from "@/src/lib/nodeTheme";
 import ConnectAppDialog from "@/src/components/ConnectAppDialog";
-import { useServerOnboardingComplete } from "@/src/hooks/useServerOnboardingComplete";
 import { useSession } from "next-auth/react";
 import { userScopedStorageKey } from "@/src/lib/userScopedStorage";
 import {
@@ -40,10 +39,17 @@ import { filterDiscoveryCatalog, getDiscoveryCatalog } from "@/src/lib/proNode/d
 import { clausesForRole } from "@/src/lib/proNode/clauses";
 import { detectRedlines, getDraftForRole } from "@/src/lib/proNode/redlines";
 import { getRoleConfig, PRO_ROLES } from "@/src/lib/proNode/roles";
+import {
+  DEFAULT_PRO_NATIVE_TOOLKIT,
+  loadProSetupFromLocal,
+  persistProSetup,
+  PRO_SETUP_STORAGE_KEY,
+  parseProSetupPayload,
+} from "@/src/lib/proNode/setupStorage";
 import { getSmartChainSuggestions } from "@/src/lib/proNode/smartChain";
 import { useLifeNodeContext } from "@/src/context/LifeNodeContext";
 import { useProTimeline } from "@/src/hooks/useProTimeline";
-import { getNodeTypesForProRole } from "@/src/lib/proNode/workspaceContext";
+import { getNodeTypesForProRole, readProWorkspaceRole } from "@/src/lib/proNode/workspaceContext";
 
 const proTheme = getNodeTheme("ProNode");
 
@@ -83,25 +89,25 @@ export default function ProNode() {
   const { data: session } = useSession();
   const userId = session?.user?.id ?? "";
   const billableStorageKey = userScopedStorageKey(BILLABLE_SESSIONS_KEY, userId);
+  const setupStorageKey = userScopedStorageKey(PRO_SETUP_STORAGE_KEY, userId);
   const { proWorkspaceRole: role, setProWorkspaceRole } = useLifeNodeContext();
   const [setupStep, setSetupStep] = useState(1);
-
-  useServerOnboardingComplete("ProNode", useCallback(() => setSetupStep(3), []));
-
-  useEffect(() => {
-    const onOnboardingDone = () => setSetupStep(3);
-    window.addEventListener("lifenode:onboarding:changed", onOnboardingDone);
-    return () =>
-      window.removeEventListener("lifenode:onboarding:changed", onOnboardingDone);
-  }, []);
+  const [setupHydrated, setSetupHydrated] = useState(false);
   const [query, setQuery] = useState("");
   const [connectedTools, setConnectedTools] = useState([]);
   const [loginPromptApp, setLoginPromptApp] = useState("");
-  const [nativeToolkit, setNativeToolkit] = useState({
-    sidecar: true,
-    pulse: true,
-    triage: true,
-  });
+  const [nativeToolkit, setNativeToolkit] = useState(() => ({
+    ...DEFAULT_PRO_NATIVE_TOOLKIT,
+  }));
+
+  const completeProSetup = useCallback(() => {
+    setSetupStep(3);
+    if (!userId) return;
+    persistProSetup(setupStorageKey, {
+      setupDone: true,
+      nativeToolkit,
+    });
+  }, [nativeToolkit, setupStorageKey, userId]);
   const [timeTravelDate, setTimeTravelDate] = useState("2026-05-15");
   const [isDeepWork, setIsDeepWork] = useState(false);
   const [timersByFile, setTimersByFile] = useState({});
@@ -129,7 +135,37 @@ export default function ProNode() {
 
   const roleConfig = getRoleConfig(role);
   const [activeFile, setActiveFile] = useState(roleConfig.cases[0] ?? "");
-  const [draft, setDraft] = useState(() => getDraftForRole("legal"));
+  const [draft, setDraft] = useState(() => getDraftForRole(readProWorkspaceRole()));
+
+  useEffect(() => {
+    if (!userId) {
+      setSetupHydrated(true);
+      return;
+    }
+    let cancelled = false;
+    const local = loadProSetupFromLocal(setupStorageKey);
+    setNativeToolkit(local.nativeToolkit);
+    if (local.setupDone) setSetupStep(3);
+
+    void (async () => {
+      const merged = await hydrateWidgetsFromServer(
+        [NODE_WIDGET_KEYS.pro.setup],
+        { [NODE_WIDGET_KEYS.pro.setup]: local },
+      );
+      if (cancelled) return;
+      const remote = merged[NODE_WIDGET_KEYS.pro.setup];
+      if (remote) {
+        const parsed = parseProSetupPayload(remote);
+        setNativeToolkit(parsed.nativeToolkit);
+        if (parsed.setupDone) setSetupStep(3);
+      }
+      setSetupHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, setupStorageKey]);
 
   const RoleIcon = roleConfig.icon;
 
@@ -296,6 +332,14 @@ export default function ProNode() {
     );
   };
 
+  if (!setupHydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] p-6 text-sm text-slate-500">
+        Loading ProNode…
+      </div>
+    );
+  }
+
   if (setupStep < 3) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] p-6 text-slate-800">
@@ -456,7 +500,7 @@ export default function ProNode() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSetupStep(3)}
+                  onClick={completeProSetup}
                   className="rounded-xl bg-[#1E293B] px-5 py-2.5 text-sm font-bold text-white"
                 >
                   Launch command center
