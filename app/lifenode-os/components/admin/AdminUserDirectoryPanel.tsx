@@ -27,7 +27,7 @@ const SEGMENT_COPY: Record<
   subscriptions: {
     title: "Subscription rows",
     description:
-      "Billing records with plan and status. Orphan rows (no auth user) are included.",
+      "Billing records with plan and status for accounts that have an email.",
   },
 };
 

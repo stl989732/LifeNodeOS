@@ -252,10 +252,16 @@ export async function getAdminUserDirectory(
         .sort((a, b) => (b.deletedAt ?? "").localeCompare(a.deletedAt ?? ""));
       break;
     case "subscriptions": {
+      // Only show billing rows tied to a resolvable email (auth or credential).
+      // Skip empty Core/orphan stubs with no email — those are not real subscribers.
+      const hasEmail = (r: AdminUserRecord) =>
+        Boolean(r.email?.trim());
       const withSub = authUsers
         .filter((u) => subscriptionByUserId.has(u.id))
-        .map(buildRecord);
-      users = [...withSub, ...orphanSubscriptionRecords()].sort((a, b) =>
+        .map(buildRecord)
+        .filter(hasEmail);
+      const orphansWithEmail = orphanSubscriptionRecords().filter(hasEmail);
+      users = [...withSub, ...orphansWithEmail].sort((a, b) =>
         (b.signedUpAt ?? "").localeCompare(a.signedUpAt ?? ""),
       );
       break;
