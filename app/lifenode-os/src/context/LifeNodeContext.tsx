@@ -29,6 +29,16 @@ import {
 } from "@/src/lib/proNode/workspaceContext";
 import { LifeNodeSettingsEffects } from "@/src/hooks/useLifeNodeSettings";
 import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
+import { COMMITMENT_BRIDGE_IDS } from "@/src/lib/linos/commitmentBridgeIds";
+import {
+  commitmentSignalsFromSnapshot,
+  loadCommitmentData,
+} from "@/src/lib/linos/commitmentDataLoader";
+import { buildProactiveCheckInAlert } from "@/src/lib/linos/commitmentSignals";
+import {
+  planUsageWarningsToAlerts,
+} from "@/src/lib/billing/planUsageWarnings";
+import type { PlanUsageWarning } from "@/src/lib/billing/planUsageWarnings";
 
 /** Canonical node identifiers — LifeNode OS “brain” keys. */
 export type ActiveNode =
@@ -96,6 +106,14 @@ export type BridgeSignals = {
   lifePulseOverdueCount: number;
   lifePulseDueTodayCount: number;
   lifePulseHasCommitments: boolean;
+  /** Kanban board cards with target dates. */
+  kanbanOverdueCount: number;
+  kanbanDueTodayCount: number;
+  kanbanHasCommitments: boolean;
+  /** Shell projects blocked or awaiting approval. */
+  projectAttentionCount: number;
+  /** Timed calendar items overlapping on the same day. */
+  calendarConflictCount: number;
 };
 
 export type LogicBridgeActionKind =
@@ -163,6 +181,11 @@ const DEFAULT_BRIDGE_SIGNALS: BridgeSignals = {
   lifePulseOverdueCount: 0,
   lifePulseDueTodayCount: 0,
   lifePulseHasCommitments: false,
+  kanbanOverdueCount: 0,
+  kanbanDueTodayCount: 0,
+  kanbanHasCommitments: false,
+  projectAttentionCount: 0,
+  calendarConflictCount: 0,
 };
 
 const EMPTY_NODE_PULSE: NodePulse = { summary: "", alerts: [] };
@@ -329,16 +352,24 @@ function evaluateLogicBridges(signals: BridgeSignals): LogicBridgeAlert[] {
     });
   }
 
-  if (signals.homeCalendarHasConflict) {
+  if (signals.homeCalendarHasConflict || signals.calendarConflictCount > 0) {
     alerts.push({
-      bridgeId: "home-calendar-clash",
-      triggerSource: "HomeNode",
-      condition: "Calendar conflict (work vs family)",
+      bridgeId: "calendar-schedule-conflict",
+      triggerSource: "Calendar & Tasks",
+      condition:
+        signals.calendarConflictCount > 0
+          ? `${signals.calendarConflictCount} overlapping schedule block(s)`
+          : "Calendar conflict (work vs family)",
       message:
-        "I've detected a schedule clash. Your ProNode focus block overlaps with a family event. Want me to reschedule the focus time?",
-      targetNode: "HomeNode",
-      primaryActionLabel: "Resolve in HomeNode",
-      actionKind: "assemble_navigate",
+        signals.calendarConflictCount > 0
+          ? "I've detected overlapping tasks or appointments on your calendar. Want to open your schedule and resolve the clash?"
+          : "I've detected a schedule clash. Your ProNode focus block overlaps with a family event. Want me to reschedule the focus time?",
+      targetNode: signals.calendarConflictCount > 0 ? undefined : "HomeNode",
+      primaryRoute: signals.calendarConflictCount > 0 ? "/calendar" : undefined,
+      primaryActionLabel:
+        signals.calendarConflictCount > 0 ? "Resolve in Calendar" : "Resolve in HomeNode",
+      actionKind:
+        signals.calendarConflictCount > 0 ? "navigate_route" : "assemble_navigate",
     });
   }
 
@@ -424,6 +455,45 @@ function evaluateLogicBridges(signals: BridgeSignals): LogicBridgeAlert[] {
         "You have LifePulse goals due today. Want to check progress before the day runs away?",
       primaryRoute: "/pulse",
       primaryActionLabel: "View trackers",
+      actionKind: "navigate_route",
+    });
+  }
+
+  if (signals.kanbanOverdueCount > 0 && signals.kanbanHasCommitments) {
+    alerts.push({
+      bridgeId: "kanban-overdue",
+      triggerSource: "Kanban & Projects",
+      condition: `${signals.kanbanOverdueCount} past-due kanban task(s)`,
+      message:
+        "Some kanban tasks are past their target date. Open your board to reschedule or close them out?",
+      primaryRoute: "/calendar",
+      primaryActionLabel: "Open kanban",
+      actionKind: "navigate_route",
+    });
+  }
+
+  if (signals.kanbanDueTodayCount > 0 && signals.kanbanHasCommitments) {
+    alerts.push({
+      bridgeId: "kanban-due-today",
+      triggerSource: "Kanban & Projects",
+      condition: `${signals.kanbanDueTodayCount} kanban task(s) due today`,
+      message:
+        "You have kanban cards due today. Want to review your project board before the day gets away?",
+      primaryRoute: "/calendar",
+      primaryActionLabel: "Review board",
+      actionKind: "navigate_route",
+    });
+  }
+
+  if (signals.projectAttentionCount > 0) {
+    alerts.push({
+      bridgeId: "projects-needs-attention",
+      triggerSource: "Shell Projects",
+      condition: `${signals.projectAttentionCount} project(s) blocked or awaiting approval`,
+      message:
+        "Some shell projects need your attention—blocked work or pending approvals. Open your dashboard to triage?",
+      primaryRoute: "/dashboard",
+      primaryActionLabel: "View projects",
       actionKind: "navigate_route",
     });
   }
@@ -584,6 +654,7 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
   const [bridgeSignals, setBridgeSignals] = useState<BridgeSignals>(DEFAULT_BRIDGE_SIGNALS);
   const [activeLogicBridgeAlerts, setActiveLogicBridgeAlerts] = useState<LogicBridgeAlert[]>([]);
   const [linoMessage, setLinoMessage] = useState<LinoMessage | null>(null);
+  const [planUsageWarnings, setPlanUsageWarnings] = useState<PlanUsageWarning[]>([]);
   const [configuredHats, setConfiguredHats] = useState<ActiveNode[]>([]);
   const [deepWorkModeEnabled, setDeepWorkModeEnabled] = useState(false);
   const [assemblingNavigation, setAssemblingNavigation] =
@@ -785,16 +856,17 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
 
     const applyHats = (hatKeys: string[]) => {
       if (cancelled) return;
-      if (!hatKeys.length) {
-        setConfiguredHats([]);
-        return;
-      }
+      // Never wipe an existing hat set with an empty hydrate/event — that is
+      // usually a transient read failure or partial pending flush.
+      if (!hatKeys.length) return;
       setConfiguredHatsFromShellKeys(hatKeys);
     };
 
     const onHatsUpdated = (event: Event) => {
       const detail = (event as CustomEvent<{ hats?: string[] }>).detail;
-      applyHats(Array.isArray(detail?.hats) ? detail.hats : []);
+      const next = Array.isArray(detail?.hats) ? detail.hats : [];
+      if (!next.length) return;
+      applyHats(next);
     };
 
     const onSessionCleared = () => {
@@ -915,7 +987,9 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     if (hasConnectedIntegrations) return true;
     if (
       bridgeSignals.calendarHasCommitments ||
-      bridgeSignals.lifePulseHasCommitments
+      bridgeSignals.lifePulseHasCommitments ||
+      bridgeSignals.kanbanHasCommitments ||
+      bridgeSignals.projectAttentionCount > 0
     ) {
       return true;
     }
@@ -926,6 +1000,8 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     nodeUserDataReady,
     bridgeSignals.calendarHasCommitments,
     bridgeSignals.lifePulseHasCommitments,
+    bridgeSignals.kanbanHasCommitments,
+    bridgeSignals.projectAttentionCount,
   ]);
 
   /** Connected OAuth apps can feed bridge signals without manual card entry. */
@@ -1070,6 +1146,56 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
   }, [activeNode, patchBridgeSignals]);
 
   const [globalTriggerTick, setGlobalTriggerTick] = useState(0);
+  const [proactiveReminderTick, setProactiveReminderTick] = useState(0);
+  const prevAuthStatusRef = useRef(status);
+
+  const clearCommitmentDismissals = useCallback(() => {
+    for (const id of COMMITMENT_BRIDGE_IDS) {
+      dismissedBridgeIdsRef.current.delete(id);
+    }
+  }, []);
+
+  const refreshCommitmentSignals = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId || status !== "authenticated") return;
+    try {
+      const snapshot = await loadCommitmentData(userId);
+      patchBridgeSignals(commitmentSignalsFromSnapshot(snapshot));
+    } catch {
+      /* offline */
+    }
+  }, [patchBridgeSignals, session?.user?.id, status]);
+
+  const triggerProactiveReminder = useCallback(() => {
+    clearCommitmentDismissals();
+    setProactiveReminderTick((t) => t + 1);
+  }, [clearCommitmentDismissals]);
+
+  /** Sign-in + hourly: refresh schedule/task data and re-surface Linos commitment alerts. */
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user?.id) {
+      prevAuthStatusRef.current = status;
+      return;
+    }
+
+    const runProactiveRefresh = () => {
+      void refreshCommitmentSignals().then(() => triggerProactiveReminder());
+    };
+
+    if (prevAuthStatusRef.current !== "authenticated") {
+      runProactiveRefresh();
+    }
+    prevAuthStatusRef.current = status;
+
+    const hourlyId = window.setInterval(runProactiveRefresh, 60 * 60 * 1000);
+    return () => window.clearInterval(hourlyId);
+  }, [
+    refreshCommitmentSignals,
+    session?.user?.id,
+    status,
+    triggerProactiveReminder,
+  ]);
+
   /** Wall-clock aligned: re-run global triggers at the top of each local minute (6 PM guard, etc.). */
   useEffect(() => {
     let intervalId: number | undefined;
@@ -1084,6 +1210,37 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       if (intervalId !== undefined) window.clearInterval(intervalId);
     };
   }, []);
+
+  /**
+   * Poll plan usage so Linos can warn before Core/Sync monthly or daily caps are hit.
+   */
+  useEffect(() => {
+    if (status !== "authenticated") {
+      setPlanUsageWarnings([]);
+      return;
+    }
+    let cancelled = false;
+
+    const loadUsage = async () => {
+      try {
+        const res = await fetch("/api/billing/usage", { credentials: "include" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { warnings?: PlanUsageWarning[] };
+        if (!cancelled && Array.isArray(data.warnings)) {
+          setPlanUsageWarnings(data.warnings);
+        }
+      } catch {
+        /* ignore transient usage fetch errors */
+      }
+    };
+
+    void loadUsage();
+    const intervalId = window.setInterval(() => void loadUsage(), 90_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [status, billingEntitlements.plan]);
 
   /**
    * Lino Intelligence — background monitor for Logic Bridges + Transition Guard.
@@ -1102,11 +1259,26 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const commitmentAlertsEnabled =
       bridgeSignals.calendarHasCommitments ||
-      bridgeSignals.lifePulseHasCommitments;
-    const alertsEnabled =
+      bridgeSignals.lifePulseHasCommitments ||
+      bridgeSignals.kanbanHasCommitments ||
+      bridgeSignals.projectAttentionCount > 0;
+
+    const logicBridgeAlertsEnabled =
       billingEntitlements.logicBridges &&
       linoSignalsReady &&
       (linoAlertsArmed || commitmentAlertsEnabled);
+
+    const proactiveRemindersEnabled =
+      status === "authenticated" &&
+      linoSignalsReady &&
+      commitmentAlertsEnabled;
+
+    const usageAlertsEnabled = status === "authenticated";
+
+    const alertsEnabled =
+      logicBridgeAlertsEnabled ||
+      proactiveRemindersEnabled ||
+      usageAlertsEnabled;
 
     if (!alertsEnabled) {
       queueMicrotask(() => {
@@ -1116,14 +1288,25 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const proactiveAlert = buildProactiveCheckInAlert(bridgeSignals);
     const staticAlerts = evaluateLogicBridges(bridgeSignals);
-    const globalAlerts = checkGlobalTriggers({
-      signals: bridgeSignals,
-      activeNode,
-      configuredHats,
-      now: new Date(),
-    });
-    const merged = mergeAlertLists(staticAlerts, globalAlerts);
+    const globalAlerts = logicBridgeAlertsEnabled
+      ? checkGlobalTriggers({
+          signals: bridgeSignals,
+          activeNode,
+          configuredHats,
+          now: new Date(),
+        })
+      : [];
+    const usageAlerts = usageAlertsEnabled
+      ? (planUsageWarningsToAlerts(planUsageWarnings) as LogicBridgeAlert[])
+      : [];
+    const merged = mergeAlertLists(
+      proactiveAlert ? [proactiveAlert] : [],
+      staticAlerts,
+      globalAlerts,
+      usageAlerts,
+    );
     const dismissed = dismissedBridgeIdsRef.current;
     const firingIds = new Set(merged.map((c) => c.bridgeId));
     dismissed.forEach((id) => {
@@ -1155,10 +1338,13 @@ export function LifeNodeProvider({ children }: { children: ReactNode }) {
     activeNode,
     configuredHats,
     globalTriggerTick,
+    proactiveReminderTick,
     persistOutOfScopeAlerts,
     linoAlertsArmed,
     linoSignalsReady,
     billingEntitlements.logicBridges,
+    status,
+    planUsageWarnings,
   ]);
 
   const isLinoInterrupting = useMemo(() => {

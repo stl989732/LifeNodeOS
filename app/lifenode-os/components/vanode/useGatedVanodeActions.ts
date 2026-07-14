@@ -5,11 +5,15 @@ import type { EodLog, Invoice, LiveTranscriptSession } from "@/lib/vanode/types"
 import type { ClientProfile } from "@/lib/vanode/types";
 import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 import type { useVanodeStore } from "@/components/vanode/useVanodeStore";
+import {
+  localMonthUsageCount,
+  requestMeterPlanResource,
+} from "@/src/lib/billing/meterPlanResourceClient";
 
 type Store = ReturnType<typeof useVanodeStore>;
 
 export function useGatedVanodeActions(store: Store) {
-  const { canAdd, promptUpgrade } = usePlanEntitlements();
+  const { canAdd, promptUpgrade, entitlements } = usePlanEntitlements();
 
   const gatedAddClient = useCallback(
     (c: Omit<ClientProfile, "id">) => {
@@ -23,36 +27,61 @@ export function useGatedVanodeActions(store: Store) {
   );
 
   const gatedAddEod = useCallback(
-    (log: Omit<EodLog, "id" | "createdAt">) => {
-      if (!canAdd("eod_records", store.data.eodLogs.length)) {
+    async (log: Omit<EodLog, "id" | "createdAt">) => {
+      const monthCount = localMonthUsageCount(store.data.eodLogs);
+      const max = entitlements.maxEodRecords;
+      if (!canAdd("eod_records", monthCount)) {
+        promptUpgrade("eod_records");
+        return null;
+      }
+      const meter = await requestMeterPlanResource("eod_records", monthCount, max);
+      if (!meter.ok) {
         promptUpgrade("eod_records");
         return null;
       }
       return store.addEodLog(log);
     },
-    [canAdd, promptUpgrade, store],
+    [canAdd, entitlements.maxEodRecords, promptUpgrade, store],
   );
 
   const gatedAddInvoice = useCallback(
-    (inv: Omit<Invoice, "id" | "createdAt">) => {
-      if (!canAdd("invoices", store.data.invoices.length)) {
+    async (inv: Omit<Invoice, "id" | "createdAt">) => {
+      const monthCount = localMonthUsageCount(store.data.invoices);
+      const max = entitlements.maxInvoices;
+      if (!canAdd("invoices", monthCount)) {
+        promptUpgrade("invoices");
+        return null;
+      }
+      const meter = await requestMeterPlanResource("invoices", monthCount, max);
+      if (!meter.ok) {
         promptUpgrade("invoices");
         return null;
       }
       return store.addInvoice(inv);
     },
-    [canAdd, promptUpgrade, store],
+    [canAdd, entitlements.maxInvoices, promptUpgrade, store],
   );
 
   const gatedAddTranscript = useCallback(
-    (row: Omit<LiveTranscriptSession, "id" | "createdAt">) => {
-      if (!canAdd("transcriptions", store.data.liveTranscripts.length)) {
+    async (row: Omit<LiveTranscriptSession, "id" | "createdAt">) => {
+      const monthCount = localMonthUsageCount(store.data.liveTranscripts);
+      const max = entitlements.maxTranscriptions;
+      if (!canAdd("transcriptions", monthCount)) {
+        promptUpgrade("transcriptions");
+        return "";
+      }
+      const meter = await requestMeterPlanResource(
+        "transcriptions",
+        monthCount,
+        max,
+      );
+      if (!meter.ok) {
         promptUpgrade("transcriptions");
         return "";
       }
       return store.addLiveTranscript(row);
     },
-    [canAdd, promptUpgrade, store],
+    [canAdd, entitlements.maxTranscriptions, promptUpgrade, store],
   );
 
   return {

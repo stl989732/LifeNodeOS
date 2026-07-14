@@ -13,17 +13,27 @@ import { countScreenCapturesThisMonth } from "@/src/lib/billing/screenCapturePla
 
 type UsageApiResponse = {
   aiCreditsUsed?: number;
+  linosAssistantUsed?: number;
   trackersUsed?: number;
   integrationsUsed?: number;
   vaClientsUsed?: number;
   displayName?: string;
   isPaid?: boolean;
+  invoicesUsed?: number;
+  eodRecordsUsed?: number;
+  transcriptionsUsed?: number;
+  kanbanBoardsUsed?: number;
   limits?: {
     aiCreditsDaily?: number;
+    linosAssistantDaily?: number;
     maxTrackers?: number;
     maxIntegrations?: number;
     maxVaClients?: number;
     maxChefRecipesMonthly?: number;
+    maxInvoices?: number;
+    maxEodRecords?: number;
+    maxTranscriptions?: number;
+    maxKanbanBoards?: number;
   };
   chefRecipesUsed?: number;
 };
@@ -153,10 +163,15 @@ export default function PlanUsageSection() {
 
   const limits = usage?.limits ?? {
     aiCreditsDaily: entitlements.aiCreditsDaily,
+    linosAssistantDaily: entitlements.features.linos_assistant,
     maxTrackers: entitlements.maxTrackers,
     maxIntegrations: entitlements.maxIntegrations,
     maxVaClients: entitlements.maxVaClients,
     maxChefRecipesMonthly: entitlements.maxChefRecipesMonthly,
+    maxInvoices: entitlements.maxInvoices,
+    maxEodRecords: entitlements.maxEodRecords,
+    maxTranscriptions: entitlements.maxTranscriptions,
+    maxKanbanBoards: entitlements.maxKanbanBoards,
   };
 
   const meters: MeterRow[] = [
@@ -166,6 +181,37 @@ export default function PlanUsageSection() {
       used: usage?.aiCreditsUsed ?? 0,
       limit: limits.aiCreditsDaily ?? entitlements.aiCreditsDaily,
       hint: "Resets at midnight UTC. Lino, VANode AI, BizNode, LifePulse, and Chef share this pool.",
+    },
+    {
+      id: "linos",
+      label: "Linos chats (today, UTC)",
+      used: usage?.linosAssistantUsed ?? 0,
+      limit: limits.linosAssistantDaily ?? entitlements.features.linos_assistant,
+      hint: "Assistant messages metered per day. Linos warns before you hit the cap.",
+    },
+    {
+      id: "invoices",
+      label: "Invoices (this month, UTC)",
+      used: usage?.invoicesUsed ?? 0,
+      limit: limits.maxInvoices ?? entitlements.maxInvoices,
+    },
+    {
+      id: "eod",
+      label: "EOD reports (this month, UTC)",
+      used: usage?.eodRecordsUsed ?? 0,
+      limit: limits.maxEodRecords ?? entitlements.maxEodRecords,
+    },
+    {
+      id: "transcriptions",
+      label: "Transcriptions (this month, UTC)",
+      used: usage?.transcriptionsUsed ?? 0,
+      limit: limits.maxTranscriptions ?? entitlements.maxTranscriptions,
+    },
+    {
+      id: "kanban",
+      label: "Kanban boards (this month, UTC)",
+      used: usage?.kanbanBoardsUsed ?? 0,
+      limit: limits.maxKanbanBoards ?? entitlements.maxKanbanBoards,
     },
     {
       id: "chef",
@@ -219,10 +265,10 @@ export default function PlanUsageSection() {
           </p>
           <p className="mt-1 text-xs text-slate-500">
             {plan === "core"
-              ? "Core — free tier with ChefNode (2 recipes/month), 2 LifePulse plans/month, 3 EOD screen recordings/month (no download), and daily AI credits."
+              ? "Core — 2 invoices / EOD reports / transcriptions per month, 1 kanban board per month, 5 Linos chats/day, and daily AI credits."
               : plan === "sync"
-                ? "Sync — VitalNode, 15 downloadable EOD screen recordings/month, and higher AI limits."
-                : "Nexus — $59/mo ($49/mo billed annually) — full node suite, unlimited EOD recordings, highest AI credits."}
+                ? "Sync — monthly invoices / EOD / transcriptions / kanban caps, VitalNode, and higher daily Linos + AI limits."
+                : "Nexus — $59/mo ($49/mo billed annually) — full node suite, unlimited monthly resource caps, highest AI credits."}
           </p>
         </div>
         <button

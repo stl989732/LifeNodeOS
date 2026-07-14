@@ -4,14 +4,24 @@ import { getNodeWidget } from "@/lib/node-widget-data-store";
 import { listUserConnectedApps } from "@/src/lib/integrations/userConnectedAppsDb";
 import { getUserPlanSnapshot } from "@/src/lib/billing/getUserPlan";
 import { readChefRecipesUsedThisMonth } from "@/src/lib/billing/meterChefRecipe";
+import { readAllPlanResourcesUsedThisMonth } from "@/src/lib/billing/meterPlanResource";
+import {
+  buildPlanUsageWarnings,
+  type PlanUsageWarning,
+} from "@/src/lib/billing/planUsageWarnings";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/admin";
 
 export type PlanUsageCounts = {
   aiCreditsUsed: number;
+  linosAssistantUsed: number;
   trackersUsed: number;
   integrationsUsed: number;
   vaClientsUsed: number;
   chefRecipesUsed: number;
+  invoicesUsed: number;
+  eodRecordsUsed: number;
+  transcriptionsUsed: number;
+  kanbanBoardsUsed: number;
 };
 
 export type PlanUsageSnapshot = PlanUsageCounts & {
@@ -20,11 +30,17 @@ export type PlanUsageSnapshot = PlanUsageCounts & {
   isPaid: boolean;
   limits: {
     aiCreditsDaily: number;
+    linosAssistantDaily: number;
     maxTrackers: number;
     maxIntegrations: number;
     maxVaClients: number;
     maxChefRecipesMonthly: number;
+    maxInvoices: number;
+    maxEodRecords: number;
+    maxTranscriptions: number;
+    maxKanbanBoards: number;
   };
+  warnings: PlanUsageWarning[];
 };
 
 function utcTodayIsoDate(): string {
@@ -39,26 +55,31 @@ function supabaseConfigured(): boolean {
   );
 }
 
-async function fetchAiCreditsUsed(userId: string): Promise<number> {
-  if (!supabaseConfigured()) return 0;
+async function fetchAiDailyUsage(
+  userId: string,
+): Promise<{ creditsUsed: number; linosAssistantUsed: number }> {
+  if (!supabaseConfigured()) return { creditsUsed: 0, linosAssistantUsed: 0 };
   try {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("ai_daily_usage")
-      .select("credits_used")
+      .select("credits_used, linos_assistant")
       .eq("user_id", userId)
       .eq("usage_date", utcTodayIsoDate())
       .maybeSingle();
 
     if (error) {
-      if (error.code === "42P01") return 0;
+      if (error.code === "42P01") return { creditsUsed: 0, linosAssistantUsed: 0 };
       console.error("[getPlanUsage] ai_daily_usage read failed:", error.message);
-      return 0;
+      return { creditsUsed: 0, linosAssistantUsed: 0 };
     }
-    return Number(data?.credits_used ?? 0);
+    return {
+      creditsUsed: Number(data?.credits_used ?? 0),
+      linosAssistantUsed: Number(data?.linos_assistant ?? 0),
+    };
   } catch (err) {
     console.error("[getPlanUsage] ai credits unexpected:", err);
-    return 0;
+    return { creditsUsed: 0, linosAssistantUsed: 0 };
   }
 }
 
@@ -109,33 +130,54 @@ async function fetchVaClientCount(userId: string): Promise<number> {
 }
 
 export async function getPlanUsage(userId: string): Promise<PlanUsageSnapshot> {
-  const [planSnapshot, aiCreditsUsed, trackersUsed, integrationsUsed, vaClientsUsed, chefRecipesUsed] =
+  const [planSnapshot, aiDaily, trackersUsed, integrationsUsed, vaClientsUsed, chefRecipesUsed, resources] =
     await Promise.all([
       getUserPlanSnapshot(userId),
-      fetchAiCreditsUsed(userId),
+      fetchAiDailyUsage(userId),
       fetchTrackerCount(userId),
       fetchIntegrationCount(userId),
       fetchVaClientCount(userId),
       readChefRecipesUsedThisMonth(userId),
+      readAllPlanResourcesUsedThisMonth(userId),
     ]);
 
   const { entitlements, plan, isPaid } = planSnapshot;
+  const warnings = buildPlanUsageWarnings({
+    entitlements,
+    aiCreditsUsed: aiDaily.creditsUsed,
+    linosAssistantUsed: aiDaily.linosAssistantUsed,
+    invoicesUsed: resources.invoices,
+    eodRecordsUsed: resources.eod_records,
+    transcriptionsUsed: resources.transcriptions,
+    kanbanBoardsUsed: resources.kanban_boards,
+  });
 
   return {
     plan,
     displayName: entitlements.displayName,
     isPaid,
-    aiCreditsUsed,
+    aiCreditsUsed: aiDaily.creditsUsed,
+    linosAssistantUsed: aiDaily.linosAssistantUsed,
     trackersUsed,
     integrationsUsed,
     vaClientsUsed,
     chefRecipesUsed,
+    invoicesUsed: resources.invoices,
+    eodRecordsUsed: resources.eod_records,
+    transcriptionsUsed: resources.transcriptions,
+    kanbanBoardsUsed: resources.kanban_boards,
     limits: {
       aiCreditsDaily: entitlements.aiCreditsDaily,
+      linosAssistantDaily: entitlements.features.linos_assistant,
       maxTrackers: entitlements.maxTrackers,
       maxIntegrations: entitlements.maxIntegrations,
       maxVaClients: entitlements.maxVaClients,
       maxChefRecipesMonthly: entitlements.maxChefRecipesMonthly,
+      maxInvoices: entitlements.maxInvoices,
+      maxEodRecords: entitlements.maxEodRecords,
+      maxTranscriptions: entitlements.maxTranscriptions,
+      maxKanbanBoards: entitlements.maxKanbanBoards,
     },
+    warnings,
   };
 }

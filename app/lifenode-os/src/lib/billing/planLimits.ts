@@ -55,11 +55,20 @@ export function planLimitMessage(
   planDisplayName: string,
 ): string {
   const label = PLAN_LIMIT_LABELS[limit];
+  const period =
+    limit === "invoices" ||
+    limit === "eod_records" ||
+    limit === "transcriptions" ||
+    limit === "kanban_boards" ||
+    limit === "screen_captures" ||
+    limit === "chef_recipes"
+      ? " this month"
+      : "";
   if (planDisplayName === "Core") {
-    return `You've reached the ${label} limit on Core. Upgrade to Sync or Nexus for more.`;
+    return `You've reached the ${label} limit${period} on Core. Upgrade to Sync or Nexus for more.`;
   }
   if (planDisplayName === "Sync") {
-    return `You've reached the ${label} limit on Sync. Upgrade to Nexus for unlimited use.`;
+    return `You've reached the ${label} limit${period} on Sync. Upgrade to Nexus for higher capacity.`;
   }
-  return `You've reached the ${label} limit on ${planDisplayName}.`;
+  return `You've reached the ${label} limit${period} on ${planDisplayName}.`;
 }

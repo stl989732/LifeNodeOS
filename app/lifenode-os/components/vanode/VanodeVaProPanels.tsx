@@ -608,7 +608,9 @@ type LiveProps = {
     clientId: string | null;
     labels: string[];
   }) => void;
-  onAddSession: (row: Omit<LiveTranscriptSession, "id">) => string;
+  onAddSession: (
+    row: Omit<LiveTranscriptSession, "id">,
+  ) => string | Promise<string>;
   onUpdateSession: (
     id: string,
     patch: Partial<
@@ -702,8 +704,8 @@ export function LiveMeetingCaptureCard({
     wasCapturingRef.current = live.isCapturing;
   }, [activeId, finalizeLiveSession, live.isCapturing, live.transcriptText]);
 
-  const startLive = () => {
-    const id = onAddSession({
+  const startLive = async () => {
+    const id = await onAddSession({
       title,
       kind,
       startedAt: new Date().toISOString(),
@@ -713,6 +715,7 @@ export function LiveMeetingCaptureCard({
       cloudQueued: cloud,
       meetingUrl: meetingUrl.trim() || null,
     });
+    if (!id) return;
     setActiveId(id);
     setSavedTranscript("");
     setSummary(null);
@@ -883,7 +886,7 @@ export function LiveMeetingCaptureCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={startLive}
+          onClick={() => void startLive()}
           disabled={live.isCapturing}
           className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
         >

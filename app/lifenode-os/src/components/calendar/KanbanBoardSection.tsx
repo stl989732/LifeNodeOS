@@ -25,6 +25,10 @@ import {
 
 import { transferInboxDrop } from "@/src/hooks/useInboxDropTransfer";
 import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
+import {
+  localMonthUsageCount,
+  requestMeterPlanResource,
+} from "@/src/lib/billing/meterPlanResourceClient";
 
 const KANBAN_DRAG_MIME = "application/x-lifenode-kanban-card";
 
@@ -39,7 +43,6 @@ export default function KanbanBoardSection({
   userId,
   onStoreChange,
 }: KanbanBoardSectionProps) {
-  const { canAdd, promptUpgrade } = usePlanEntitlements();
   const [newBoardName, setNewBoardName] = useState("");
   const [showNewBoard, setShowNewBoard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState<Record<string, string>>({});
@@ -79,6 +82,13 @@ export default function KanbanBoardSection({
     [activeBoard],
   );
 
+  const { canAdd, promptUpgrade, entitlements } = usePlanEntitlements();
+
+  const monthBoardCount = useMemo(
+    () => localMonthUsageCount(store.boards),
+    [store.boards],
+  );
+
   function persist(next: KanbanStore) {
     onStoreChange(next);
   }
@@ -87,8 +97,18 @@ export default function KanbanBoardSection({
     return boardCards.filter((c) => c.columnId === columnId);
   }
 
-  function handleCreateBoard() {
-    if (!canAdd("kanban_boards", store.boards.length)) {
+  async function handleCreateBoard() {
+    const max = entitlements.maxKanbanBoards;
+    if (!canAdd("kanban_boards", monthBoardCount)) {
+      promptUpgrade("kanban_boards");
+      return;
+    }
+    const meter = await requestMeterPlanResource(
+      "kanban_boards",
+      monthBoardCount,
+      max,
+    );
+    if (!meter.ok) {
       promptUpgrade("kanban_boards");
       return;
     }
@@ -286,13 +306,13 @@ export default function KanbanBoardSection({
                 value={newBoardName}
                 onChange={(e) => setNewBoardName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreateBoard();
+                  if (e.key === "Enter") void handleCreateBoard();
                 }}
               />
               <button
                 type="button"
                 className={AURA_BTN_PRIMARY}
-                onClick={handleCreateBoard}
+                onClick={() => void handleCreateBoard()}
               >
                 Create
               </button>
@@ -409,7 +429,7 @@ export default function KanbanBoardSection({
           <button
             type="button"
             className={AURA_BTN_PRIMARY}
-            onClick={handleCreateBoard}
+            onClick={() => void handleCreateBoard()}
           >
             Create
           </button>

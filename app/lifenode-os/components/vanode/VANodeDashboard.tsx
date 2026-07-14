@@ -455,7 +455,7 @@ export function VANodeDashboard() {
                 eodLogs={store.data.eodLogs}
                 cloudSyncRecording={store.data.settings.cloudSyncRecording}
                 onSetCloudSync={store.setCloudSyncRecording}
-                onAddEod={(payload) => gatedAddEod(payload)}
+                onAddEod={(payload) => void gatedAddEod(payload)}
               />
             </VaFocusShell>
           )}
@@ -562,7 +562,7 @@ export function VANodeDashboard() {
               invoices={store.data.invoices}
               eodLogs={store.data.eodLogs}
               clients={store.data.clients}
-              onAdd={(inv) => gatedAddInvoice(inv)}
+              onAdd={(inv) => void gatedAddInvoice(inv)}
               onUpdateStatus={(id, status) =>
                 store.updateInvoice(id, { status })
               }
@@ -608,7 +608,7 @@ export function VANodeDashboard() {
           eodLogs={store.data.eodLogs}
           cloudSyncRecording={store.data.settings.cloudSyncRecording}
           onSetCloudSync={store.setCloudSyncRecording}
-          onAddEod={(payload) => gatedAddEod(payload)}
+          onAddEod={(payload) => void gatedAddEod(payload)}
         />
       </div>
     ) : activeStage === "vault" && nt.smartNotes ? (
@@ -692,7 +692,7 @@ export function VANodeDashboard() {
           invoices={store.data.invoices}
           eodLogs={store.data.eodLogs}
           clients={store.data.clients}
-          onAdd={(inv) => gatedAddInvoice(inv)}
+          onAdd={(inv) => void gatedAddInvoice(inv)}
           onUpdateStatus={(id, status) =>
             store.updateInvoice(id, { status })
           }

@@ -44,7 +44,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
     displayName: "Core",
     aiCreditsDaily: 20,
     features: {
-      linos_assistant: 12,
+      linos_assistant: 5,
       vanode_ai: 4,
       biznode_ai: 3,
       lifepulse_plan: 2,
@@ -57,9 +57,13 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
     maxIntegrations: 2,
     maxVaClients: 2,
     maxTrackers: 3,
+    /** Per UTC calendar month. */
     maxKanbanBoards: 1,
+    /** Per UTC calendar month. */
     maxInvoices: 2,
+    /** Per UTC calendar month. */
     maxEodRecords: 2,
+    /** Per UTC calendar month. */
     maxTranscriptions: 2,
     maxScreenCapturesMonthly: 3,
     screenCapturesDownloadable: false,
@@ -86,9 +90,13 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
     maxIntegrations: 12,
     maxVaClients: 8,
     maxTrackers: 40,
+    /** Per UTC calendar month. */
     maxKanbanBoards: 10,
+    /** Per UTC calendar month. */
     maxInvoices: 20,
+    /** Per UTC calendar month. */
     maxEodRecords: 20,
+    /** Per UTC calendar month. */
     maxTranscriptions: 20,
     maxScreenCapturesMonthly: 15,
     screenCapturesDownloadable: true,
