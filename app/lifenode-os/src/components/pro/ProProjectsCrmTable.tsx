@@ -196,9 +196,9 @@ export default function ProProjectsCrmTable({
     const tableMinWidth = Math.max(visibleColumns.length * 128 + 96, 480);
 
     return (
-      <div className={`overflow-x-auto ${focusMode ? "mx-auto w-full max-w-5xl" : ""}`}>
+      <div className={`overflow-x-auto ${focusMode ? "mx-auto w-full max-w-[90rem]" : ""}`}>
         <table
-          className={`text-left ${textSize} ${focusMode ? "w-full" : "w-full"}`}
+          className={`w-full text-left ${textSize}`}
           style={{ minWidth: tableMinWidth }}
         >
           <thead>
@@ -334,8 +334,8 @@ export default function ProProjectsCrmTable({
 
   if (expanded) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm md:p-8">
-        <div className="flex max-h-[min(92vh,900px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-sm sm:p-5 md:p-6">
+        <div className="flex h-[min(94vh,1100px)] w-[min(98vw,96rem)] max-w-[96rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <h2 className="text-base font-bold text-[#1E293B]">Clients & Projects — full view</h2>
             <div className="flex items-center gap-2">

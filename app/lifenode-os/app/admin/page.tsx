@@ -10,7 +10,7 @@ import type { AdminUserSegment } from "@/src/lib/admin/getAdminUserDirectory";
 import { ADMIN_SIGNIN_QUERY } from "@/src/lib/admin/adminAuth";
 import AdminUserDirectoryPanel from "@/components/admin/AdminUserDirectoryPanel";
 import AdminHealthPanel from "@/components/admin/AdminHealthPanel";
-import AdminSupportSection from "@/components/admin/AdminSupportSection";
+import AdminTrendsCharts from "@/components/admin/AdminTrendsCharts";
 
 type StatKey = AdminUserSegment;
 
@@ -150,8 +150,8 @@ export default function AdminDashboardPage() {
               Admin dashboard
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Account totals by plan, active vs deleted users, marketing contact
-              lists, support intake, and production health signals.
+              Account totals by plan, earnings and user trends, marketing contact
+              lists, and production health signals.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -222,6 +222,8 @@ export default function AdminDashboardPage() {
               />
             ) : null}
 
+            <AdminTrendsCharts trends={stats.trends ?? []} />
+
             <section className="mb-8 grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-6 shadow-sm backdrop-blur-sm">
                 <h2 className="text-lg font-semibold text-slate-900">Users by plan</h2>
@@ -274,10 +276,6 @@ export default function AdminDashboardPage() {
                 </dl>
               </div>
             </section>
-
-            <div className="mb-8">
-              <AdminSupportSection />
-            </div>
 
             <AdminHealthPanel
               checks={stats.health}

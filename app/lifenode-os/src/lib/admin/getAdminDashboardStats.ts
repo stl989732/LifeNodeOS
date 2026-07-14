@@ -6,6 +6,21 @@ import {
 import type { PlanKey } from "@/src/lib/billing/plans";
 import { isLemonSqueezyConfigured } from "@/src/lib/billing/lemonsqueezy/config";
 
+export type AdminTrendPoint = {
+  /** YYYY-MM */
+  month: string;
+  /** Short axis label, e.g. Jan 26 */
+  label: string;
+  /** Cumulative registered accounts by end of month */
+  users: number;
+  /** New signups that month */
+  newUsers: number;
+  /** Estimated MRR ($) from paid Sync/Nexus subs active by month-end */
+  earnings: number;
+  /** Paid subscription rows counted toward earnings */
+  paidSubs: number;
+};
+
 export type HealthStatus = "ok" | "warn" | "error";
 
 export type HealthCheck = {
@@ -23,31 +38,119 @@ export type AdminDashboardStats = {
     subscriptionRows: number;
     byStatus: Record<string, number>;
   };
+  trends: AdminTrendPoint[];
   health: HealthCheck[];
   generatedAt: string;
 };
+
+/** List prices used for estimated earnings (monthly billing). */
+const ESTIMATED_MRR_USD: Record<"sync" | "nexus", number> = {
+  sync: 24,
+  nexus: 59,
+};
+
+function monthKey(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function monthLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(Date.UTC(y, (m ?? 1) - 1, 1));
+  return d.toLocaleString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
+}
+
+function lastNMonthKeys(n: number, ending = new Date()): string[] {
+  const keys: string[] = [];
+  const cursor = new Date(
+    Date.UTC(ending.getUTCFullYear(), ending.getUTCMonth(), 1),
+  );
+  for (let i = n - 1; i >= 0; i -= 1) {
+    const d = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - i, 1));
+    keys.push(monthKey(d));
+  }
+  return keys;
+}
+
+function parseIsoDate(value: string | null | undefined): Date | null {
+  if (!value?.trim()) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 function emptyPlanCounts(): Record<PlanKey, number> {
   return { core: 0, sync: 0, nexus: 0 };
 }
 
-async function countAuthUsers(): Promise<number> {
+async function listAuthUserCreatedAts(): Promise<{ total: number; createdAts: string[] }> {
   const supabase = createSupabaseAdminClient();
-  let total = 0;
+  const createdAts: string[] = [];
   let page = 1;
   const perPage = 200;
 
   for (;;) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
     if (error) throw error;
-    const batch = data.users?.length ?? 0;
-    total += batch;
-    if (batch < perPage) break;
+    const batch = data.users ?? [];
+    for (const u of batch) {
+      if (u.created_at) createdAts.push(u.created_at);
+    }
+    if (batch.length < perPage) break;
     page += 1;
     if (page > 50) break;
   }
 
-  return total;
+  return { total: createdAts.length, createdAts };
+}
+
+function buildTrendSeries(
+  userCreatedAts: string[],
+  subscriptionRows: UserSubscriptionRow[],
+): AdminTrendPoint[] {
+  const months = lastNMonthKeys(12);
+  const monthEndMs = (key: string) => {
+    const [y, m] = key.split("-").map(Number);
+    return Date.UTC(y, m, 0, 23, 59, 59, 999);
+  };
+
+  const userTimes = userCreatedAts
+    .map((iso) => parseIsoDate(iso)?.getTime())
+    .filter((t): t is number => typeof t === "number")
+    .sort((a, b) => a - b);
+
+  return months.map((month) => {
+    const end = monthEndMs(month);
+    const [y, m] = month.split("-").map(Number);
+    const start = Date.UTC(y, m - 1, 1, 0, 0, 0, 0);
+
+    const users = userTimes.filter((t) => t <= end).length;
+    const newUsers = userTimes.filter((t) => t >= start && t <= end).length;
+
+    let earnings = 0;
+    let paidSubs = 0;
+    for (const row of subscriptionRows) {
+      const created = parseIsoDate(row.created_at)?.getTime();
+      if (created == null || created > end) continue;
+      const plan = effectivePlanFromRow(row);
+      if (plan === "core") continue;
+      if (row.status === "cancelled" || row.status === "expired") {
+        const ended = parseIsoDate(row.current_period_end)?.getTime();
+        if (ended != null && ended < start) continue;
+      }
+      paidSubs += 1;
+      earnings += ESTIMATED_MRR_USD[plan];
+    }
+
+    return {
+      month,
+      label: monthLabel(month),
+      users,
+      newUsers,
+      earnings,
+      paidSubs,
+    };
+  });
 }
 
 function normalizeSubscriptionRow(raw: Record<string, unknown>): UserSubscriptionRow {
@@ -137,9 +240,12 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   let totalRegistered = 0;
   let deletedAccounts = 0;
   let subscriptionRows: UserSubscriptionRow[] = [];
+  let userCreatedAts: string[] = [];
 
   try {
-    totalRegistered = await countAuthUsers();
+    const listed = await listAuthUserCreatedAts();
+    totalRegistered = listed.total;
+    userCreatedAts = listed.createdAts;
     pushHealth({
       name: "Auth user registry",
       status: "ok",
@@ -219,6 +325,7 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   byPlan.core += usersWithoutRow;
 
   const activeAccounts = Math.max(0, totalRegistered - deletedAccounts);
+  const trends = buildTrendSeries(userCreatedAts, subscriptionRows);
 
   return {
     users: {
@@ -229,6 +336,7 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       subscriptionRows: subscriptionRows.length,
       byStatus,
     },
+    trends,
     health,
     generatedAt: new Date().toISOString(),
   };
