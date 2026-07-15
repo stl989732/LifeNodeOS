@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, PenSquare, RefreshCw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { InboxClientItem } from "@/src/lib/orchestrator/inboxDb";
 import type { InboxSource } from "@/src/lib/orchestrator/types";
 import { readInboxDrag } from "@/src/lib/orchestrator/inboxDrag";
+import { useConnectedApps } from "@/src/lib/useConnectedApps";
+import InboxComposeModal from "./InboxComposeModal";
 import InboxList from "./InboxList";
 import InboxMessageModal from "./InboxMessageModal";
 import IntegrationRail from "./IntegrationRail";
@@ -18,7 +20,12 @@ export default function InboxDashboard() {
   const [items, setItems] = useState<InboxClientItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<InboxSource | "all">("all");
+  const { connectedApps } = useConnectedApps(session?.user?.id ?? "");
+  const gmailConnected =
+    connectedApps.inbox_gmail === "connected" ||
+    connectedApps.va_gmail === "connected";
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -198,6 +205,30 @@ export default function InboxDashboard() {
     }
   }
 
+  async function handleCompose(input: {
+    to: string;
+    subject: string;
+    text: string;
+  }) {
+    setError(null);
+    const res = await fetch("/api/inbox/compose", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(
+        typeof data.error === "string"
+          ? data.error
+          : typeof data.message === "string"
+            ? data.message
+            : "Failed to send message",
+      );
+    }
+  }
+
   function handleDropTransfer(e: React.DragEvent, body: Record<string, unknown>) {
     e.preventDefault();
     const drag = readInboxDrag(e);
@@ -228,6 +259,14 @@ export default function InboxDashboard() {
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <IntegrationRail variant="bar" className="lg:hidden" />
+            <button
+              type="button"
+              onClick={() => setComposeOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-800 hover:bg-slate-50 sm:gap-2 sm:px-3 sm:py-2 sm:text-xs"
+            >
+              <PenSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Compose
+            </button>
             <button
               type="button"
               onClick={() => void sync()}
@@ -290,6 +329,13 @@ export default function InboxDashboard() {
         onArchive={handleArchive}
         onReply={handleReply}
         onTransfer={handleTransfer}
+      />
+
+      <InboxComposeModal
+        open={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        onSend={handleCompose}
+        gmailConnected={gmailConnected}
       />
 
       {!session?.user?.id ? null : (

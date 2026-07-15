@@ -78,6 +78,45 @@ export async function sendGmailReply(
   }
 }
 
+/** Send a new Gmail message (not a reply). */
+export async function sendGmailCompose(
+  integrationUserId: string,
+  input: { to: string; subject: string; body: string },
+): Promise<void> {
+  const accessToken = await getValidAccessToken(integrationUserId, "gmail");
+
+  const raw = [
+    `To: ${input.to}`,
+    `Subject: ${input.subject}`,
+    "Content-Type: text/plain; charset=utf-8",
+    "",
+    input.body,
+  ].join("\r\n");
+
+  const encoded = Buffer.from(raw)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const sendRes = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ raw: encoded }),
+    },
+  );
+
+  if (!sendRes.ok) {
+    const detail = await sendRes.text().catch(() => sendRes.statusText);
+    throw new Error(`gmail_send_failed: ${detail.slice(0, 200)}`);
+  }
+}
+
 export async function archiveGmailMessage(
   integrationUserId: string,
   externalId: string,
