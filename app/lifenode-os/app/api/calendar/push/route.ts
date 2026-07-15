@@ -11,6 +11,8 @@ export const runtime = "nodejs";
 type PushBody = {
   month?: string;
   items?: ScheduleItem[];
+  /** IANA timezone from the browser (e.g. America/Los_Angeles). */
+  timeZone?: string;
 };
 
 /** POST — export local dashboard items into Google Calendar. */
@@ -38,12 +40,18 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       pushed: 0,
+      updated: 0,
       skipped: 0,
+      externalIds: {},
       message: "No local items to export in this view.",
     });
   }
 
   const { start, end } = monthSyncWindow(body.month);
+  const timeZone =
+    typeof body.timeZone === "string" && body.timeZone.trim()
+      ? body.timeZone.trim()
+      : "UTC";
 
   try {
     const accessToken = await getValidAccessToken(
@@ -55,14 +63,16 @@ export async function POST(request: Request) {
       localItems,
       start,
       end,
+      timeZone,
     );
 
+    const total = result.pushed + result.updated;
     return NextResponse.json({
       ok: true,
       ...result,
       message:
-        result.pushed > 0
-          ? `Exported ${result.pushed} item${result.pushed === 1 ? "" : "s"} to Google Calendar.`
+        total > 0
+          ? `Synced ${total} item${total === 1 ? "" : "s"} to Google Calendar.`
           : "No new local items to export for this month.",
     });
   } catch (e) {

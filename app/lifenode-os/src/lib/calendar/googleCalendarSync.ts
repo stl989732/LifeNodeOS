@@ -32,6 +32,25 @@ function timeFromIso(iso: string): { dateKey: string; time?: string } {
   };
 }
 
+/** Google all-day `end.date` is exclusive — next calendar day. */
+function nextDateKey(dateKey: string): string {
+  const d = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dateKey;
+  d.setDate(d.getDate() + 1);
+  return formatDateKey(d);
+}
+
+function addOneHour(hhmm: string): string {
+  const [hRaw, mRaw] = hhmm.split(":");
+  let h = Number(hRaw);
+  let m = Number(mRaw);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return "10:00";
+  m += 0;
+  h += 1;
+  if (h >= 24) h = 23;
+  return padTime(h, m);
+}
+
 function mapGoogleEvent(event: GoogleCalendarEvent): ScheduleItem | null {
   if (!event.id || !event.summary?.trim()) return null;
 
@@ -123,12 +142,14 @@ function localScheduleToGoogleEvent(
       summary,
       description: item.notes,
       start: { date: item.date },
-      end: { date: item.date },
+      end: { date: nextDateKey(item.date) },
     };
   }
 
   const startTime = item.startTime ?? "09:00";
-  const endTime = item.endTime ?? startTime;
+  let endTime = item.endTime ?? addOneHour(startTime);
+  if (endTime <= startTime) endTime = addOneHour(startTime);
+
   return {
     summary,
     description: item.notes,
@@ -137,22 +158,36 @@ function localScheduleToGoogleEvent(
   };
 }
 
+export type GooglePushResult = {
+  pushed: number;
+  updated: number;
+  skipped: number;
+  /** Local schedule item id → Google event id */
+  externalIds: Record<string, string>;
+};
+
 export async function pushLocalItemsToGoogleCalendar(
   accessToken: string,
   items: ScheduleItem[],
   rangeStart: Date,
   rangeEnd: Date,
-): Promise<{ pushed: number; skipped: number }> {
+  timeZone = "UTC",
+): Promise<GooglePushResult> {
   if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
     throw new Error("Invalid sync date range");
   }
 
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const tz =
+    typeof timeZone === "string" && timeZone.trim()
+      ? timeZone.trim()
+      : "UTC";
   const startKey = formatDateKey(rangeStart);
   const endKey = formatDateKey(rangeEnd);
 
   let pushed = 0;
+  let updated = 0;
   let skipped = 0;
+  const externalIds: Record<string, string> = {};
 
   for (const item of items) {
     if (item.source !== "local") {
@@ -163,14 +198,33 @@ export async function pushLocalItemsToGoogleCalendar(
       skipped += 1;
       continue;
     }
-    if (item.externalId) {
+
+    const body = localScheduleToGoogleEvent(item, tz);
+    if (!body) {
       skipped += 1;
       continue;
     }
 
-    const body = localScheduleToGoogleEvent(item, timeZone);
-    if (!body) {
-      skipped += 1;
+    if (item.externalId) {
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(item.externalId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        },
+      );
+
+      if (!res.ok) {
+        const detail = await res.text().catch(() => res.statusText);
+        throw new Error(`Google Calendar update error: ${detail.slice(0, 200)}`);
+      }
+
+      externalIds[item.id] = item.externalId;
+      updated += 1;
       continue;
     }
 
@@ -191,8 +245,12 @@ export async function pushLocalItemsToGoogleCalendar(
       throw new Error(`Google Calendar export error: ${detail.slice(0, 200)}`);
     }
 
+    const created = (await res.json().catch(() => ({}))) as { id?: string };
+    if (created.id) {
+      externalIds[item.id] = created.id;
+    }
     pushed += 1;
   }
 
-  return { pushed, skipped };
+  return { pushed, updated, skipped, externalIds };
 }

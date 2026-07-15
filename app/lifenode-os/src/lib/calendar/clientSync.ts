@@ -40,19 +40,35 @@ export async function syncCalendarProvider(
 export async function pushLocalItemsToGoogle(
   monthKey: string,
   items: ScheduleItem[],
-): Promise<{ ok: boolean; pushed?: number; message?: string; error?: string }> {
+  timeZone?: string,
+): Promise<{
+  ok: boolean;
+  pushed?: number;
+  updated?: number;
+  message?: string;
+  error?: string;
+  externalIds?: Record<string, string>;
+}> {
+  const tz =
+    timeZone ??
+    (typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "UTC");
+
   const res = await fetch("/api/calendar/push", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ month: monthKey, items }),
+    body: JSON.stringify({ month: monthKey, items, timeZone: tz }),
   });
 
   const data = (await res.json().catch(() => ({}))) as {
     ok?: boolean;
     pushed?: number;
+    updated?: number;
     message?: string;
     error?: string;
+    externalIds?: Record<string, string>;
   };
 
   if (!res.ok) {
@@ -62,6 +78,8 @@ export async function pushLocalItemsToGoogle(
   return {
     ok: true,
     pushed: data.pushed,
+    updated: data.updated,
     message: data.message,
+    externalIds: data.externalIds ?? {},
   };
 }

@@ -202,6 +202,7 @@ export default function ConnectedCalendarCard({
       {items.length === 0 ? (
         <p className={`mt-3 text-xs ${AURA_TEXT.muted}`}>
           No events from {integration.label} in this week. Use Sync to pull your
+          Google events in. New local tasks/appointments push to Google when connected.
           latest schedule.
         </p>
       ) : (

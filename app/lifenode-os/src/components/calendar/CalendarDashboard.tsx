@@ -323,6 +323,55 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     [viewMonth, viewYear],
   );
 
+  const applyGoogleExternalIds = useCallback(
+    (
+      baseItems: ScheduleItem[],
+      externalIds: Record<string, string> | undefined,
+    ) => {
+      if (!externalIds || !Object.keys(externalIds).length) return baseItems;
+      const now = new Date().toISOString();
+      return baseItems.map((row) => {
+        const gid = externalIds[row.id];
+        if (!gid || row.externalId === gid) return row;
+        return { ...row, externalId: gid, updatedAt: now };
+      });
+    },
+    [],
+  );
+
+  const pushLocalToGoogle = useCallback(
+    async (scheduleItems: ScheduleItem[], noticeOnSuccess = true) => {
+      if (!userId) return { ok: false as const, error: "Sign in required" };
+      const googleOn = integrations.some(
+        (row) => row.id === "google" && row.connected,
+      );
+      if (!googleOn) {
+        return { ok: false as const, error: "Google Calendar is not connected" };
+      }
+
+      const result = await pushLocalItemsToGoogle(monthAnchorKey, scheduleItems);
+      if (!result.ok) return result;
+
+      const withIds = applyGoogleExternalIds(scheduleItems, result.externalIds);
+      const changed = withIds.some(
+        (row, i) => row.externalId !== scheduleItems[i]?.externalId,
+      );
+      if (changed) persist(withIds);
+
+      if (noticeOnSuccess && result.message) {
+        setSyncNotice(result.message);
+      }
+      return result;
+    },
+    [
+      applyGoogleExternalIds,
+      integrations,
+      monthAnchorKey,
+      persist,
+      userId,
+    ],
+  );
+
   const runProviderSync = useCallback(
     async (provider: ScheduleProvider) => {
       if (!userId) return;
@@ -513,26 +562,37 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     const trimmed = title.trim();
     if (!trimmed) return;
     const now = new Date().toISOString();
+    const googleOn = integrations.some(
+      (row) => row.id === "google" && row.connected,
+    );
 
     if (editingId) {
-      persist(
-        items.map((row) =>
-          row.id === editingId
-            ? {
-                ...row,
-                title: trimmed,
-                kind,
-                date: selectedDate,
-                startTime: allDay ? undefined : startTime,
-                endTime: allDay ? undefined : endTime,
-                allDay,
-                notes: notes.trim() || undefined,
-                updatedAt: now,
-              }
-            : row,
-        ),
+      const nextItems = items.map((row) =>
+        row.id === editingId
+          ? {
+              ...row,
+              title: trimmed,
+              kind,
+              date: selectedDate,
+              startTime: allDay ? undefined : startTime,
+              endTime: allDay ? undefined : endTime,
+              allDay,
+              notes: notes.trim() || undefined,
+              updatedAt: now,
+            }
+          : row,
       );
+      persist(nextItems);
       resetForm();
+      if (googleOn) {
+        void pushLocalToGoogle(nextItems).then((result) => {
+          if (!result.ok && result.error) {
+            setSyncNotice(
+              `Saved locally. Google sync failed: ${result.error}`,
+            );
+          }
+        });
+      }
       return;
     }
 
@@ -549,8 +609,22 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
       createdAt: now,
       updatedAt: now,
     };
-    persist([...items, row]);
+    const nextItems = [...items, row];
+    persist(nextItems);
     resetForm();
+    if (googleOn) {
+      void pushLocalToGoogle(nextItems).then((result) => {
+        if (!result.ok && result.error) {
+          setSyncNotice(
+            `Saved locally. Google sync failed: ${result.error}`,
+          );
+        } else if (result.ok) {
+          setSyncNotice(
+            result.message ?? "Saved and synced to Google Calendar.",
+          );
+        }
+      });
+    }
   }
 
   function removeItem(id: string) {
@@ -561,16 +635,30 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
 
   function moveItemDate(itemId: string, newDate: string) {
     const now = new Date().toISOString();
-    persist(
-      items.map((row) =>
-        row.id === itemId
-          ? { ...row, date: newDate, updatedAt: now }
-          : row,
-      ),
+    const googleOn = integrations.some(
+      (row) => row.id === "google" && row.connected,
     );
-    setSyncNotice(
-      "Event rescheduled on your dashboard. External calendars are read-only until write access is enabled.",
+    const nextItems = items.map((row) =>
+      row.id === itemId
+        ? { ...row, date: newDate, updatedAt: now }
+        : row,
     );
+    persist(nextItems);
+    if (googleOn) {
+      void pushLocalToGoogle(nextItems).then((result) => {
+        if (!result.ok && result.error) {
+          setSyncNotice(
+            `Rescheduled locally. Google sync failed: ${result.error}`,
+          );
+        } else {
+          setSyncNotice("Event rescheduled and synced to Google Calendar.");
+        }
+      });
+    } else {
+      setSyncNotice(
+        "Event rescheduled. Connect Google Calendar to sync outward.",
+      );
+    }
   }
 
   async function handleDropOnDate(
@@ -615,14 +703,9 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
     setExportingToGoogle(true);
     setSyncNotice(null);
     try {
-      const result = await pushLocalItemsToGoogle(monthAnchorKey, items);
+      const result = await pushLocalToGoogle(items, true);
       if (!result.ok) {
         setSyncNotice(result.error ?? "Could not export to Google Calendar.");
-        return;
-      }
-      setSyncNotice(result.message ?? "Exported local items to Google Calendar.");
-      if ((result.pushed ?? 0) > 0) {
-        await runProviderSync("google");
       }
     } finally {
       setExportingToGoogle(false);
@@ -946,8 +1029,9 @@ function CalendarDashboardInner({ userId }: { userId: string | null }) {
                   Connected calendars
                 </h2>
                 <p className={`mt-1 text-xs ${AURA_TEXT.muted}`}>
-                  Choose which schedule types to import, then sync or export
-                  between your dashboard and connected calendars.
+                  Google Calendar pulls events in with Sync. When connected,
+                  items you create or edit here push to Google automatically.
+                  Use Export for anything still waiting to sync.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
