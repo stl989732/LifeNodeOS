@@ -70,12 +70,21 @@ function channelLabel(ch: SlackConversation): string {
   return ch.name ? `#${ch.name}` : "Slack";
 }
 
+type SlackAuthTest = {
+  ok?: boolean;
+  user_id?: string;
+  error?: string;
+};
+
 export async function syncSlackInbox(
   integrationUserId: string,
   sessionUserId: string,
 ): Promise<InboxItemUpsert[]> {
   const accessToken = await getValidAccessToken(integrationUserId, "slack");
   const userCache = new Map<string, string>();
+
+  const auth = await slackGet<SlackAuthTest>(accessToken, "auth.test");
+  const selfUserId = auth.ok ? auth.user_id ?? null : null;
 
   const listData = await slackGet<SlackConversationsList>(
     accessToken,
@@ -113,6 +122,7 @@ export async function syncSlackInbox(
           : "Slack user";
         const receivedAt = new Date(Number(msg.ts) * 1000).toISOString();
         const label = channelLabel(ch);
+        const isOwn = Boolean(selfUserId && msg.user && msg.user === selfUserId);
 
         items.push({
           user_id: sessionUserId,
@@ -132,6 +142,8 @@ export async function syncSlackInbox(
             channelName: ch.name ?? null,
             messageTs: msg.ts,
             threadTs: msg.ts,
+            mailbox: isOwn ? "sent" : "inbox",
+            isOwn,
           },
           local_notes: null,
         });

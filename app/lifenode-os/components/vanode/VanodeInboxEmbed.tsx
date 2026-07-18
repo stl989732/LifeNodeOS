@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useSession } from "next-auth/react";
 import type { InboxClientItem } from "@/src/lib/orchestrator/inboxDb";
-import type { InboxSource } from "@/src/lib/orchestrator/types";
-import InboxList from "@/src/components/inbox/InboxList";
+import InboxList, { type InboxListFilter } from "@/src/components/inbox/InboxList";
 import InboxMessageModal from "@/src/components/inbox/InboxMessageModal";
 import IntegrationRail from "@/src/components/inbox/IntegrationRail";
 
@@ -15,7 +14,7 @@ export function VanodeInboxEmbed() {
   const [items, setItems] = useState<InboxClientItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<InboxSource | "all">("gmail");
+  const [sourceFilter, setSourceFilter] = useState<InboxListFilter>("gmail");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);

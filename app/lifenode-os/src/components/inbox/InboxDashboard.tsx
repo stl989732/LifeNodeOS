@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, PenSquare, RefreshCw } from "lucide-react";
+import { Loader2, PenSquare, RefreshCw, Unplug } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { InboxClientItem } from "@/src/lib/orchestrator/inboxDb";
-import type { InboxSource } from "@/src/lib/orchestrator/types";
 import { readInboxDrag } from "@/src/lib/orchestrator/inboxDrag";
 import { useConnectedApps } from "@/src/lib/useConnectedApps";
+import { disconnectInboxProvider } from "@/src/lib/inbox/disconnectInboxProvider";
 import InboxComposeModal from "./InboxComposeModal";
-import InboxList from "./InboxList";
+import InboxList, { type InboxListFilter } from "./InboxList";
 import InboxMessageModal from "./InboxMessageModal";
 import IntegrationRail from "./IntegrationRail";
 
@@ -21,13 +21,19 @@ export default function InboxDashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<InboxSource | "all">("all");
+  const [sourceFilter, setSourceFilter] = useState<InboxListFilter>("all");
   const { connectedApps } = useConnectedApps(session?.user?.id ?? "");
   const gmailConnected =
     connectedApps.inbox_gmail === "connected" ||
     connectedApps.va_gmail === "connected";
+  const slackConnected =
+    connectedApps.inbox_slack === "connected" ||
+    connectedApps.va_slack === "connected";
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<"gmail" | "slack" | null>(
+    null,
+  );
   const [detailLoading, setDetailLoading] = useState(false);
   const [transferBusy, setTransferBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,12 +116,36 @@ export default function InboxDashboard() {
   }, [load]);
 
   useEffect(() => {
-    if (feature === "gmail" || feature === "slack" || feature === "google_calendar") {
+    if (
+      feature === "gmail" ||
+      feature === "slack" ||
+      feature === "google_calendar" ||
+      feature === "sent"
+    ) {
       setSourceFilter(feature);
     } else if (feature === "overview" || !feature) {
       setSourceFilter("all");
     }
   }, [feature]);
+
+  async function handleDisconnect(provider: "gmail" | "slack", label: string) {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(`Disconnect ${label} from Inbox? You can reconnect anytime.`)
+    ) {
+      return;
+    }
+    setDisconnecting(provider);
+    setError(null);
+    try {
+      const result = await disconnectInboxProvider(provider);
+      if (!result.ok) {
+        setError(result.error ?? `Could not disconnect ${label}`);
+      }
+    } finally {
+      setDisconnecting(null);
+    }
+  }
 
   useEffect(() => {
     if (selectedId && modalOpen) void loadDetail(selectedId);
@@ -254,8 +284,42 @@ export default function InboxDashboard() {
           <div className="min-w-0 flex-1">
             <h1 className="text-base font-bold text-slate-900 sm:text-lg">Inbox</h1>
             <p className="text-[11px] text-slate-500 sm:text-xs">
-              Gmail, Slack, and Calendar in one feed
+              Gmail, Slack, and Calendar in one feed · use Sent to view outgoing mail
             </p>
+            {gmailConnected || slackConnected ? (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {gmailConnected ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleDisconnect("gmail", "Gmail")}
+                    disabled={disconnecting === "gmail"}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
+                  >
+                    {disconnecting === "gmail" ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Unplug className="h-3 w-3" aria-hidden />
+                    )}
+                    Disconnect Gmail
+                  </button>
+                ) : null}
+                {slackConnected ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleDisconnect("slack", "Slack")}
+                    disabled={disconnecting === "slack"}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
+                  >
+                    {disconnecting === "slack" ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Unplug className="h-3 w-3" aria-hidden />
+                    )}
+                    Disconnect Slack
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <IntegrationRail variant="bar" className="lg:hidden" />

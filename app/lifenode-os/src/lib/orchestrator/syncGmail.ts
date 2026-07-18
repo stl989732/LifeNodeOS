@@ -26,6 +26,7 @@ type GmailMessage = {
 };
 
 const GMAIL_SYNC_MAX_MESSAGES = 120;
+const GMAIL_SENT_MAX_MESSAGES = 60;
 const GMAIL_PAGE_SIZE = 50;
 
 function headerValue(headers: GmailHeader[] | undefined, name: string): string {
@@ -41,6 +42,10 @@ function mapLabelNames(
   return labelIds
     .map((id) => labelMap.get(id) ?? id)
     .filter((name) => name.length > 0);
+}
+
+function isSentLabels(labelIds: string[]): boolean {
+  return labelIds.includes("SENT");
 }
 
 async function fetchGmailLabelMap(accessToken: string): Promise<Map<string, string>> {
@@ -64,12 +69,14 @@ function mapGmailMessage(
   userId: string,
   msg: GmailMessage,
   labelMap: Map<string, string>,
+  mailbox: "inbox" | "sent",
 ): InboxItemUpsert | null {
   if (!msg.id) return null;
 
   const headers = msg.payload?.headers;
   const subject = headerValue(headers, "Subject") || "(No subject)";
   const from = headerValue(headers, "From");
+  const to = headerValue(headers, "To");
   const dateHeader = headerValue(headers, "Date");
   const receivedAt = msg.internalDate
     ? new Date(Number(msg.internalDate)).toISOString()
@@ -86,6 +93,12 @@ function mapGmailMessage(
   const { plain, html } = extractMimeBodies(msg.payload);
   const labelIds = msg.labelIds ?? [];
   const labelNames = mapLabelNames(labelIds, labelMap);
+  const resolvedMailbox =
+    mailbox === "sent" || isSentLabels(labelIds) ? "sent" : "inbox";
+  const displayFrom =
+    resolvedMailbox === "sent"
+      ? to || fromLabel
+      : fromLabel;
 
   return {
     user_id: userId,
@@ -95,7 +108,7 @@ function mapGmailMessage(
     title: subject,
     snippet: msg.snippet?.trim() ?? "",
     body: plain,
-    from_label: fromLabel,
+    from_label: displayFrom,
     from_id: fromId,
     received_at: receivedAt,
     status: "inbox",
@@ -105,20 +118,29 @@ function mapGmailMessage(
       labelIds,
       labelNames,
       bodyHtml: html,
-      externalUrl: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
+      mailbox: resolvedMailbox,
+      to: to || null,
+      externalUrl:
+        resolvedMailbox === "sent"
+          ? `https://mail.google.com/mail/u/0/#sent/${msg.id}`
+          : `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
     },
     local_notes: null,
   };
 }
 
-async function listGmailMessageIds(accessToken: string): Promise<string[]> {
+async function listGmailMessageIds(
+  accessToken: string,
+  query: string,
+  maxMessages: number,
+): Promise<string[]> {
   const ids: string[] = [];
   let pageToken: string | undefined;
 
-  while (ids.length < GMAIL_SYNC_MAX_MESSAGES) {
+  while (ids.length < maxMessages) {
     const params = new URLSearchParams({
-      maxResults: String(Math.min(GMAIL_PAGE_SIZE, GMAIL_SYNC_MAX_MESSAGES - ids.length)),
-      q: "in:inbox",
+      maxResults: String(Math.min(GMAIL_PAGE_SIZE, maxMessages - ids.length)),
+      q: query,
     });
     if (pageToken) params.set("pageToken", pageToken);
 
@@ -145,15 +167,14 @@ async function listGmailMessageIds(accessToken: string): Promise<string[]> {
   return ids;
 }
 
-export async function syncGmailInbox(
-  integrationUserId: string,
+async function fetchMappedGmailMessages(
+  accessToken: string,
   sessionUserId: string,
+  ids: string[],
+  labelMap: Map<string, string>,
+  mailbox: "inbox" | "sent",
 ): Promise<InboxItemUpsert[]> {
-  const accessToken = await getValidAccessToken(integrationUserId, "gmail");
-  const labelMap = await fetchGmailLabelMap(accessToken);
-  const ids = await listGmailMessageIds(accessToken);
   const items: InboxItemUpsert[] = [];
-
   await Promise.all(
     ids.map(async (id) => {
       const res = await fetch(
@@ -162,12 +183,47 @@ export async function syncGmailInbox(
       );
       if (!res.ok) return;
       const msg = (await res.json()) as GmailMessage;
-      const row = mapGmailMessage(sessionUserId, msg, labelMap);
+      const row = mapGmailMessage(sessionUserId, msg, labelMap, mailbox);
       if (row) items.push(row);
     }),
   );
-
   return items;
+}
+
+export async function syncGmailInbox(
+  integrationUserId: string,
+  sessionUserId: string,
+): Promise<InboxItemUpsert[]> {
+  const accessToken = await getValidAccessToken(integrationUserId, "gmail");
+  const labelMap = await fetchGmailLabelMap(accessToken);
+
+  const [inboxIds, sentIds] = await Promise.all([
+    listGmailMessageIds(accessToken, "in:inbox", GMAIL_SYNC_MAX_MESSAGES),
+    listGmailMessageIds(accessToken, "in:sent", GMAIL_SENT_MAX_MESSAGES),
+  ]);
+
+  // Prefer sent tagging when the same message id appears in both queries.
+  const sentIdSet = new Set(sentIds);
+  const inboxOnlyIds = inboxIds.filter((id) => !sentIdSet.has(id));
+
+  const [inboxItems, sentItems] = await Promise.all([
+    fetchMappedGmailMessages(
+      accessToken,
+      sessionUserId,
+      inboxOnlyIds,
+      labelMap,
+      "inbox",
+    ),
+    fetchMappedGmailMessages(
+      accessToken,
+      sessionUserId,
+      sentIds,
+      labelMap,
+      "sent",
+    ),
+  ]);
+
+  return [...inboxItems, ...sentItems];
 }
 
 export type GmailHydratedBody = {

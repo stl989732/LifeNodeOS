@@ -3,15 +3,18 @@
 import IntegrationLogo from "./IntegrationLogo";
 import InboxLabelChips, { readLabelNames } from "./InboxLabelChips";
 import type { InboxClientItem } from "@/src/lib/orchestrator/inboxDb";
+import { isSentMailboxItem } from "@/src/lib/orchestrator/inboxMailbox";
 import type { InboxSource } from "@/src/lib/orchestrator/types";
 import { encodeInboxDrag, INBOX_DRAG_MIME } from "@/src/lib/orchestrator/inboxDrag";
+
+export type InboxListFilter = InboxSource | "all" | "sent";
 
 type Props = {
   items: InboxClientItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  sourceFilter: InboxSource | "all";
-  onSourceFilter: (f: InboxSource | "all") => void;
+  sourceFilter: InboxListFilter;
+  onSourceFilter: (f: InboxListFilter) => void;
 };
 
 function formatWhen(iso: string) {
@@ -23,12 +26,29 @@ function formatWhen(iso: string) {
   });
 }
 
-const FILTERS: { id: InboxSource | "all"; label: string }[] = [
+const FILTERS: { id: InboxListFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "gmail", label: "Gmail" },
+  { id: "sent", label: "Sent" },
   { id: "slack", label: "Slack" },
   { id: "google_calendar", label: "Calendar" },
 ];
+
+function filterItems(
+  items: InboxClientItem[],
+  sourceFilter: InboxListFilter,
+): InboxClientItem[] {
+  if (sourceFilter === "sent") {
+    return items.filter((i) => isSentMailboxItem(i.providerPayload));
+  }
+  if (sourceFilter === "all") {
+    return items.filter((i) => !isSentMailboxItem(i.providerPayload));
+  }
+  return items.filter(
+    (i) =>
+      i.source === sourceFilter && !isSentMailboxItem(i.providerPayload),
+  );
+}
 
 export default function InboxList({
   items,
@@ -37,10 +57,7 @@ export default function InboxList({
   sourceFilter,
   onSourceFilter,
 }: Props) {
-  const filtered =
-    sourceFilter === "all"
-      ? items
-      : items.filter((i) => i.source === sourceFilter);
+  const filtered = filterItems(items, sourceFilter);
 
   return (
     <div className="flex h-full min-w-0 flex-col border-r border-slate-200/80 bg-[#F8F8FF]/80">
@@ -56,7 +73,7 @@ export default function InboxList({
                 : "bg-white text-slate-600 ring-1 ring-slate-200"
             }`}
           >
-            {f.id !== "all" ? (
+            {f.id !== "all" && f.id !== "sent" ? (
               <IntegrationLogo source={f.id} size={14} />
             ) : null}
             {f.label}
@@ -67,12 +84,15 @@ export default function InboxList({
       <ul className="min-h-0 flex-1 overflow-y-auto p-2">
         {filtered.length === 0 ? (
           <li className="rounded-xl border border-dashed border-slate-200 px-3 py-8 text-center text-xs text-slate-500 sm:px-4 sm:py-10 sm:text-sm">
-            No items yet. Connect apps and sync.
+            {sourceFilter === "sent"
+              ? "No sent messages yet. Sync Gmail to load your Sent mailbox."
+              : "No items yet. Connect apps and sync."}
           </li>
         ) : null}
         {filtered.map((it) => {
           const active = it.id === selectedId;
           const labels = readLabelNames(it.providerPayload);
+          const sent = isSentMailboxItem(it.providerPayload);
           return (
             <li key={it.id} className="mb-1">
               <button
@@ -97,11 +117,18 @@ export default function InboxList({
                 <div className="flex items-start gap-2">
                   <IntegrationLogo source={it.source} size={18} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-slate-900">
-                      {it.title}
+                    <div className="flex items-center gap-1.5">
+                      <div className="truncate text-sm font-semibold text-slate-900">
+                        {it.title}
+                      </div>
+                      {sent ? (
+                        <span className="shrink-0 rounded bg-slate-200/80 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-600">
+                          Sent
+                        </span>
+                      ) : null}
                     </div>
                     <div className="truncate text-xs text-slate-500">
-                      {it.fromLabel ?? "—"}
+                      {sent ? `To: ${it.fromLabel ?? "—"}` : it.fromLabel ?? "—"}
                     </div>
                     <p className="mt-1 line-clamp-2 text-xs text-slate-600">
                       {it.snippet}
