@@ -17,6 +17,7 @@ import {
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import LiveCaptureRoot from "@/components/vanode/LiveCaptureRoot";
 import ScreenRecordingRoot from "@/components/vanode/ScreenRecordingRoot";
+import PageViewTracker from "@/src/components/analytics/PageViewTracker";
 import { Suspense } from "react";
 import "./globals.css";
 
@@ -113,6 +114,9 @@ export default function RootLayout({
             </LiveCaptureRoot>
           </LifeNodeProvider>
         </AuthProviders>
+        <Suspense fallback={null}>
+          <PageViewTracker />
+        </Suspense>
         <SpeedInsights />
       </body>
     </html>

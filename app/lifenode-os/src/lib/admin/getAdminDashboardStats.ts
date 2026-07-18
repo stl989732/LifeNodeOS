@@ -5,6 +5,10 @@ import {
 } from "@/src/lib/billing/subscriptionStore";
 import type { PlanKey } from "@/src/lib/billing/plans";
 import { isLemonSqueezyConfigured } from "@/src/lib/billing/lemonsqueezy/config";
+import {
+  getWebAppViewStats,
+  type WebAppViewStats,
+} from "@/src/lib/admin/webAppViews";
 
 export type AdminTrendPoint = {
   /** YYYY-MM */
@@ -38,6 +42,8 @@ export type AdminDashboardStats = {
     subscriptionRows: number;
     byStatus: Record<string, number>;
   };
+  /** Anonymous web app page views / unique visitors (UTC rollups). */
+  views: WebAppViewStats;
   trends: AdminTrendPoint[];
   health: HealthCheck[];
   generatedAt: string;
@@ -326,6 +332,13 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 
   const activeAccounts = Math.max(0, totalRegistered - deletedAccounts);
   const trends = buildTrendSeries(userCreatedAts, subscriptionRows);
+  const views = await getWebAppViewStats();
+
+  pushHealth({
+    name: "Web app views",
+    status: "ok",
+    detail: `${views.totalPageViews} page view(s) · ${views.totalUniqueVisitors} unique visitor-day(s)`,
+  });
 
   return {
     users: {
@@ -336,6 +349,7 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       subscriptionRows: subscriptionRows.length,
       byStatus,
     },
+    views,
     trends,
     health,
     generatedAt: new Date().toISOString(),

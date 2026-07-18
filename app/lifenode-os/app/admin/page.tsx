@@ -215,6 +215,74 @@ export default function AdminDashboardPage() {
               ))}
             </section>
 
+            <section className="mb-8">
+              <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-5 shadow-sm backdrop-blur-sm sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                      Web app views
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                      How many people viewed the site
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                      Anonymous page views from lifenodeos.com (and local/preview).
+                      Unique visitors are counted once per browser per UTC day.
+                      Admin routes are excluded.
+                    </p>
+                  </div>
+                </div>
+                <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-xl bg-slate-50/80 px-4 py-3">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Unique visitors (all time)
+                    </dt>
+                    <dd className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+                      {stats.views?.totalUniqueVisitors ?? 0}
+                    </dd>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Sum of daily unique browsers
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50/80 px-4 py-3">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Page views (all time)
+                    </dt>
+                    <dd className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+                      {stats.views?.totalPageViews ?? 0}
+                    </dd>
+                    <p className="mt-1 text-xs text-slate-500">
+                      One count per path per browser session
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50/80 px-4 py-3">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Today (UTC)
+                    </dt>
+                    <dd className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+                      {stats.views?.todayUniqueVisitors ?? 0}
+                    </dd>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {stats.views?.todayPageViews ?? 0} page view
+                      {(stats.views?.todayPageViews ?? 0) === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50/80 px-4 py-3">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Last 7 days
+                    </dt>
+                    <dd className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+                      {stats.views?.last7dUniqueVisitors ?? 0}
+                    </dd>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {stats.views?.last7dPageViews ?? 0} page view
+                      {(stats.views?.last7dPageViews ?? 0) === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                </dl>
+              </div>
+            </section>
+
             {selectedSegment ? (
               <AdminUserDirectoryPanel
                 segment={selectedSegment}
