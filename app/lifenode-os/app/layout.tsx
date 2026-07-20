@@ -19,6 +19,7 @@ import LiveCaptureRoot from "@/components/vanode/LiveCaptureRoot";
 import ScreenRecordingRoot from "@/components/vanode/ScreenRecordingRoot";
 import PageViewTracker from "@/src/components/analytics/PageViewTracker";
 import { Suspense } from "react";
+import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -54,7 +55,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://lifenodeos.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "LifeNode OS",
     template: "%s | LifeNode OS",

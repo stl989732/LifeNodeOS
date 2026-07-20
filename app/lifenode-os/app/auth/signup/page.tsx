@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import AuthShell from "@/src/components/AuthShell";
 import { SignUpForm } from "@/src/components/auth/SignUpForm";
+import { SITE_URL } from "@/lib/site-url";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Sign up · LifeNode OS",
+  alternates: { canonical: `${SITE_URL}/auth/signup` },
 };
 
 export default function SignUpPage() {

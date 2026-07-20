@@ -3,8 +3,8 @@ import Link from "next/link";
 import BlogArticleShell from "@/components/blog/BlogArticleShell";
 import { BLOG_BODY_CLASS, BLOG_LEAD_CLASS } from "@/components/blog/blogProseClasses";
 import { getBlogPost } from "@/lib/blog/posts";
+import { SITE_URL } from "@/lib/site-url";
 
-const SITE_URL = "https://lifenodeos.com";
 const SLUG = "life-os-vs-productivity-apps";
 
 const post = getBlogPost(SLUG)!;

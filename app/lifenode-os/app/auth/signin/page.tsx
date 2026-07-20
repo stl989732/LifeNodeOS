@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import AuthShell from "@/src/components/AuthShell";
 import { SignInForm } from "@/src/components/auth/SignInForm";
+import { SITE_URL } from "@/lib/site-url";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Sign in · LifeNode OS",
+  alternates: { canonical: `${SITE_URL}/auth/signin` },
 };
 
 export default function SignInPage() {

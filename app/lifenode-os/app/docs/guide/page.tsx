@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import DocsPageShell from "@/components/docs/DocsPageShell";
 import {
@@ -9,11 +10,14 @@ import {
   SHELL_SURFACES,
 } from "@/lib/product-catalog";
 import { SUPPORT_ROUTES } from "@/lib/support/routes";
+import { DOC_ROUTES } from "@/lib/docs/routes";
+import { SITE_URL } from "@/lib/site-url";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "User Guide | LifeNode OS",
   description:
-    "How to use LifeNode OS — shell surfaces, domain nodes, integrations, and data sync.",
+    "Step-by-step help for the LifeNode OS shell, every node, integrations, and how your data syncs.",
+  alternates: { canonical: `${SITE_URL}${DOC_ROUTES.guide}` },
 };
 
 function SurfaceSection({

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Onboarding from "../components/Onboarding";
 import { buildLandingJsonLd } from "@/lib/landing/landingJsonLd";
-
-const SITE_URL = "https://lifenodeos.com";
+import { SITE_URL } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "LifeNode OS — Life orchestration app for app fragmentation",

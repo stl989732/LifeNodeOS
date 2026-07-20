@@ -1,11 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import DocsPageShell from "@/components/docs/DocsPageShell";
 import { DOC_ROUTES } from "@/lib/docs/routes";
+import { SITE_URL } from "@/lib/site-url";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "About LifeNode OS | Documentation",
   description:
     "LifeNode OS was created by Ann Custodio — Dynamic Automation Specialist, GHL Expert, and vibe-coder building one dashboard for every hat you wear.",
+  alternates: { canonical: `${SITE_URL}${DOC_ROUTES.about}` },
 };
 
 export default function AboutDocsPage() {

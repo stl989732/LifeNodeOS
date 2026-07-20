@@ -1,6 +1,5 @@
 import { LANDING_FAQ_ITEMS } from "@/components/landing/landingFaqData";
-
-const SITE_URL = "https://lifenodeos.com";
+import { SITE_URL } from "@/lib/site-url";
 
 export function buildLandingJsonLd() {
   const faqPage = {

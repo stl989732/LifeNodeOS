@@ -8,6 +8,7 @@ import {
   getCompetitor,
   comparisonPageTitle,
 } from "@/components/landing/competitorComparisonData";
+import { SITE_URL } from "@/lib/site-url";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -26,6 +27,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: `${comparisonPageTitle(competitor)} — LifeNode OS`,
     description: competitor.summary,
+    alternates: { canonical: `${SITE_URL}/compare/${slug}` },
   };
 }
 

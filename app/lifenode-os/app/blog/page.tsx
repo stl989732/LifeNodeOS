@@ -4,12 +4,13 @@ import LandingPublicHeader from "@/components/landing/LandingPublicHeader";
 import LandingSiteFooter from "@/components/landing/LandingSiteFooter";
 import { BLOG_INDEX_SUBTITLE_CLASS } from "@/components/blog/blogProseClasses";
 import { BLOG_POSTS } from "@/lib/blog/posts";
+import { SITE_URL } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   title: "Blog — LifeNode OS",
   description:
     "Guides on app fragmentation, tool orchestration, and building a life OS — for founders, VAs, and multi-hat operators.",
-  alternates: { canonical: "https://lifenodeos.com/blog" },
+  alternates: { canonical: `${SITE_URL}/blog` },
 };
 
 export default function BlogIndexPage() {

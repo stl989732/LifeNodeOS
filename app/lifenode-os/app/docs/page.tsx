@@ -1,12 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import DocsPageShell from "@/components/docs/DocsPageShell";
 import { DOC_ROUTES } from "@/lib/docs/routes";
 import { SUPPORT_ROUTES } from "@/lib/support/routes";
+import { SITE_URL } from "@/lib/site-url";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Documentation | LifeNode OS",
   description:
     "LifeNode OS documentation — about the product, user guide, platform stack, and security.",
+  alternates: { canonical: `${SITE_URL}${DOC_ROUTES.hub}` },
 };
 
 const DOC_CARDS = [
