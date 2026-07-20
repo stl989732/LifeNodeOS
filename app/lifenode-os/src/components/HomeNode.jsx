@@ -29,7 +29,8 @@ import {
   NATIVE_GROCERY_CHANGED,
   NATIVE_GROCERY_STORAGE_KEY,
   readNativeGroceryList,
-  writeNativeGroceryList,
+  readNativeGroceryStore,
+  writeNativeGroceryStore,
 } from "@/src/lib/nativeGroceryBridge";
 import { compressKitchenImageFile } from "@/src/lib/compressKitchenImage";
 import { chefRecipeImageSrc, resolveKitchenDishImageUrl } from "@/src/lib/kitchenDishImage";
@@ -50,7 +51,18 @@ import HomeCommandDeckPreview, {
   formatScheduleTime,
 } from "@/src/components/home/HomeCommandDeckPreview";
 import DateTimeField from "@/src/components/ui/DateTimeField";
-import { RECIPE_VAULT_KEY } from "@/src/lib/recipeVaultStorage";
+import {
+  RECIPE_VAULT_KEY,
+  mergeRecipeVaultLists,
+  readRecipeVault,
+  writeRecipeVault,
+  persistRecipeVault,
+  RECIPE_VAULT_CHANGED_EVENT,
+} from "@/src/lib/recipeVaultStorage";
+import {
+  syncActivityPrepRowToCalendar,
+  syncAllActivityPrepToCalendar,
+} from "@/src/lib/activityPrepCalendarSync";
 import {
   clearFlareTaskFlags,
   deactivateFlareMode,
@@ -288,6 +300,7 @@ export default function HomeNode() {
   const [showMoreApps, setShowMoreApps] = useState(false);
   const [loginPromptApp, setLoginPromptApp] = useState("");
   const [nativeGroceryList, setNativeGroceryList] = useState([]);
+  const [smartCartBudget, setSmartCartBudget] = useState("");
   const [groceryDraft, setGroceryDraft] = useState("");
   const [savedNotes, setSavedNotes] = useState([]);
   const [noteLabel, setNoteLabel] = useState("General");
@@ -314,10 +327,23 @@ export default function HomeNode() {
 
   const [budgetRows, setBudgetRows] = useState([]);
   const [budgetCurrency, setBudgetCurrency] = useState("USD");
+  const [monthlySalary, setMonthlySalary] = useState("");
+  const [budgetDraftName, setBudgetDraftName] = useState("");
+  const [budgetDraftAmount, setBudgetDraftAmount] = useState("");
+  const [showBudgetForm, setShowBudgetForm] = useState(false);
   const [budgetCollapsed, setBudgetCollapsed] = useState(false);
   const [chores, setChores] = useState([]);
+  const [choreChildren, setChoreChildren] = useState([]);
+  const [newChildName, setNewChildName] = useState("");
+  const [newChoreTask, setNewChoreTask] = useState("");
+  const [newChoreChildId, setNewChoreChildId] = useState("");
+  const [newChorePoints, setNewChorePoints] = useState("15");
+  const [choreRewardMessage, setChoreRewardMessage] = useState(null);
   const [choreHubCollapsed, setChoreHubCollapsed] = useState(false);
   const [recipeVault, setRecipeVault] = useState([]);
+  const [recipeVaultPersistEpoch, setRecipeVaultPersistEpoch] = useState(0);
+  const recipeVaultHydratedRef = useRef(false);
+  const recipeVaultRef = useRef([]);
   const [vaultCollapsed, setVaultCollapsed] = useState(false);
   const [vaultFilter, setVaultFilter] = useState("All");
   const [chefTip, setChefTip] = useState("");
@@ -397,12 +423,19 @@ export default function HomeNode() {
   );
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      recipeVaultHydratedRef.current = false;
+      return;
+    }
     let cancelled = false;
+    recipeVaultHydratedRef.current = false;
     queueMicrotask(() => {
       ensureNativeGrocerySeeded([], scopedKeys.nativeGrocery);
-      const g = readNativeGroceryList(scopedKeys.nativeGrocery);
-      setNativeGroceryList(g);
+      const groceryStore = readNativeGroceryStore(scopedKeys.nativeGrocery);
+      setNativeGroceryList(groceryStore.items);
+      setSmartCartBudget(
+        groceryStore.budget != null ? String(groceryStore.budget) : "",
+      );
 
       const saved = readScopedLocalStorage(scopedKeys.setup);
       const savedNotes = readScopedLocalStorage(scopedKeys.notes);
@@ -473,14 +506,36 @@ export default function HomeNode() {
 
       let nextBudget = [];
       let nextCurrency = "USD";
+      let nextSalary = "";
       if (rawBudget) {
         try {
           const b = JSON.parse(rawBudget);
           if (Array.isArray(b) && b.length) {
-            nextBudget = b;
+            nextBudget = b.map((row) => ({
+              id: row.id || crypto.randomUUID(),
+              category: row.category || row.name || "Budget",
+              amount:
+                Number(row.amount) ||
+                Number(row.total) ||
+                Number(row.remaining) ||
+                0,
+            }));
           } else if (b && typeof b === "object") {
-            if (Array.isArray(b.rows)) nextBudget = b.rows;
+            if (Array.isArray(b.rows)) {
+              nextBudget = b.rows.map((row) => ({
+                id: row.id || crypto.randomUUID(),
+                category: row.category || row.name || "Budget",
+                amount:
+                  Number(row.amount) ||
+                  Number(row.total) ||
+                  Number(row.remaining) ||
+                  0,
+              }));
+            }
             if (typeof b.currency === "string") nextCurrency = b.currency;
+            if (b.monthlySalary != null && Number.isFinite(Number(b.monthlySalary))) {
+              nextSalary = String(b.monthlySalary);
+            }
           }
         } catch {
           /* ignore */
@@ -488,17 +543,25 @@ export default function HomeNode() {
       }
       setBudgetRows(nextBudget);
       setBudgetCurrency(nextCurrency);
+      setMonthlySalary(nextSalary);
 
       let nextChores = [];
+      let nextChildren = [];
       if (rawChores) {
         try {
           const c = JSON.parse(rawChores);
-          if (Array.isArray(c) && c.length) nextChores = c;
+          if (Array.isArray(c) && c.length) {
+            nextChores = c;
+          } else if (c && typeof c === "object") {
+            if (Array.isArray(c.chores)) nextChores = c.chores;
+            if (Array.isArray(c.children)) nextChildren = c.children;
+          }
         } catch {
           /* ignore */
         }
       }
       setChores(nextChores);
+      setChoreChildren(nextChildren);
 
       let nextPrep = [];
       if (rawPrep) {
@@ -539,6 +602,7 @@ export default function HomeNode() {
       setUpcomingEngagement(nextEng);
 
       void (async () => {
+        try {
         let parsedSavedNotes = [];
         if (savedNotesList) {
           try {
@@ -552,12 +616,19 @@ export default function HomeNode() {
           [NODE_WIDGET_KEYS.home.setup]: parsedSetup,
           [NODE_WIDGET_KEYS.home.notes]: savedNotes ?? "",
           [NODE_WIDGET_KEYS.home.savedNotes]: parsedSavedNotes,
-          [NODE_WIDGET_KEYS.home.budget]: { currency: nextCurrency, rows: nextBudget },
-          [NODE_WIDGET_KEYS.home.chores]: nextChores,
+          [NODE_WIDGET_KEYS.home.budget]: {
+            currency: nextCurrency,
+            monthlySalary: nextSalary ? Number(nextSalary) : null,
+            rows: nextBudget,
+          },
+          [NODE_WIDGET_KEYS.home.chores]: {
+            children: nextChildren,
+            chores: nextChores,
+          },
           [NODE_WIDGET_KEYS.home.activityPrep]: nextPrep,
           [NODE_WIDGET_KEYS.home.engagement]: nextEng,
           [NODE_WIDGET_KEYS.home.recipeVault]: parsedVault,
-          [NODE_WIDGET_KEYS.home.nativeGrocery]: g,
+          [NODE_WIDGET_KEYS.home.nativeGrocery]: groceryStore,
         };
 
         const localUpdatedAtByKey = {};
@@ -594,12 +665,34 @@ export default function HomeNode() {
         const remoteBudget = merged[NODE_WIDGET_KEYS.home.budget];
         if (remoteBudget && typeof remoteBudget === "object") {
           const b = remoteBudget;
-          if (Array.isArray(b.rows)) setBudgetRows(b.rows);
+          if (Array.isArray(b.rows)) {
+            setBudgetRows(
+              b.rows.map((row) => ({
+                id: row.id || crypto.randomUUID(),
+                category: row.category || row.name || "Budget",
+                amount:
+                  Number(row.amount) ||
+                  Number(row.total) ||
+                  Number(row.remaining) ||
+                  0,
+              })),
+            );
+          }
           if (typeof b.currency === "string") setBudgetCurrency(b.currency);
+          if (b.monthlySalary != null && Number.isFinite(Number(b.monthlySalary))) {
+            setMonthlySalary(String(b.monthlySalary));
+          }
         }
 
         const remoteChores = merged[NODE_WIDGET_KEYS.home.chores];
-        if (Array.isArray(remoteChores)) setChores(remoteChores);
+        if (Array.isArray(remoteChores)) {
+          setChores(remoteChores);
+        } else if (remoteChores && typeof remoteChores === "object") {
+          if (Array.isArray(remoteChores.chores)) setChores(remoteChores.chores);
+          if (Array.isArray(remoteChores.children)) {
+            setChoreChildren(remoteChores.children);
+          }
+        }
 
         const remotePrep = merged[NODE_WIDGET_KEYS.home.activityPrep];
         if (Array.isArray(remotePrep)) {
@@ -610,13 +703,45 @@ export default function HomeNode() {
         if (remoteEng !== undefined) setUpcomingEngagement(remoteEng);
 
         const remoteVault = merged[NODE_WIDGET_KEYS.home.recipeVault];
-        if (Array.isArray(remoteVault)) setRecipeVault(remoteVault);
+        const freshVault = readRecipeVault(scopedKeys.recipeVault);
+        const finalVault = mergeRecipeVaultLists(
+          parsedVault,
+          Array.isArray(remoteVault) ? remoteVault : [],
+          freshVault,
+          recipeVaultRef.current,
+        );
+        if (!cancelled) {
+          setRecipeVault(finalVault);
+          if (finalVault.length > 0) {
+            writeRecipeVault(finalVault, scopedKeys.recipeVault);
+            touchLocalWidgetUpdatedAt(scopedKeys.recipeVault);
+          }
+        }
 
         const remoteGrocery = merged[NODE_WIDGET_KEYS.home.nativeGrocery];
-        if (Array.isArray(remoteGrocery)) {
-          setNativeGroceryList(remoteGrocery);
-          writeNativeGroceryList(remoteGrocery, scopedKeys.nativeGrocery);
+        if (remoteGrocery && typeof remoteGrocery === "object") {
+          const items = Array.isArray(remoteGrocery.items)
+            ? remoteGrocery.items
+            : Array.isArray(remoteGrocery)
+              ? remoteGrocery
+              : [];
+          const budget =
+            remoteGrocery.budget != null && Number.isFinite(Number(remoteGrocery.budget))
+              ? Number(remoteGrocery.budget)
+              : null;
+          setNativeGroceryList(items);
+          setSmartCartBudget(budget != null ? String(budget) : "");
+          writeNativeGroceryStore({ budget, items }, scopedKeys.nativeGrocery);
         }
+
+        if (!cancelled && nextPrep.length) {
+          syncAllActivityPrepToCalendar(userId, nextPrep);
+        }} finally {
+        if (!cancelled) {
+          recipeVaultHydratedRef.current = true;
+          setRecipeVaultPersistEpoch((n) => n + 1);
+        }
+      }
       })();
     });
     return () => {
@@ -628,11 +753,9 @@ export default function HomeNode() {
     if (!userId) return;
     const onCloudSync = () => {
       try {
-        const raw = readScopedLocalStorage(scopedKeys.recipeVault);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
+        const parsed = readRecipeVault(scopedKeys.recipeVault);
         if (Array.isArray(parsed) && parsed.length) {
-          setRecipeVault(parsed);
+          setRecipeVault((prev) => mergeRecipeVaultLists(prev, parsed));
         }
         const grocery = readNativeGroceryList(scopedKeys.nativeGrocery);
         if (grocery.length) setNativeGroceryList(grocery);
@@ -640,8 +763,24 @@ export default function HomeNode() {
         /* ignore */
       }
     };
+    const onVaultChanged = (event) => {
+      const key = event?.detail?.storageKey;
+      if (key && key !== scopedKeys.recipeVault) return;
+      try {
+        const parsed = readRecipeVault(scopedKeys.recipeVault);
+        if (Array.isArray(parsed)) {
+          setRecipeVault((prev) => mergeRecipeVaultLists(prev, parsed));
+        }
+      } catch {
+        /* ignore */
+      }
+    };
     window.addEventListener(CLOUD_SYNC_COMPLETE_EVENT, onCloudSync);
-    return () => window.removeEventListener(CLOUD_SYNC_COMPLETE_EVENT, onCloudSync);
+    window.addEventListener(RECIPE_VAULT_CHANGED_EVENT, onVaultChanged);
+    return () => {
+      window.removeEventListener(CLOUD_SYNC_COMPLETE_EVENT, onCloudSync);
+      window.removeEventListener(RECIPE_VAULT_CHANGED_EVENT, onVaultChanged);
+    };
   }, [userId, scopedKeys.recipeVault, scopedKeys.nativeGrocery]);
 
   useEffect(() => {
@@ -724,16 +863,27 @@ export default function HomeNode() {
 
   useEffect(() => {
     if (!userId) return;
-    writeNativeGroceryList(nativeGroceryList, scopedKeys.nativeGrocery);
+    const budgetValue =
+      smartCartBudget.trim() && Number.isFinite(Number(smartCartBudget))
+        ? Number(smartCartBudget)
+        : null;
+    const store = { budget: budgetValue, items: nativeGroceryList };
+    writeNativeGroceryStore(store, scopedKeys.nativeGrocery);
     touchLocalWidgetUpdatedAt(scopedKeys.nativeGrocery);
-    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.nativeGrocery, nativeGroceryList);
-  }, [nativeGroceryList, userId, scopedKeys.nativeGrocery]);
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.nativeGrocery, store);
+  }, [nativeGroceryList, smartCartBudget, userId, scopedKeys.nativeGrocery]);
+
+  useEffect(() => {
+    if (!userId) return;
+    syncAllActivityPrepToCalendar(userId, activityPrepItems);
+  }, [activityPrepItems, userId]);
 
   useEffect(() => {
     if (!userId) return;
     function syncGroceryFromStore() {
+      const store = readNativeGroceryStore(scopedKeys.nativeGrocery);
       setNativeGroceryList((prev) => {
-        const next = readNativeGroceryList(scopedKeys.nativeGrocery);
+        const next = store.items;
         if (
           prev.length === next.length &&
           prev.every((v, i) => v === next[i])
@@ -742,6 +892,7 @@ export default function HomeNode() {
         }
         return next;
       });
+      setSmartCartBudget(store.budget != null ? String(store.budget) : "");
     }
     window.addEventListener(NATIVE_GROCERY_CHANGED, syncGroceryFromStore);
     function onStorage(e) {
@@ -796,25 +947,35 @@ export default function HomeNode() {
   }, [savedNotes, userId, scopedKeys.savedNotes]);
 
   useEffect(() => {
+    recipeVaultRef.current = recipeVault;
+  }, [recipeVault]);
+
+  useEffect(() => {
     if (!userId) return;
-    const payload = { currency: budgetCurrency, rows: budgetRows };
+    const payload = {
+      currency: budgetCurrency,
+      monthlySalary: monthlySalary ? Number(monthlySalary) : null,
+      rows: budgetRows,
+    };
     window.localStorage.setItem(scopedKeys.budget, JSON.stringify(payload));
     touchLocalWidgetUpdatedAt(scopedKeys.budget);
     scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.budget, payload);
-  }, [budgetRows, budgetCurrency, userId, scopedKeys.budget]);
+  }, [budgetRows, budgetCurrency, monthlySalary, userId, scopedKeys.budget]);
 
   useEffect(() => {
     if (!userId) return;
-    window.localStorage.setItem(scopedKeys.chores, JSON.stringify(chores));
-    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.chores, chores);
-  }, [chores, userId, scopedKeys.chores]);
+    const payload = { children: choreChildren, chores };
+    window.localStorage.setItem(scopedKeys.chores, JSON.stringify(payload));
+    touchLocalWidgetUpdatedAt(scopedKeys.chores);
+    scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.chores, payload);
+  }, [chores, choreChildren, userId, scopedKeys.chores]);
 
   useEffect(() => {
-    if (!userId) return;
-    window.localStorage.setItem(scopedKeys.recipeVault, JSON.stringify(recipeVault));
+    if (!userId || !recipeVaultHydratedRef.current) return;
+    writeRecipeVault(recipeVault, scopedKeys.recipeVault);
     touchLocalWidgetUpdatedAt(scopedKeys.recipeVault);
     scheduleNodeWidgetSave(NODE_WIDGET_KEYS.home.recipeVault, recipeVault);
-  }, [recipeVault, userId, scopedKeys.recipeVault]);
+  }, [recipeVault, userId, scopedKeys.recipeVault, recipeVaultPersistEpoch]);
 
   useEffect(() => {
     if (!userId) return;
@@ -980,6 +1141,7 @@ export default function HomeNode() {
     return {
       scheduleItems: scheduleItems.slice(0, 6),
       automationItems: automationItems.slice(0, 5),
+      automationPreview: automationItems.length === 0,
     };
   }, [
     activityPrepItems,
@@ -1582,8 +1744,16 @@ export default function HomeNode() {
     );
   }
 
+  function totalBudgetAllocated() {
+    return budgetRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  }
+
   function totalBudgetRemaining() {
-    return budgetRows.reduce((s, r) => s + (Number(r.remaining) || 0), 0);
+    const salary = Number(monthlySalary);
+    if (!Number.isFinite(salary) || salary <= 0) {
+      return budgetRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    }
+    return Math.max(0, salary - totalBudgetAllocated());
   }
 
   function choresDueTodayCount() {
@@ -1740,6 +1910,7 @@ export default function HomeNode() {
       createdAt: new Date().toISOString(),
     };
     const nextVault = [entry, ...recipeVault];
+    persistRecipeVault(nextVault, scopedKeys.recipeVault);
     setRecipeVault(nextVault);
     setKitchenRecipeTabs((tabs) =>
       tabs.map((t) => (t.id === tab.id ? { ...t, vaultSaved: true } : t)),
@@ -1749,7 +1920,11 @@ export default function HomeNode() {
 
   function removeRecipeFromVault(id) {
     if (!window.confirm("Remove this recipe from your vault?")) return;
-    setRecipeVault((prev) => prev.filter((r) => r.id !== id));
+    setRecipeVault((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      persistRecipeVault(next, scopedKeys.recipeVault);
+      return next;
+    });
     setVaultFocusId((open) => (open === id ? null : open));
   }
 
@@ -1785,37 +1960,34 @@ export default function HomeNode() {
     };
   }
 
-  function addBudgetCategory() {
-    const name = window.prompt("Category name?");
-    if (!name?.trim()) return;
-    const total = Number(window.prompt("Monthly budget total?", "500"));
-    const remaining = Number(
-      window.prompt("Remaining amount?", String(Number.isFinite(total) ? total : 500)),
-    );
+  function addBudgetLine() {
+    const name = budgetDraftName.trim();
+    const amount = Number(budgetDraftAmount);
+    if (!name || !Number.isFinite(amount) || amount <= 0) return;
     setBudgetRows((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
-        category: name.trim(),
-        remaining: Number.isFinite(remaining) ? remaining : 0,
-        total: Number.isFinite(total) ? total : 500,
+        category: name,
+        amount,
       },
     ]);
+    setBudgetDraftName("");
+    setBudgetDraftAmount("");
+    setShowBudgetForm(false);
   }
 
   function editBudgetRow(row) {
-    const cat = window.prompt("Category name", row.category);
+    const cat = window.prompt("Budget name", row.category);
     if (!cat?.trim()) return;
-    const total = Number(window.prompt("Total budget", String(row.total)));
-    const remaining = Number(window.prompt("Remaining", String(row.remaining)));
+    const amount = Number(window.prompt("Allocated amount", String(row.amount ?? row.total ?? 0)));
     setBudgetRows((prev) =>
       prev.map((r) =>
         r.id === row.id
           ? {
               ...r,
               category: cat.trim(),
-              total: Number.isFinite(total) ? total : r.total,
-              remaining: Number.isFinite(remaining) ? remaining : r.remaining,
+              amount: Number.isFinite(amount) ? amount : r.amount,
             }
           : r,
       ),
@@ -1827,24 +1999,47 @@ export default function HomeNode() {
     setBudgetRows((prev) => prev.filter((r) => r.id !== id));
   }
 
+  function addChoreChild() {
+    const name = newChildName.trim();
+    if (!name) return;
+    const child = { id: crypto.randomUUID(), name };
+    setChoreChildren((prev) => [...prev, child]);
+    setNewChildName("");
+    if (!newChoreChildId) setNewChoreChildId(child.id);
+  }
+
   function addChore() {
-    const task = window.prompt("Chore name?");
-    if (!task?.trim()) return;
-    const points = Number(window.prompt("Points?", "15"));
-    const statusRaw =
-      window.prompt("Status: Due Today, Upcoming, or Earned", "Due Today") || "Due Today";
-    const normalized = ["Due Today", "Upcoming", "Earned"].includes(statusRaw)
-      ? statusRaw
-      : "Upcoming";
+    const task = newChoreTask.trim();
+    if (!task) return;
+    const points = Number(newChorePoints);
+    const child = choreChildren.find((c) => c.id === newChoreChildId);
     setChores((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
-        task: task.trim(),
+        task,
         points: Number.isFinite(points) ? points : 15,
-        status: normalized,
+        status: "Due Today",
+        assignedTo: child?.name || "",
+        childId: child?.id || "",
       },
     ]);
+    setNewChoreTask("");
+  }
+
+  function completeChore(id) {
+    const chore = chores.find((c) => c.id === id);
+    if (!chore) return;
+    setChores((prev) =>
+      prev.map((c) =>
+        c.id === id ? { ...c, status: "Earned", completedAt: new Date().toISOString() } : c,
+      ),
+    );
+    const who = chore.assignedTo?.trim() || "your child";
+    setChoreRewardMessage(
+      `Congratulations! ${who} earned ${chore.points} LifeNode Points for completing "${chore.task}".`,
+    );
+    window.setTimeout(() => setChoreRewardMessage(null), 6000);
   }
 
   function deleteChore(id) {
@@ -1856,12 +2051,19 @@ export default function HomeNode() {
   }
 
   function updateActivityPrepRow(id, patch) {
-    setActivityPrepItems((prev) =>
-      prev.map((row) => (row.id === id ? { ...row, ...patch } : row)),
-    );
+    setActivityPrepItems((prev) => {
+      const next = prev.map((row) => (row.id === id ? { ...row, ...patch } : row));
+      const updated = next.find((row) => row.id === id);
+      if (updated?.saved) {
+        syncActivityPrepRowToCalendar(userId, updated);
+      }
+      return next;
+    });
   }
 
   function deleteActivityPrepItem(id) {
+    const row = activityPrepItems.find((x) => x.id === id);
+    if (row) syncActivityPrepRowToCalendar(userId, row, true);
     setActivityPrepItems((prev) => prev.filter((x) => x.id !== id));
     if (focusedActivityId === id) setFocusedActivityId(null);
   }
@@ -1869,7 +2071,9 @@ export default function HomeNode() {
   function saveActivityPrepRow(id) {
     const row = activityPrepItems.find((r) => r.id === id);
     if (!row?.title?.trim()) return;
+    const savedRow = { ...row, saved: true };
     updateActivityPrepRow(id, { saved: true });
+    syncActivityPrepRowToCalendar(userId, savedRow);
     if (row.scheduledAt?.trim()) {
       const eventDate = row.scheduledAt.slice(0, 10);
       const eventTime = new Date(row.scheduledAt).toISOString();
@@ -2370,6 +2574,7 @@ export default function HomeNode() {
                 <HomeCommandDeckPreview
                   scheduleItems={commandDeckData.scheduleItems}
                   automationItems={commandDeckData.automationItems}
+                  automationPreview={commandDeckData.automationPreview}
                 />
               </section>
             ) : null}
@@ -2402,6 +2607,30 @@ export default function HomeNode() {
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                   <p className="text-xs uppercase tracking-widest text-slate-400">Source</p>
                   <p className="text-sm font-semibold text-[#1E293B]">{smartCartSource}</p>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <label className="block">
+                    <span className="mb-1 block text-xs uppercase tracking-widest text-slate-400">
+                      Shopping budget
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={smartCartBudget}
+                      onChange={(e) => setSmartCartBudget(e.target.value)}
+                      placeholder="Enter budget amount"
+                      className="w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm text-[#1E293B] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                      aria-label="Shopping budget amount"
+                    />
+                  </label>
+                  {smartCartBudget.trim() ? (
+                    <div className="flex items-end">
+                      <p className="rounded-lg bg-[#84A59D]/10 px-3 py-2 text-sm font-semibold text-[#3F5E58]">
+                        Budget: {formatBudgetAmount(Number(smartCartBudget) || 0, budgetCurrency)}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <input
@@ -2482,17 +2711,99 @@ export default function HomeNode() {
                 </div>
               ) : (
                 <>
+                  {choreRewardMessage ? (
+                    <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                      {choreRewardMessage}
+                    </div>
+                  ) : null}
+                  <div className={`${KITCHEN_INNER_PANEL} mb-4`}>
+                    <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">
+                      Children
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {choreChildren.map((child) => (
+                        <span
+                          key={child.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-[#84A59D]/15 px-3 py-1 text-xs font-semibold text-[#3F5E58]"
+                        >
+                          {child.name}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        value={newChildName}
+                        onChange={(e) => setNewChildName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addChoreChild();
+                          }
+                        }}
+                        placeholder="Child's name"
+                        className="min-w-[10rem] flex-1 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm text-[#1E293B] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                        aria-label="Child name"
+                      />
+                      <button
+                        type="button"
+                        onClick={addChoreChild}
+                        className="inline-flex items-center gap-1 rounded-lg bg-[#84A59D] px-3 py-2 text-xs font-semibold text-white hover:bg-[#6d8f88]"
+                      >
+                        <Plus size={14} />
+                        Add child
+                      </button>
+                    </div>
+                  </div>
                   <div className={`${KITCHEN_INNER_PANEL} mb-4`}>
                     <div className="flex items-center justify-between gap-2 mb-3">
                       <p className="text-xs uppercase tracking-widest text-slate-400">Chore Rewards</p>
                       <button
                         type="button"
                         onClick={addChore}
-                        className="inline-flex items-center gap-1 rounded-full bg-[#84A59D]/15 hover:bg-[#84A59D]/25 text-[#3F5E58] text-xs font-semibold px-3 py-1"
+                        disabled={!newChoreTask.trim()}
+                        className="inline-flex items-center gap-1 rounded-full bg-[#84A59D]/15 hover:bg-[#84A59D]/25 text-[#3F5E58] text-xs font-semibold px-3 py-1 disabled:opacity-50"
                       >
                         <Plus size={13} />
                         Add Chore
                       </button>
+                    </div>
+                    <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_5rem_auto]">
+                      <input
+                        type="text"
+                        value={newChoreTask}
+                        onChange={(e) => setNewChoreTask(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addChore();
+                          }
+                        }}
+                        placeholder="Chore name"
+                        className="rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm text-[#1E293B] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                        aria-label="Chore name"
+                      />
+                      <select
+                        value={newChoreChildId}
+                        onChange={(e) => setNewChoreChildId(e.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white/90 px-2 py-2 text-sm text-[#1E293B]"
+                        aria-label="Assign to child"
+                      >
+                        <option value="">Unassigned</option>
+                        {choreChildren.map((child) => (
+                          <option key={child.id} value={child.id}>
+                            {child.name}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newChorePoints}
+                        onChange={(e) => setNewChorePoints(e.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm text-[#1E293B] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                        aria-label="Reward points"
+                      />
                     </div>
                     <div className="space-y-2.5">
                       {chores.map((chore) => (
@@ -2502,9 +2813,22 @@ export default function HomeNode() {
                         >
                           <div>
                             <p className="text-sm font-semibold text-[#1E293B]">{chore.task}</p>
-                            <p className="text-xs text-[#475569]">{chore.points} LifeNode Points</p>
+                            <p className="text-xs text-[#475569]">
+                              {chore.assignedTo ? `${chore.assignedTo} · ` : ""}
+                              {chore.points} LifeNode Points
+                            </p>
                           </div>
                           <div className="flex items-center gap-2">
+                            {chore.status !== "Earned" ? (
+                              <button
+                                type="button"
+                                onClick={() => completeChore(chore.id)}
+                                className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200"
+                              >
+                                <CheckCircle2 size={13} />
+                                Done
+                              </button>
+                            ) : null}
                             <span
                               className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                                 chore.status === "Earned"
@@ -2671,11 +2995,11 @@ export default function HomeNode() {
                 </select>
                 <button
                   type="button"
-                  onClick={addBudgetCategory}
+                  onClick={() => setShowBudgetForm((v) => !v)}
                   className="inline-flex items-center gap-1 rounded-full bg-[#84A59D]/15 hover:bg-[#84A59D]/25 text-[#3F5E58] text-xs font-semibold px-3 py-1.5"
                 >
                   <Plus size={14} />
-                  Add Category
+                  Set Budget
                 </button>
                 <button
                   type="button"
@@ -2687,23 +3011,95 @@ export default function HomeNode() {
               </div>
               {budgetCollapsed ? (
                 <p className="text-sm font-medium text-[#1E293B] tracking-tight rounded-[20px] bg-white/40 backdrop-blur-xl border border-white/60 px-4 py-4 text-center shadow-inner">
-                  Total Remaining:{" "}
+                  Salary remaining:{" "}
                   <span className="text-[#3F5E58] font-semibold">
                     {formatBudgetAmount(totalBudgetRemaining(), budgetCurrency)}
                   </span>
-                  <span className="mx-2 text-slate-300">·</span>
-                  <span className="text-[#475569]">
-                    Keep spending visible — rebalance categories before week-end surprises.
-                  </span>
+                  {monthlySalary ? (
+                    <>
+                      <span className="mx-2 text-slate-300">·</span>
+                      <span className="text-[#475569]">
+                        of {formatBudgetAmount(Number(monthlySalary), budgetCurrency)} monthly salary
+                      </span>
+                    </>
+                  ) : null}
                 </p>
               ) : (
                 <>
+                  <div className={`${KITCHEN_INNER_PANEL_SM} mb-4`}>
+                    <label className="block">
+                      <span className="mb-1 block text-xs uppercase tracking-widest text-slate-400">
+                        Monthly salary
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={monthlySalary}
+                        onChange={(e) => setMonthlySalary(e.target.value)}
+                        placeholder="Enter your monthly salary"
+                        className="w-full rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm text-[#1E293B] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                        aria-label="Monthly salary"
+                      />
+                    </label>
+                    {monthlySalary.trim() ? (
+                      <p className="mt-2 text-sm font-semibold text-[#3F5E58]">
+                        Remaining salary:{" "}
+                        {formatBudgetAmount(totalBudgetRemaining(), budgetCurrency)}
+                        <span className="ml-2 font-normal text-[#475569]">
+                          ({formatBudgetAmount(totalBudgetAllocated(), budgetCurrency)} allocated)
+                        </span>
+                      </p>
+                    ) : null}
+                  </div>
+                  {showBudgetForm ? (
+                    <div className={`${KITCHEN_INNER_PANEL_SM} mb-4`}>
+                      <p className="text-xs uppercase tracking-widest text-slate-400 mb-2">
+                        New budget line
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          type="text"
+                          value={budgetDraftName}
+                          onChange={(e) => setBudgetDraftName(e.target.value)}
+                          placeholder="Budget name (e.g. Groceries)"
+                          className="min-w-[10rem] flex-1 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm text-[#1E293B] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                          aria-label="Budget name"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={budgetDraftAmount}
+                          onChange={(e) => setBudgetDraftAmount(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addBudgetLine();
+                            }
+                          }}
+                          placeholder="Amount"
+                          className="w-32 rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-sm text-[#1E293B] outline-none focus:border-[#84A59D]/50 focus:ring-2 focus:ring-[#84A59D]/20"
+                          aria-label="Budget amount"
+                        />
+                        <button
+                          type="button"
+                          onClick={addBudgetLine}
+                          className="inline-flex items-center gap-1 rounded-lg bg-[#84A59D] px-3 py-2 text-xs font-semibold text-white hover:bg-[#6d8f88]"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="space-y-2 mb-4">
                     {budgetRows.map((item) => {
-                      const pct = Math.max(
-                        0,
-                        Math.min(100, Math.round((item.remaining / item.total) * 100)),
-                      );
+                      const amount = Number(item.amount ?? item.total ?? 0);
+                      const salary = Number(monthlySalary);
+                      const pct =
+                        Number.isFinite(salary) && salary > 0
+                          ? Math.max(0, Math.min(100, Math.round((amount / salary) * 100)))
+                          : 100;
                       return (
                         <div
                           key={item.id}
@@ -2717,7 +3113,7 @@ export default function HomeNode() {
                                   type="button"
                                   onClick={() => editBudgetRow(item)}
                                   className="p-1.5 rounded-lg text-[#475569] hover:bg-[#84A59D]/15 hover:text-[#3F5E58]"
-                                  aria-label="Edit category"
+                                  aria-label="Edit budget line"
                                 >
                                   <Pencil size={14} />
                                 </button>
@@ -2725,14 +3121,13 @@ export default function HomeNode() {
                                   type="button"
                                   onClick={() => deleteBudgetRow(item.id)}
                                   className="p-1.5 rounded-lg text-[#475569] hover:bg-red-50 hover:text-red-600"
-                                  aria-label="Delete category"
+                                  aria-label="Delete budget line"
                                 >
                                   <Trash2 size={14} />
                                 </button>
                               </div>
                               <p className="text-xs text-[#475569] whitespace-nowrap">
-                                {formatBudgetAmount(item.remaining, budgetCurrency)} Remaining Of{" "}
-                                {formatBudgetAmount(item.total, budgetCurrency)}
+                                {formatBudgetAmount(amount, budgetCurrency)}
                               </p>
                             </div>
                           </div>
@@ -2752,7 +3147,7 @@ export default function HomeNode() {
                       Financial Command
                     </p>
                     <p className="text-sm text-[#1E293B] leading-relaxed">
-                      Keep spending visible and calm with one glance. Use this panel to rebalance household categories before week-end surprises happen.
+                      Enter your monthly salary, then use Set Budget to allocate spending. Your remaining salary updates automatically as you add budget lines.
                     </p>
                   </div>
                 </>
@@ -3173,7 +3568,7 @@ export default function HomeNode() {
                   <div>
                     <h2 className="font-semibold text-[#1E293B]">Activity Prep</h2>
                     <p className="text-xs text-[#475569]">
-                      Plan activities, who they&apos;re for, and what to bring.
+                      Plan activities, who they&apos;re for, and what to bring. Saved plans sync to your Calendar dashboard.
                     </p>
                   </div>
                   <button
@@ -3270,7 +3665,7 @@ export default function HomeNode() {
                                   disabled={!row.title?.trim()}
                                   className="rounded-lg p-1.5 text-[#84A59D] hover:bg-[#84A59D]/10 disabled:opacity-40"
                                   aria-label="Save activity plan"
-                                  title="Save to Tasks"
+                                  title="Save & sync to Calendar"
                                 >
                                   <Save size={14} />
                                 </button>

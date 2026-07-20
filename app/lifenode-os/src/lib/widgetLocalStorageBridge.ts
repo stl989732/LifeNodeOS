@@ -123,25 +123,43 @@ export const WIDGET_LOCAL_STORAGE_BRIDGES: Partial<
     read: (userId) => {
       const parsed = readJson(userScopedStorageKey(HOME_BUDGET, userId));
       if (Array.isArray(parsed)) {
-        return { currency: "USD", rows: parsed };
+        return { currency: "USD", monthlySalary: null, rows: parsed };
       }
       if (parsed && typeof parsed === "object") return parsed;
-      return { currency: "USD", rows: [] };
+      return { currency: "USD", monthlySalary: null, rows: [] };
     },
     write: (userId, payload) =>
       writeJson(userScopedStorageKey(HOME_BUDGET, userId), payload),
     hasMeaningfulLocal: (v) => {
       if (!v || typeof v !== "object") return false;
       const rows = (v as { rows?: unknown }).rows;
-      return Array.isArray(rows) && rows.length > 0;
+      const salary = (v as { monthlySalary?: unknown }).monthlySalary;
+      return (
+        (Array.isArray(rows) && rows.length > 0) ||
+        (salary != null && Number.isFinite(Number(salary)))
+      );
     },
   },
   [NODE_WIDGET_KEYS.home.chores]: {
     storageKey: (userId) => userScopedStorageKey(HOME_CHORES, userId),
-    read: (userId) => readJson(userScopedStorageKey(HOME_CHORES, userId)) ?? [],
+    read: (userId) => {
+      const parsed = readJson(userScopedStorageKey(HOME_CHORES, userId));
+      if (Array.isArray(parsed)) return { children: [], chores: parsed };
+      if (parsed && typeof parsed === "object") return parsed;
+      return { children: [], chores: [] };
+    },
     write: (userId, payload) =>
       writeJson(userScopedStorageKey(HOME_CHORES, userId), payload),
-    hasMeaningfulLocal: (v) => Array.isArray(v) && v.length > 0,
+    hasMeaningfulLocal: (v) => {
+      if (Array.isArray(v)) return v.length > 0;
+      if (!v || typeof v !== "object") return false;
+      const chores = (v as { chores?: unknown }).chores;
+      const children = (v as { children?: unknown }).children;
+      return (
+        (Array.isArray(chores) && chores.length > 0) ||
+        (Array.isArray(children) && children.length > 0)
+      );
+    },
   },
   [NODE_WIDGET_KEYS.home.activityPrep]: {
     storageKey: (userId) => userScopedStorageKey(HOME_PREP, userId),
@@ -165,10 +183,24 @@ export const WIDGET_LOCAL_STORAGE_BRIDGES: Partial<
   },
   [NODE_WIDGET_KEYS.home.nativeGrocery]: {
     storageKey: (userId) => userScopedStorageKey(HOME_GROCERY, userId),
-    read: (userId) => readJson(userScopedStorageKey(HOME_GROCERY, userId)) ?? [],
+    read: (userId) => {
+      const parsed = readJson(userScopedStorageKey(HOME_GROCERY, userId));
+      if (Array.isArray(parsed)) return { budget: null, items: parsed };
+      if (parsed && typeof parsed === "object") return parsed;
+      return { budget: null, items: [] };
+    },
     write: (userId, payload) =>
       writeJson(userScopedStorageKey(HOME_GROCERY, userId), payload),
-    hasMeaningfulLocal: (v) => Array.isArray(v) && v.length > 0,
+    hasMeaningfulLocal: (v) => {
+      if (Array.isArray(v)) return v.length > 0;
+      if (!v || typeof v !== "object") return false;
+      const items = (v as { items?: unknown }).items;
+      const budget = (v as { budget?: unknown }).budget;
+      return (
+        (Array.isArray(items) && items.length > 0) ||
+        (budget != null && Number.isFinite(Number(budget)))
+      );
+    },
   },
   [NODE_WIDGET_KEYS.home.kitchenAi]: {
     storageKey: (userId) => userScopedStorageKey(HOME_KITCHEN_AI, userId),

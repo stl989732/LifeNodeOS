@@ -7,6 +7,7 @@ export default function HomeCommandDeckPreview({
   scheduleItems = [],
   automationItems = [],
   useLiveSchedule = true,
+  automationPreview = false,
 }) {
   const fallbackSchedule =
     scheduleItems.length > 0
@@ -43,9 +44,25 @@ export default function HomeCommandDeckPreview({
           <DailyScheduleCard items={fallbackSchedule} />
         )}
         <div className="rounded-xl border border-slate-800/80 bg-white/[0.03] p-4">
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-400/90">
-            Household automations
-          </p>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-400/90">
+              Household automations
+            </p>
+            {automationPreview ? (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                Preview
+              </span>
+            ) : (
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                Live
+              </span>
+            )}
+          </div>
+          {automationPreview ? (
+            <p className="mb-3 text-xs leading-relaxed text-slate-400">
+              These automations activate from your connected apps and HomeNode data — not from scanning the dashboard image.
+            </p>
+          ) : null}
           <ul className="space-y-3">
             {automations.map((label) => (
               <li
