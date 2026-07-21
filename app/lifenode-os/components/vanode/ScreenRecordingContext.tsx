@@ -179,7 +179,11 @@ async function buildRecordingStream(
   includeMic: boolean,
   includeCamera: boolean,
   onWarning?: (message: string) => void,
-): Promise<{ stream: MediaStream; cleanup: () => void }> {
+): Promise<{
+  stream: MediaStream;
+  cleanup: () => void;
+  cameraStream: MediaStream | null;
+}> {
   const displayStream = await navigator.mediaDevices.getDisplayMedia({
     video: true,
     audio: true,
@@ -358,7 +362,150 @@ async function buildRecordingStream(
     );
   }
 
-  return { stream, cleanup };
+  return { stream, cleanup, cameraStream };
+}
+
+type CameraPreviewShape = "circle" | "square";
+type CameraPreviewSize = "small" | "large";
+
+const CAMERA_PREVIEW_SHAPE_KEY = "lifenode.vanode.camera-preview-shape";
+const CAMERA_PREVIEW_SIZE_KEY = "lifenode.vanode.camera-preview-size";
+
+function readCameraPreviewPref<T extends string>(
+  key: string,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return allowed.includes(raw as T) ? (raw as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeCameraPreviewPref(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Live self-view while recording with camera on — draggable, circle/square, two sizes. */
+function FloatingCameraPreview({ stream }: { stream: MediaStream }) {
+  const [shape, setShape] = useState<CameraPreviewShape>(() =>
+    readCameraPreviewPref(CAMERA_PREVIEW_SHAPE_KEY, ["circle", "square"], "circle"),
+  );
+  const [size, setSize] = useState<CameraPreviewSize>(() =>
+    readCameraPreviewPref(CAMERA_PREVIEW_SIZE_KEY, ["small", "large"], "small"),
+  );
+  const px = size === "small" ? 148 : 232;
+  const { style, dragHandleProps } = useDraggableFloatingPosition(
+    "lifenode.vanode.camera-preview",
+    { width: px, height: px + 40 },
+  );
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.srcObject = stream;
+    void video.play().catch(() => undefined);
+    return () => {
+      video.srcObject = null;
+    };
+  }, [stream]);
+
+  const pickShape = (next: CameraPreviewShape) => {
+    setShape(next);
+    writeCameraPreviewPref(CAMERA_PREVIEW_SHAPE_KEY, next);
+  };
+  const pickSize = (next: CameraPreviewSize) => {
+    setSize(next);
+    writeCameraPreviewPref(CAMERA_PREVIEW_SIZE_KEY, next);
+  };
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="pointer-events-auto fixed z-[5090] flex cursor-grab flex-col items-center gap-1.5 active:cursor-grabbing"
+      style={{ left: style.left, top: style.top }}
+      role="img"
+      aria-label="Camera self-view while recording"
+      {...dragHandleProps}
+    >
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        autoPlay
+        width={px}
+        height={px}
+        className={`border-2 border-white/80 bg-slate-900 object-cover shadow-[0_10px_40px_rgba(0,0,0,0.5)] ${
+          shape === "circle" ? "rounded-full" : "rounded-2xl"
+        }`}
+        style={{
+          width: px,
+          height: px,
+          transform: "scaleX(-1)",
+        }}
+      />
+      <div
+        className="flex items-center gap-1 rounded-full border border-white/25 bg-slate-900/85 px-2 py-1 shadow-lg backdrop-blur-md"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => pickShape("circle")}
+          aria-label="Circle preview"
+          title="Circle"
+          className={`flex h-6 w-6 items-center justify-center rounded-full text-white transition ${
+            shape === "circle" ? "bg-teal-500/80" : "hover:bg-white/15"
+          }`}
+        >
+          <span className="block h-3 w-3 rounded-full border-2 border-current" />
+        </button>
+        <button
+          type="button"
+          onClick={() => pickShape("square")}
+          aria-label="Square preview"
+          title="Square"
+          className={`flex h-6 w-6 items-center justify-center rounded-full text-white transition ${
+            shape === "square" ? "bg-teal-500/80" : "hover:bg-white/15"
+          }`}
+        >
+          <span className="block h-3 w-3 rounded-[3px] border-2 border-current" />
+        </button>
+        <span className="mx-0.5 h-4 w-px bg-white/25" aria-hidden />
+        <button
+          type="button"
+          onClick={() => pickSize("small")}
+          aria-label="Small preview"
+          title="Small"
+          className={`h-6 rounded-full px-1.5 text-[10px] font-bold text-white transition ${
+            size === "small" ? "bg-teal-500/80" : "hover:bg-white/15"
+          }`}
+        >
+          S
+        </button>
+        <button
+          type="button"
+          onClick={() => pickSize("large")}
+          aria-label="Large preview"
+          title="Large"
+          className={`h-6 rounded-full px-1.5 text-[10px] font-bold text-white transition ${
+            size === "large" ? "bg-teal-500/80" : "hover:bg-white/15"
+          }`}
+        >
+          L
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 export function ScreenRecordingProvider({
@@ -386,6 +533,8 @@ export function ScreenRecordingProvider({
   const [saving, setSaving] = useState(false);
   const [includeMic, setIncludeMic] = useState(true);
   const [includeCamera, setIncludeCamera] = useState(false);
+  const [cameraPreviewStream, setCameraPreviewStream] =
+    useState<MediaStream | null>(null);
   const [lastSavedId, setLastSavedId] = useState<string | null>(null);
   const [lastWarning, setLastWarning] = useState<string | null>(null);
   const [reviewCaptureId, setReviewCaptureIdState] = useState<string | null>(
@@ -624,12 +773,13 @@ export function ScreenRecordingProvider({
     }
 
     try {
-      const { stream, cleanup } = await buildRecordingStream(
+      const { stream, cleanup, cameraStream } = await buildRecordingStream(
         includeMicRef.current,
         includeCameraRef.current,
         notifyWarning,
       );
       cleanupRef.current = cleanup;
+      setCameraPreviewStream(cameraStream);
       chunksRef.current = [];
       const hasAudio = stream.getAudioTracks().length > 0;
       const { mimeType, ext } = pickScreenRecorderMime(hasAudio);
@@ -647,6 +797,7 @@ export function ScreenRecordingProvider({
       rec.onerror = () => {
         onError?.("Recording error.");
         stopTracks();
+        setCameraPreviewStream(null);
         setActive(false);
         setSaving(false);
       };
@@ -655,6 +806,7 @@ export function ScreenRecordingProvider({
         tickRef.current = null;
         clearDraftInterval();
         setActive(false);
+        setCameraPreviewStream(null);
         setSeconds(0);
 
         const rawBlob = new Blob(chunksRef.current, {
@@ -698,6 +850,7 @@ export function ScreenRecordingProvider({
     } catch {
       onError?.("Screen capture was cancelled or not permitted.");
       stopTracks();
+      setCameraPreviewStream(null);
     }
   }, [
     active,
@@ -745,6 +898,9 @@ export function ScreenRecordingProvider({
         onTogglePause={togglePause}
         onStop={stopRecording}
       />
+      {active && cameraPreviewStream ? (
+        <FloatingCameraPreview stream={cameraPreviewStream} />
+      ) : null}
       <PostRecordReviewCard
         captureId={reviewCaptureId}
         onClose={() => setReviewCaptureId(null)}

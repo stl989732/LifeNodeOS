@@ -44,7 +44,9 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const playingRowRef = useRef<ScreenCaptureRecord | null>(null);
   const loadedPlayRef = useRef<{ id: string; size: number } | null>(null);
 
-  playingRowRef.current = playingRow;
+  useEffect(() => {
+    playingRowRef.current = playingRow;
+  }, [playingRow]);
 
   const visibleRows = useMemo(() => {
     if (!activeClientId) return rows;
@@ -298,43 +300,66 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
               >
                 <Play className="h-3.5 w-3.5" />
               </button>
-              {downloadsAllowed ? (
-                <>
-                  <button
-                    type="button"
-                    title="Download WebM"
-                    onClick={() => void handleDownload(row, "webm")}
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-teal-50"
-                  >
-                    WebM
-                  </button>
-                  <button
-                    type="button"
-                    title="Download MP4 (converts WebM when needed)"
-                    disabled={mp4Exporting}
-                    onClick={() => void handleDownload(row, "mp4")}
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-teal-50 disabled:opacity-40"
-                  >
-                    {mp4Exporting ? "…" : "MP4"}
-                  </button>
-                  <button
-                    type="button"
-                    title="Download original file"
-                    onClick={() => void handleDownload(row, "native")}
-                    className="rounded-lg p-2 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Share to apps"
-                    onClick={() => void handleShare(row)}
-                    className="rounded-lg p-2 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
-                  >
-                    <Share2 className="h-4 w-4" />
-                  </button>
-                </>
-              ) : null}
+              {/* Always render download buttons — plan gating happens on click
+                  (Core users get the upgrade prompt) so Sync/Nexus never lose
+                  the button to a slow or failed plan fetch. */}
+              <button
+                type="button"
+                title={
+                  downloadsAllowed
+                    ? "Download WebM"
+                    : "Downloads unlock on Sync and Nexus"
+                }
+                onClick={() => void handleDownload(row, "webm")}
+                className={`rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold hover:bg-teal-50 ${
+                  downloadsAllowed ? "text-slate-700" : "text-slate-400"
+                }`}
+              >
+                WebM
+              </button>
+              <button
+                type="button"
+                title={
+                  downloadsAllowed
+                    ? "Download MP4 (converts WebM when needed)"
+                    : "Downloads unlock on Sync and Nexus"
+                }
+                disabled={mp4Exporting}
+                onClick={() => void handleDownload(row, "mp4")}
+                className={`rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold hover:bg-teal-50 disabled:opacity-40 ${
+                  downloadsAllowed ? "text-slate-700" : "text-slate-400"
+                }`}
+              >
+                {mp4Exporting ? "…" : "MP4"}
+              </button>
+              <button
+                type="button"
+                title={
+                  downloadsAllowed
+                    ? "Download original file"
+                    : "Downloads unlock on Sync and Nexus"
+                }
+                onClick={() => void handleDownload(row, "native")}
+                className={`rounded-lg p-2 hover:bg-teal-50 hover:text-teal-700 ${
+                  downloadsAllowed ? "text-slate-600" : "text-slate-400"
+                }`}
+              >
+                <Download className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                title={
+                  downloadsAllowed
+                    ? "Share to apps"
+                    : "Sharing unlocks on Sync and Nexus"
+                }
+                onClick={() => void handleShare(row)}
+                className={`rounded-lg p-2 hover:bg-teal-50 hover:text-teal-700 ${
+                  downloadsAllowed ? "text-slate-600" : "text-slate-400"
+                }`}
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 title="Delete from this device"

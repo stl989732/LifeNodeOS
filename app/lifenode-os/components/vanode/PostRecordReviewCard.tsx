@@ -339,39 +339,47 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
             </div>
           ) : null}
 
-          {downloadsAllowed ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
-              >
-                <Download className="h-3.5 w-3.5" />
-                WebM
-              </button>
-              <button
-                type="button"
-                disabled={mp4Exporting}
-                onClick={() => void handleDownloadMp4()}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
-              >
-                <Download className="h-3.5 w-3.5" />
-                {mp4Exporting ? "MP4…" : "MP4"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleShare()}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                Share
-              </button>
-            </div>
-          ) : (
+          {/* Buttons always visible; click enforces the plan (Core gets an
+              upgrade prompt) so paid users never lose downloads to a slow
+              plan fetch. */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleDownload}
+              className={`inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 ${
+                downloadsAllowed ? "" : "opacity-60"
+              }`}
+            >
+              <Download className="h-3.5 w-3.5" />
+              WebM
+            </button>
+            <button
+              type="button"
+              disabled={mp4Exporting}
+              onClick={() => void handleDownloadMp4()}
+              className={`inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50 ${
+                downloadsAllowed ? "" : "opacity-60"
+              }`}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {mp4Exporting ? "MP4…" : "MP4"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              className={`inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 ${
+                downloadsAllowed ? "" : "opacity-60"
+              }`}
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Share
+            </button>
+          </div>
+          {!downloadsAllowed ? (
             <p className="text-[10px] text-white/50">
               Watch here on Core — upgrade to Sync or Nexus to download and share.
             </p>
-          )}
+          ) : null}
           {record ? (
             <p className="truncate text-[10px] text-white/50">{record.filename}</p>
           ) : null}

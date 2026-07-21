@@ -81,7 +81,8 @@ export function ScreenRecorder({ onError }: Props) {
         <span>
           Include camera{" "}
           <span className="text-xs text-slate-500">
-            (webcam picture-in-picture in the recording — off by default)
+            (webcam picture-in-picture in the recording + live floating
+            self-view — off by default)
           </span>
         </span>
       </label>
@@ -90,9 +91,10 @@ export function ScreenRecorder({ onError }: Props) {
         picker, choose <strong>Window</strong> or <strong>Entire screen</strong>{" "}
         (not <strong>Tab</strong>) if you plan to hop nodes — Tab share often stops
         when you leave VANode. Enable <strong>Share tab audio</strong> for system
-        sound. Turn on <strong>Include camera</strong> only when you want your face
-        in the corner of the capture (browser will ask for camera permission). Use
-        the floating pill to stop. {captureLimit}.{" "}
+        sound. Turn on <strong>Include camera</strong> to put your face in the
+        corner of the capture — while recording, a floating self-view shows you
+        live and you can drag it anywhere, switch circle/square, and pick small
+        or large. Use the floating pill to stop. {captureLimit}.{" "}
         {entitlements.maxScreenCaptureMinutes}-minute max per session. Captures
         auto-save to VANode → EOD proof of work → Saved on this device.
         {entitlements.screenCapturesDownloadable

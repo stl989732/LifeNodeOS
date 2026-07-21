@@ -137,13 +137,8 @@ export function PlanEntitlementsProvider({ children }: { children: ReactNode }) 
         planOverride: data.planOverride ?? null,
       });
     } catch {
-      setSnapshot({
-        plan: "core",
-        isPaid: false,
-        displayName: DEFAULT_ENTITLEMENTS.displayName,
-        entitlements: DEFAULT_ENTITLEMENTS,
-        planOverride: null,
-      });
+      // Keep the last known plan on transient fetch failures so paid users
+      // don't get silently downgraded to Core UI (e.g. hidden download buttons).
     } finally {
       setLoading(false);
     }
