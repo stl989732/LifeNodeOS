@@ -39,6 +39,8 @@ type ScreenRecordingState = {
   saving: boolean;
   includeMic: boolean;
   setIncludeMic: (v: boolean) => void;
+  includeCamera: boolean;
+  setIncludeCamera: (v: boolean) => void;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   togglePause: () => void;
@@ -87,6 +89,7 @@ function ScreenRecordingFloatingPill({
   paused,
   seconds,
   includeMic,
+  includeCamera,
   onTogglePause,
   onStop,
 }: {
@@ -94,6 +97,7 @@ function ScreenRecordingFloatingPill({
   paused: boolean;
   seconds: number;
   includeMic: boolean;
+  includeCamera: boolean;
   onTogglePause: () => void;
   onStop: () => void;
 }) {
@@ -133,7 +137,14 @@ function ScreenRecordingFloatingPill({
         </span>
       </div>
       <span className="text-xs text-white/50">
-        {includeMic ? "Screen + mic" : "Screen"} · use Window share to hop nodes
+        {includeCamera && includeMic
+          ? "Screen + cam + mic"
+          : includeCamera
+            ? "Screen + cam"
+            : includeMic
+              ? "Screen + mic"
+              : "Screen"}{" "}
+        · use Window share to hop nodes
         {paused ? " · paused" : ""}
       </span>
       <button
@@ -166,25 +177,145 @@ function ScreenRecordingFloatingPill({
 
 async function buildRecordingStream(
   includeMic: boolean,
-  onMicWarning?: (message: string) => void,
+  includeCamera: boolean,
+  onWarning?: (message: string) => void,
 ): Promise<{ stream: MediaStream; cleanup: () => void }> {
   const displayStream = await navigator.mediaDevices.getDisplayMedia({
     video: true,
     audio: true,
   });
 
-  const videoTracks = displayStream.getVideoTracks();
+  const displayVideoTracks = displayStream.getVideoTracks();
   const displayAudioTracks = displayStream.getAudioTracks();
-  const combinedTracks: MediaStreamTrack[] = [...videoTracks];
 
   let micStream: MediaStream | null = null;
+  let cameraStream: MediaStream | null = null;
   let audioContext: AudioContext | null = null;
+  let rafId = 0;
+  let canvasStream: MediaStream | null = null;
+  const hiddenEls: HTMLElement[] = [];
 
   const cleanup = () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    canvasStream?.getTracks().forEach((t) => t.stop());
     displayStream.getTracks().forEach((t) => t.stop());
     micStream?.getTracks().forEach((t) => t.stop());
+    cameraStream?.getTracks().forEach((t) => t.stop());
     void audioContext?.close();
+    hiddenEls.forEach((el) => el.remove());
   };
+
+  const playHiddenVideo = async (media: MediaStream) => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "true");
+    video.style.cssText =
+      "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;top:0";
+    video.srcObject = media;
+    document.body.appendChild(video);
+    hiddenEls.push(video);
+    await video.play();
+    return video;
+  };
+
+  const combinedTracks: MediaStreamTrack[] = [];
+
+  if (includeCamera) {
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: false,
+      });
+    } catch {
+      onWarning?.(
+        "Camera blocked or unavailable — recording screen only. Allow camera in site settings to include yourself.",
+      );
+      cameraStream = null;
+    }
+  }
+
+  if (cameraStream) {
+    const screenVideo = await playHiddenVideo(
+      new MediaStream(displayVideoTracks),
+    );
+    const cameraVideo = await playHiddenVideo(cameraStream);
+
+    // Wait briefly for dimensions when the share just started.
+    await new Promise((r) => window.setTimeout(r, 120));
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText =
+      "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;top:0";
+    document.body.appendChild(canvas);
+    hiddenEls.push(canvas);
+
+    const width = screenVideo.videoWidth || 1280;
+    const height = screenVideo.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      displayVideoTracks.forEach((t) => combinedTracks.push(t));
+      onWarning?.("Could not composite camera — recording screen only.");
+    } else {
+      const draw = () => {
+        if (screenVideo.videoWidth > 0 && screenVideo.videoHeight > 0) {
+          if (
+            canvas.width !== screenVideo.videoWidth ||
+            canvas.height !== screenVideo.videoHeight
+          ) {
+            canvas.width = screenVideo.videoWidth;
+            canvas.height = screenVideo.videoHeight;
+          }
+        }
+        ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
+
+        const pipW = Math.max(120, Math.round(canvas.width * 0.2));
+        const camAspect =
+          (cameraVideo.videoWidth || 4) / (cameraVideo.videoHeight || 3);
+        const pipH = Math.round(pipW / camAspect);
+        const margin = Math.max(12, Math.round(canvas.width * 0.02));
+        const x = canvas.width - pipW - margin;
+        const y = canvas.height - pipH - margin;
+
+        ctx.save();
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") {
+          ctx.roundRect(x, y, pipW, pipH, 14);
+        } else {
+          ctx.rect(x, y, pipW, pipH);
+        }
+        ctx.closePath();
+        ctx.clip();
+        // Mirror webcam so it feels natural.
+        ctx.translate(x + pipW, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(cameraVideo, 0, 0, pipW, pipH);
+        ctx.restore();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+        ctx.lineWidth = Math.max(2, Math.round(canvas.width * 0.0025));
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") {
+          ctx.roundRect(x, y, pipW, pipH, 14);
+        } else {
+          ctx.rect(x, y, pipW, pipH);
+        }
+        ctx.stroke();
+
+        rafId = requestAnimationFrame(draw);
+      };
+      draw();
+      canvasStream = canvas.captureStream(30);
+      canvasStream.getVideoTracks().forEach((t) => combinedTracks.push(t));
+    }
+  } else {
+    displayVideoTracks.forEach((t) => combinedTracks.push(t));
+  }
 
   if (includeMic) {
     try {
@@ -212,7 +343,7 @@ async function buildRecordingStream(
       dest.stream.getAudioTracks().forEach((t) => combinedTracks.push(t));
     } catch {
       displayAudioTracks.forEach((t) => combinedTracks.push(t));
-      onMicWarning?.(
+      onWarning?.(
         "Microphone blocked — recording screen with system/tab audio only.",
       );
     }
@@ -222,7 +353,7 @@ async function buildRecordingStream(
 
   const stream = new MediaStream(combinedTracks);
   if (stream.getAudioTracks().length === 0 && includeMic) {
-    onMicWarning?.(
+    onWarning?.(
       "No audio captured — enable “Share tab audio” in the browser picker and/or allow the microphone.",
     );
   }
@@ -254,6 +385,7 @@ export function ScreenRecordingProvider({
   const [seconds, setSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
   const [includeMic, setIncludeMic] = useState(true);
+  const [includeCamera, setIncludeCamera] = useState(false);
   const [lastSavedId, setLastSavedId] = useState<string | null>(null);
   const [lastWarning, setLastWarning] = useState<string | null>(null);
   const [reviewCaptureId, setReviewCaptureIdState] = useState<string | null>(
@@ -283,6 +415,7 @@ export function ScreenRecordingProvider({
   const autoStopRef = useRef(false);
   const durationRef = useRef(0);
   const includeMicRef = useRef(includeMic);
+  const includeCameraRef = useRef(includeCamera);
   const mimeRef = useRef({ mimeType: "video/webm", ext: "webm" });
   const savingRef = useRef(false);
 
@@ -381,6 +514,10 @@ export function ScreenRecordingProvider({
   useEffect(() => {
     includeMicRef.current = includeMic;
   }, [includeMic]);
+
+  useEffect(() => {
+    includeCameraRef.current = includeCamera;
+  }, [includeCamera]);
 
   const stopTracks = useCallback(() => {
     cleanupRef.current?.();
@@ -489,6 +626,7 @@ export function ScreenRecordingProvider({
     try {
       const { stream, cleanup } = await buildRecordingStream(
         includeMicRef.current,
+        includeCameraRef.current,
         notifyWarning,
       );
       cleanupRef.current = cleanup;
@@ -587,6 +725,8 @@ export function ScreenRecordingProvider({
         saving,
         includeMic,
         setIncludeMic,
+        includeCamera,
+        setIncludeCamera,
         startRecording,
         stopRecording,
         togglePause,
@@ -601,6 +741,7 @@ export function ScreenRecordingProvider({
         paused={paused}
         seconds={seconds}
         includeMic={includeMic}
+        includeCamera={includeCamera}
         onTogglePause={togglePause}
         onStop={stopRecording}
       />

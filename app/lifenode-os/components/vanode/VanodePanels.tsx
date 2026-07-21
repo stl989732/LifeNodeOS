@@ -265,7 +265,7 @@ export function EodReporterCard({
           </h2>
           <p className="mt-1 text-sm text-slate-600">
             Local-first logs. Screen captures save as video on this device (MP4 or
-            WebM) with optional mic narration; cloud sync is optional.
+            WebM) with optional mic narration and camera PiP; cloud sync is optional.
           </p>
         </div>
       </div>
