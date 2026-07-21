@@ -149,6 +149,43 @@ export async function uploadScreenCaptureToCloud(
   }
 }
 
+/**
+ * Explicitly uploads a capture (if needed) and creates a private, expiring
+ * client link. This is separate from the cloud-sync opt-in: clicking Copy link
+ * is the user's affirmative choice to upload this specific recording.
+ */
+export async function createScreenCaptureShareLink(
+  record: ScreenCaptureRecord,
+  blob: Blob,
+): Promise<{ url: string; expiresAt: string }> {
+  if (typeof window === "undefined") {
+    throw new Error("Share links are only available in the browser.");
+  }
+
+  if (!record.cloudSynced) {
+    const uploaded = await uploadScreenCaptureToCloud(record, blob);
+    if (!uploaded) {
+      throw new Error("Could not upload this recording for sharing.");
+    }
+  }
+
+  const response = await fetch(
+    `/api/vanode/screen-captures/${encodeURIComponent(record.id)}/share`,
+    {
+      method: "POST",
+      credentials: "include",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      response.status === 403
+        ? "Recording links are available on Sync and Nexus."
+        : "Could not create a recording link.",
+    );
+  }
+  return (await response.json()) as { url: string; expiresAt: string };
+}
+
 export async function fetchScreenCaptureBlobFromCloud(
   id: string,
 ): Promise<Blob | null> {

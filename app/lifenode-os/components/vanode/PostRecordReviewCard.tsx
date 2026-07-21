@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Download,
+  Link2,
   Minus,
   Share2,
   X,
@@ -22,6 +23,7 @@ import { fixCaptureBlobDuration } from "@/lib/vanode/fixCaptureBlobDuration";
 import { useDraggableFloatingPosition } from "@/src/components/vanode/useDraggableFloatingPosition";
 import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 import { screenCaptureDownloadBlockedMessage } from "@/src/lib/billing/screenCapturePlan";
+import { createScreenCaptureShareLink } from "@/lib/vanode/screenCaptureSync";
 
 type Props = {
   captureId: string | null;
@@ -41,6 +43,7 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
   const [duration, setDuration] = useState(0);
   const [trimming, setTrimming] = useState(false);
   const [mp4Exporting, setMp4Exporting] = useState(false);
+  const [linking, setLinking] = useState(false);
   const [playError, setPlayError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrlRef = useRef<string | null>(null);
@@ -196,6 +199,27 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     else if (result === "cancelled") onToast?.("Share cancelled.");
     else onToast?.("Could not share — try Download.");
   }, [blob, onToast, record, requireDownloadAccess]);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!blob || !record || linking) return;
+    if (!requireDownloadAccess()) return;
+    setLinking(true);
+    try {
+      const { url } = await createScreenCaptureShareLink(record, blob);
+      try {
+        await navigator.clipboard.writeText(url);
+        onToast?.("Private recording link copied — it expires in 7 days.");
+      } catch {
+        window.prompt("Copy this private recording link:", url);
+      }
+    } catch (error) {
+      onToast?.(
+        error instanceof Error ? error.message : "Could not create a recording link.",
+      );
+    } finally {
+      setLinking(false);
+    }
+  }, [blob, linking, onToast, record, requireDownloadAccess]);
 
   const handleDownload = useCallback(() => {
     if (!blob || !record) return;
@@ -363,6 +387,18 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
             >
               <Download className="h-3.5 w-3.5" />
               {mp4Exporting ? "MP4…" : "MP4"}
+            </button>
+            <button
+              type="button"
+              disabled={linking}
+              onClick={() => void handleCopyLink()}
+              className={`inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50 ${
+                downloadsAllowed ? "" : "opacity-60"
+              }`}
+              title="Copy private client link (expires in 7 days)"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              {linking ? "Link…" : "Copy link"}
             </button>
             <button
               type="button"

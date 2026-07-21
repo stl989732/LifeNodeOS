@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Cloud, Download, Play, Share2, Trash2, X } from "lucide-react";
+import { Cloud, Download, Link2, Play, Share2, Trash2, X } from "lucide-react";
 import { useActiveClientOptional } from "./ActiveClientContext";
 import {
   deleteScreenCapture,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/vanode/screenCaptureStorage";
 import { remuxBlobToMp4 } from "@/lib/vanode/videoMp4Export";
 import { fixCaptureBlobDuration } from "@/lib/vanode/fixCaptureBlobDuration";
+import { createScreenCaptureShareLink } from "@/lib/vanode/screenCaptureSync";
 import { usePlanEntitlements } from "@/src/context/PlanEntitlementsContext";
 import { screenCaptureDownloadBlockedMessage } from "@/src/lib/billing/screenCapturePlan";
 
@@ -40,6 +41,7 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const [playLoading, setPlayLoading] = useState(false);
   const [playError, setPlayError] = useState(false);
   const [mp4Exporting, setMp4Exporting] = useState(false);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
   const playUrlRef = useRef<string | null>(null);
   const playingRowRef = useRef<ScreenCaptureRecord | null>(null);
   const loadedPlayRef = useRef<{ id: string; size: number } | null>(null);
@@ -231,6 +233,31 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
     else onToast?.("Could not share — try Download.");
   };
 
+  const handleCopyLink = async (row: ScreenCaptureRecord) => {
+    if (!requireDownloadAccess() || linkingId) return;
+    const blob = await getScreenCaptureBlob(row.id);
+    if (!blob) {
+      onToast?.("Capture file missing.");
+      return;
+    }
+    setLinkingId(row.id);
+    try {
+      const { url } = await createScreenCaptureShareLink(row, blob);
+      try {
+        await navigator.clipboard.writeText(url);
+        onToast?.("Private recording link copied — it expires in 7 days.");
+      } catch {
+        window.prompt("Copy this private recording link:", url);
+      }
+    } catch (error) {
+      onToast?.(
+        error instanceof Error ? error.message : "Could not create a recording link.",
+      );
+    } finally {
+      setLinkingId(null);
+    }
+  };
+
   const handleDelete = async (row: ScreenCaptureRecord) => {
     await deleteScreenCapture(row.id);
     setRows((prev) => prev.filter((r) => r.id !== row.id));
@@ -345,6 +372,21 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
                 }`}
               >
                 <Download className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                disabled={linkingId === row.id}
+                title={
+                  downloadsAllowed
+                    ? "Copy private client link (expires in 7 days)"
+                    : "Sharing links unlock on Sync and Nexus"
+                }
+                onClick={() => void handleCopyLink(row)}
+                className={`rounded-lg p-2 hover:bg-teal-50 hover:text-teal-700 disabled:opacity-40 ${
+                  downloadsAllowed ? "text-slate-600" : "text-slate-400"
+                }`}
+              >
+                <Link2 className="h-4 w-4" />
               </button>
               <button
                 type="button"

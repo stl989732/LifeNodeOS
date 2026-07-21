@@ -195,35 +195,19 @@ async function buildRecordingStream(
   let micStream: MediaStream | null = null;
   let cameraStream: MediaStream | null = null;
   let audioContext: AudioContext | null = null;
-  let rafId = 0;
-  let canvasStream: MediaStream | null = null;
-  const hiddenEls: HTMLElement[] = [];
 
   const cleanup = () => {
-    if (rafId) cancelAnimationFrame(rafId);
-    canvasStream?.getTracks().forEach((t) => t.stop());
     displayStream.getTracks().forEach((t) => t.stop());
     micStream?.getTracks().forEach((t) => t.stop());
     cameraStream?.getTracks().forEach((t) => t.stop());
     void audioContext?.close();
-    hiddenEls.forEach((el) => el.remove());
   };
 
-  const playHiddenVideo = async (media: MediaStream) => {
-    const video = document.createElement("video");
-    video.muted = true;
-    video.playsInline = true;
-    video.setAttribute("playsinline", "true");
-    video.style.cssText =
-      "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;top:0";
-    video.srcObject = media;
-    document.body.appendChild(video);
-    hiddenEls.push(video);
-    await video.play();
-    return video;
-  };
-
-  const combinedTracks: MediaStreamTrack[] = [];
+  // Record the selected display surface directly. The camera is rendered once
+  // as the draggable DOM self-view below, so sharing the LifeNode window or
+  // entire screen captures that chosen position/shape without a second fixed
+  // camera box being composited into the bottom-right corner.
+  const combinedTracks: MediaStreamTrack[] = [...displayVideoTracks];
 
   if (includeCamera) {
     try {
@@ -241,84 +225,6 @@ async function buildRecordingStream(
       );
       cameraStream = null;
     }
-  }
-
-  if (cameraStream) {
-    const screenVideo = await playHiddenVideo(
-      new MediaStream(displayVideoTracks),
-    );
-    const cameraVideo = await playHiddenVideo(cameraStream);
-
-    // Wait briefly for dimensions when the share just started.
-    await new Promise((r) => window.setTimeout(r, 120));
-    const canvas = document.createElement("canvas");
-    canvas.style.cssText =
-      "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;top:0";
-    document.body.appendChild(canvas);
-    hiddenEls.push(canvas);
-
-    const width = screenVideo.videoWidth || 1280;
-    const height = screenVideo.videoHeight || 720;
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      displayVideoTracks.forEach((t) => combinedTracks.push(t));
-      onWarning?.("Could not composite camera — recording screen only.");
-    } else {
-      const draw = () => {
-        if (screenVideo.videoWidth > 0 && screenVideo.videoHeight > 0) {
-          if (
-            canvas.width !== screenVideo.videoWidth ||
-            canvas.height !== screenVideo.videoHeight
-          ) {
-            canvas.width = screenVideo.videoWidth;
-            canvas.height = screenVideo.videoHeight;
-          }
-        }
-        ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
-
-        const pipW = Math.max(120, Math.round(canvas.width * 0.2));
-        const camAspect =
-          (cameraVideo.videoWidth || 4) / (cameraVideo.videoHeight || 3);
-        const pipH = Math.round(pipW / camAspect);
-        const margin = Math.max(12, Math.round(canvas.width * 0.02));
-        const x = canvas.width - pipW - margin;
-        const y = canvas.height - pipH - margin;
-
-        ctx.save();
-        ctx.beginPath();
-        if (typeof ctx.roundRect === "function") {
-          ctx.roundRect(x, y, pipW, pipH, 14);
-        } else {
-          ctx.rect(x, y, pipW, pipH);
-        }
-        ctx.closePath();
-        ctx.clip();
-        // Mirror webcam so it feels natural.
-        ctx.translate(x + pipW, y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(cameraVideo, 0, 0, pipW, pipH);
-        ctx.restore();
-
-        ctx.strokeStyle = "rgba(255,255,255,0.9)";
-        ctx.lineWidth = Math.max(2, Math.round(canvas.width * 0.0025));
-        ctx.beginPath();
-        if (typeof ctx.roundRect === "function") {
-          ctx.roundRect(x, y, pipW, pipH, 14);
-        } else {
-          ctx.rect(x, y, pipW, pipH);
-        }
-        ctx.stroke();
-
-        rafId = requestAnimationFrame(draw);
-      };
-      draw();
-      canvasStream = canvas.captureStream(30);
-      canvasStream.getVideoTracks().forEach((t) => combinedTracks.push(t));
-    }
-  } else {
-    displayVideoTracks.forEach((t) => combinedTracks.push(t));
   }
 
   if (includeMic) {
