@@ -261,6 +261,31 @@ export async function deleteScreenCapture(id: string): Promise<void> {
   writeManifest(readManifest().filter((r) => r.id !== id));
 }
 
+export function renameScreenCapture(
+  id: string,
+  requestedName: string,
+): ScreenCaptureRecord | null {
+  const rows = readManifest();
+  const current = rows.find((row) => row.id === id);
+  if (!current) return null;
+
+  const currentExtension =
+    current.filename.match(/\.(webm|mp4)$/i)?.[0].toLowerCase() ??
+    (current.mimeType.includes("mp4") ? ".mp4" : ".webm");
+  const safeBase = requestedName
+    .trim()
+    .replace(/\.(webm|mp4)$/i, "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/[.\s-]+$/g, "")
+    .slice(0, 120);
+  if (!safeBase) return null;
+
+  const renamed = { ...current, filename: `${safeBase}${currentExtension}` };
+  writeManifest(rows.map((row) => (row.id === id ? renamed : row)));
+  return renamed;
+}
+
 export function downloadScreenCapture(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

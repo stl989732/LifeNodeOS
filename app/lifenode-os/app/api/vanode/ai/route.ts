@@ -103,6 +103,10 @@ export async function POST(request: Request) {
     const session = await auth();
     const userId = session?.user?.id;
     if (!userId) return unauthorized();
+    const senderName =
+      session.user.name?.trim() ||
+      session.user.email?.split("@")[0]?.trim() ||
+      "Your VA";
 
     const rateLimited = await enforceAiRateLimit(userId);
     if (rateLimited) return rateLimited;
@@ -275,9 +279,10 @@ Follow-ups`,
       const timeSpent = (body.timeSpent ?? "").trim();
       const blockers = (body.blockers ?? "").trim();
       const text = await callGeminiText(
-        `You are Linos, an executive assistant drafting an end-of-day client email on behalf of a virtual assistant.
+        `Draft an end-of-day client email on behalf of ${senderName}. The sender is the authenticated LifeNode OS account owner—not Linos or an AI assistant.
 
 Client: ${clientName}
+Sender: ${senderName}
 
 Today's work notes:
 """
@@ -296,6 +301,8 @@ Write a complete, send-ready email that:
 - Mentions time investment only when it adds context
 - Surfaces blockers as clear asks with suggested next steps
 - Closes with confidence and a concrete next touchpoint
+- Signs off as ${senderName}
+- Never signs as Linos and never mentions Linos, AI, or automated generation
 - Sounds human-written, not like a bullet dump or AI template
 
 Return ONLY valid JSON:
@@ -328,8 +335,9 @@ Return ONLY valid JSON:
               .join("\n\n")
           : "No EOD logs in the selected window.";
       const text = await callGeminiText(
-        `You are Linos, drafting a weekly EOD digest for a VA to send internally or to ${clientName}.
+        `Draft a weekly EOD digest on behalf of ${senderName}, the authenticated LifeNode OS account owner, to send internally or to ${clientName}.
 
+Sender: ${senderName}
 EOD logs (last 7 days):
 """
 ${logText.slice(0, 12000)}
@@ -340,6 +348,8 @@ Write a polished weekly recap that:
 - Groups wins by theme (delivery, ops, comms) with specific references
 - Calls out patterns, risks, and carry-over items
 - Ends with priorities for next week
+- Ends with a brief sign-off from ${senderName}
+- Never signs as Linos and never mentions Linos, AI, or automated generation
 - Professional tone — executive briefing, not a truncated list
 
 Return ONLY valid JSON:

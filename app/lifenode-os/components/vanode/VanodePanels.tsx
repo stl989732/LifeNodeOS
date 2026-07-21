@@ -407,7 +407,7 @@ export function EodReporterCard({
                 const data = (await res.json()) as { draft?: string; error?: string };
                 if (res.ok && typeof data.draft === "string" && data.draft.trim()) {
                   setLinosDraft(data.draft.trim());
-                  setToast("Linos drafted a personalized client email.");
+                  setToast("Your personalized client email is ready.");
                 } else {
                   setToast(data.error ?? "Could not generate email — try again.");
                 }
@@ -471,7 +471,7 @@ export function EodReporterCard({
           className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/80 px-4 py-2 text-xs font-bold uppercase tracking-wide text-teal-900 hover:bg-teal-100/90 disabled:opacity-50"
         >
           <Sparkles className="h-3.5 w-3.5" />
-          {generatingEmail ? "Drafting…" : "Weekly EOD (Linos)"}
+          {generatingEmail ? "Drafting…" : "Weekly EOD"}
         </button>
       </div>
 
@@ -479,9 +479,9 @@ export function EodReporterCard({
         <div className="mt-4 rounded-2xl border border-violet-200/60 bg-violet-50/40 p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-xs font-bold uppercase text-violet-900">
-              Linos draft · copy into email or Slack
+              EOD draft · sent from your account
             </div>
-            <CopyTextButton text={linosDraft} iconOnly label="Copy Linos draft" />
+            <CopyTextButton text={linosDraft} iconOnly label="Copy EOD draft" />
           </div>
           <textarea
             readOnly

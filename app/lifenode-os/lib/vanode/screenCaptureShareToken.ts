@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 const SHARE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
@@ -9,6 +9,7 @@ type ScreenCaptureSharePayload = {
   captureId: string;
   filename: string;
   mimeType: string;
+  nonce: string;
   expiresAt: number;
 };
 
@@ -27,11 +28,16 @@ function sign(encodedPayload: string): string {
 }
 
 export function createScreenCaptureShareToken(
-  payload: Omit<ScreenCaptureSharePayload, "expiresAt">,
+  payload: Omit<ScreenCaptureSharePayload, "expiresAt" | "nonce">,
 ): { token: string; expiresAt: string } {
   const expiresAt = Math.floor(Date.now() / 1000) + SHARE_TTL_SECONDS;
+  const nonce = randomBytes(16).toString("base64url");
   const encodedPayload = Buffer.from(
-    JSON.stringify({ ...payload, expiresAt } satisfies ScreenCaptureSharePayload),
+    JSON.stringify({
+      ...payload,
+      nonce,
+      expiresAt,
+    } satisfies ScreenCaptureSharePayload),
   ).toString("base64url");
   return {
     token: `${encodedPayload}.${sign(encodedPayload)}`,
@@ -60,6 +66,7 @@ export function verifyScreenCaptureShareToken(
       !payload.captureId ||
       !payload.filename ||
       !payload.mimeType ||
+      !payload.nonce ||
       !Number.isFinite(payload.expiresAt) ||
       payload.expiresAt <= Math.floor(Date.now() / 1000)
     ) {

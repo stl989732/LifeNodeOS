@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Cloud, Download, Link2, Play, Share2, Trash2, X } from "lucide-react";
+import {
+  Cloud,
+  Download,
+  Link2,
+  MoreVertical,
+  Pencil,
+  Play,
+  Share2,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useActiveClientOptional } from "./ActiveClientContext";
 import {
   deleteScreenCapture,
@@ -11,6 +21,7 @@ import {
   getScreenCaptureBlob,
   listScreenCaptures,
   normalizeCaptureBlob,
+  renameScreenCapture,
   shareScreenCapture,
   type ScreenCaptureRecord,
 } from "@/lib/vanode/screenCaptureStorage";
@@ -42,6 +53,9 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const [playError, setPlayError] = useState(false);
   const [mp4Exporting, setMp4Exporting] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const playUrlRef = useRef<string | null>(null);
   const playingRowRef = useRef<ScreenCaptureRecord | null>(null);
   const loadedPlayRef = useRef<{ id: string; size: number } | null>(null);
@@ -49,6 +63,23 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   useEffect(() => {
     playingRowRef.current = playingRow;
   }, [playingRow]);
+
+  useEffect(() => {
+    const closeMenu = (event: PointerEvent) => {
+      if (!(event.target as HTMLElement).closest("[data-capture-menu]")) {
+        setOpenMenuId(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenMenuId(null);
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
 
   const visibleRows = useMemo(() => {
     if (!activeClientId) return rows;
@@ -261,7 +292,28 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
   const handleDelete = async (row: ScreenCaptureRecord) => {
     await deleteScreenCapture(row.id);
     setRows((prev) => prev.filter((r) => r.id !== row.id));
+    setOpenMenuId(null);
     onToast?.("Capture removed from this device.");
+  };
+
+  const beginRename = (row: ScreenCaptureRecord) => {
+    setRenamingId(row.id);
+    setRenameDraft(row.filename.replace(/\.(webm|mp4)$/i, ""));
+    setOpenMenuId(null);
+  };
+
+  const submitRename = (row: ScreenCaptureRecord) => {
+    const renamed = renameScreenCapture(row.id, renameDraft);
+    if (!renamed) {
+      onToast?.("Enter a valid recording name.");
+      return;
+    }
+    setRows((prev) =>
+      prev.map((item) => (item.id === renamed.id ? renamed : item)),
+    );
+    setRenamingId(null);
+    setRenameDraft("");
+    onToast?.("Recording renamed.");
   };
 
   if (loading && rows.length === 0) {
@@ -293,32 +345,67 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
             key={row.id}
             className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/70 bg-white/60 px-3 py-2"
           >
-            <button
-              type="button"
-              onClick={() => handlePlay(row)}
-              className="min-w-0 flex-1 text-left hover:opacity-90"
-              title="Watch capture"
-            >
-              <p className="truncate text-sm font-medium text-slate-800">
-                {row.filename}
-              </p>
-              <p className="text-[11px] text-slate-500">
-                {new Date(row.createdAt).toLocaleString()} ·{" "}
-                {formatCaptureSize(row.sizeBytes)} ·{" "}
-                {row.durationSec >= 60
-                  ? `${Math.floor(row.durationSec / 60)}m ${row.durationSec % 60}s`
-                  : `${row.durationSec}s`}
-                {row.includeMic ? " · mic" : ""} ·{" "}
-                {isMp4 ? "MP4" : "WebM"}
-                {row.cloudSynced ? (
-                  <span className="ml-1 inline-flex items-center gap-0.5 text-teal-700">
-                    <Cloud className="inline h-3 w-3" />
-                    cloud
-                  </span>
-                ) : null}
-              </p>
-            </button>
-            <div className="flex shrink-0 flex-wrap items-center gap-1">
+            {renamingId === row.id ? (
+              <form
+                className="flex min-w-0 flex-1 items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  submitRename(row);
+                }}
+              >
+                <label className="sr-only" htmlFor={`capture-name-${row.id}`}>
+                  Recording name
+                </label>
+                <input
+                  id={`capture-name-${row.id}`}
+                  autoFocus
+                  value={renameDraft}
+                  onChange={(event) => setRenameDraft(event.target.value)}
+                  maxLength={120}
+                  className="min-w-0 flex-1 rounded-lg border border-teal-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-teal-500/30"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-teal-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-teal-700"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRenamingId(null)}
+                  className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handlePlay(row)}
+                className="min-w-0 flex-1 text-left hover:opacity-90"
+                title="Watch capture"
+              >
+                <p className="truncate text-sm font-medium text-slate-800">
+                  {row.filename}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {new Date(row.createdAt).toLocaleString()} ·{" "}
+                  {formatCaptureSize(row.sizeBytes)} ·{" "}
+                  {row.durationSec >= 60
+                    ? `${Math.floor(row.durationSec / 60)}m ${row.durationSec % 60}s`
+                    : `${row.durationSec}s`}
+                  {row.includeMic ? " · mic" : ""} ·{" "}
+                  {isMp4 ? "MP4" : "WebM"}
+                  {row.cloudSynced ? (
+                    <span className="ml-1 inline-flex items-center gap-0.5 text-teal-700">
+                      <Cloud className="inline h-3 w-3" />
+                      cloud
+                    </span>
+                  ) : null}
+                </p>
+              </button>
+            )}
+            <div className="relative flex shrink-0 items-center gap-1" data-capture-menu>
               <button
                 type="button"
                 title="Watch"
@@ -327,89 +414,107 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
               >
                 <Play className="h-3.5 w-3.5" />
               </button>
-              {/* Always render download buttons — plan gating happens on click
-                  (Core users get the upgrade prompt) so Sync/Nexus never lose
-                  the button to a slow or failed plan fetch. */}
               <button
                 type="button"
-                title={
-                  downloadsAllowed
-                    ? "Download WebM"
-                    : "Downloads unlock on Sync and Nexus"
+                aria-label={`More actions for ${row.filename}`}
+                aria-haspopup="menu"
+                aria-expanded={openMenuId === row.id}
+                onClick={() =>
+                  setOpenMenuId((current) => (current === row.id ? null : row.id))
                 }
-                onClick={() => void handleDownload(row, "webm")}
-                className={`rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold hover:bg-teal-50 ${
-                  downloadsAllowed ? "text-slate-700" : "text-slate-400"
-                }`}
+                className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               >
-                WebM
+                <MoreVertical className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                title={
-                  downloadsAllowed
-                    ? "Download MP4 (converts WebM when needed)"
-                    : "Downloads unlock on Sync and Nexus"
-                }
-                disabled={mp4Exporting}
-                onClick={() => void handleDownload(row, "mp4")}
-                className={`rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold hover:bg-teal-50 disabled:opacity-40 ${
-                  downloadsAllowed ? "text-slate-700" : "text-slate-400"
-                }`}
-              >
-                {mp4Exporting ? "…" : "MP4"}
-              </button>
-              <button
-                type="button"
-                title={
-                  downloadsAllowed
-                    ? "Download original file"
-                    : "Downloads unlock on Sync and Nexus"
-                }
-                onClick={() => void handleDownload(row, "native")}
-                className={`rounded-lg p-2 hover:bg-teal-50 hover:text-teal-700 ${
-                  downloadsAllowed ? "text-slate-600" : "text-slate-400"
-                }`}
-              >
-                <Download className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                disabled={linkingId === row.id}
-                title={
-                  downloadsAllowed
-                    ? "Copy private client link (expires in 7 days)"
-                    : "Sharing links unlock on Sync and Nexus"
-                }
-                onClick={() => void handleCopyLink(row)}
-                className={`rounded-lg p-2 hover:bg-teal-50 hover:text-teal-700 disabled:opacity-40 ${
-                  downloadsAllowed ? "text-slate-600" : "text-slate-400"
-                }`}
-              >
-                <Link2 className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                title={
-                  downloadsAllowed
-                    ? "Share to apps"
-                    : "Sharing unlocks on Sync and Nexus"
-                }
-                onClick={() => void handleShare(row)}
-                className={`rounded-lg p-2 hover:bg-teal-50 hover:text-teal-700 ${
-                  downloadsAllowed ? "text-slate-600" : "text-slate-400"
-                }`}
-              >
-                <Share2 className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                title="Delete from this device"
-                onClick={() => void handleDelete(row)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {openMenuId === row.id ? (
+                <div
+                  role="menu"
+                  aria-label={`Actions for ${row.filename}`}
+                  className="absolute right-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => beginRename(row)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      void handleDownload(row, "webm");
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download WebM
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={mp4Exporting}
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      void handleDownload(row, "mp4");
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    {mp4Exporting ? "Preparing MP4…" : "Download MP4"}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      void handleDownload(row, "native");
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download original
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={linkingId === row.id}
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      void handleCopyLink(row);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    {linkingId === row.id ? "Creating link…" : "Copy client link"}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      void handleShare(row);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    Share to apps
+                  </button>
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => void handleDelete(row)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                </div>
+              ) : null}
             </div>
           </li>
         );
