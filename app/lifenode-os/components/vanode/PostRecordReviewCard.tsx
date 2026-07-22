@@ -206,6 +206,7 @@ export function PostRecordReviewCard({ captureId, onClose, onToast }: Props) {
     setLinking(true);
     try {
       const { url } = await createScreenCaptureShareLink(record, blob);
+      setRecord((prev) => (prev ? { ...prev, cloudSynced: true } : prev));
       try {
         await navigator.clipboard.writeText(url);
         onToast?.("Private recording link copied — it expires in 7 days.");

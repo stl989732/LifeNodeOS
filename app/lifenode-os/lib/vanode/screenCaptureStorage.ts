@@ -3,6 +3,7 @@
  * local IndexedDB remains the fast on-device cache.
  */
 import {
+  bindScreenCaptureUserScope,
   fetchScreenCaptureBlobFromCloud,
   getScreenCaptureManifestKey,
   persistScreenCaptureManifest,
@@ -22,6 +23,7 @@ export function setScreenCaptureCloudSync(enabled: boolean) {
 
 export function setScreenCaptureUserScope(userId: string | undefined) {
   captureUserScope = userId?.trim() || undefined;
+  bindScreenCaptureUserScope(captureUserScope);
 }
 
 function manifestKey() {

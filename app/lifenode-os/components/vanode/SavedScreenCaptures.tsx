@@ -274,6 +274,11 @@ export function SavedScreenCaptures({ refreshKey = 0, onToast }: Props) {
     setLinkingId(row.id);
     try {
       const { url } = await createScreenCaptureShareLink(row, blob);
+      setRows((prev) =>
+        prev.map((item) =>
+          item.id === row.id ? { ...item, cloudSynced: true } : item,
+        ),
+      );
       try {
         await navigator.clipboard.writeText(url);
         onToast?.("Private recording link copied — it expires in 7 days.");

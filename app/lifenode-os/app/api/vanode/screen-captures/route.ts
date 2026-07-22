@@ -7,11 +7,12 @@ import {
   NodeWidgetPersistenceError,
 } from "@/lib/node-widget-data-store";
 import { NODE_WIDGET_KEYS } from "@/lib/node-widget-keys";
+import { SCREEN_CAPTURE_MAX_BYTES } from "@/lib/vanode/screenCaptureLimits";
 
 export const runtime = "nodejs";
 
 const BUCKET = "user-screen-captures";
-const MAX_BYTES = 100 * 1024 * 1024;
+const MAX_BYTES = SCREEN_CAPTURE_MAX_BYTES;
 
 function unauthorized() {
   return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
